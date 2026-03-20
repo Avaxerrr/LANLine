@@ -1,4 +1,6 @@
+import 'dart:convert';
 import 'package:encrypt/encrypt.dart';
+import 'package:crypto/crypto.dart';
 
 class EncryptionManager {
   static final EncryptionManager _instance = EncryptionManager._internal();
@@ -9,16 +11,24 @@ class EncryptionManager {
   IV? _iv;
   Encrypter? _encrypter;
 
+  bool get isEnabled => _encrypter != null;
+
   void setPassword(String password) {
-    // Basic 256-bit AES key derivation using straightforward padding for LAN sync
-    final paddedPassword = password.padRight(32, '0').substring(0, 32);
-    _aesKey = Key.fromUtf8(paddedPassword);
+    // Deterministic SHA-256 key derivation — guarantees both sides get the exact same 32 bytes
+    final hash = sha256.convert(utf8.encode(password));
+    _aesKey = Key.fromBase16(hash.toString());
     _iv = IV.fromLength(16);
     _encrypter = Encrypter(AES(_aesKey!));
   }
 
+  void clearPassword() {
+    _aesKey = null;
+    _iv = null;
+    _encrypter = null;
+  }
+
   String encrypt(String plainText) {
-    if (_encrypter == null) return plainText; // Not securely joined yet
+    if (_encrypter == null) return plainText;
     return _encrypter!.encrypt(plainText, iv: _iv!).base64;
   }
 
@@ -27,7 +37,7 @@ class EncryptionManager {
     try {
       return _encrypter!.decrypt64(base64Text, iv: _iv!);
     } catch (e) {
-      return '{"type":"message", "sender":"System", "text":"[Encrypted Packet Unreadable]"}';
+      return '{"type":"error", "sender":"System", "text":"[Encrypted Packet Unreadable: Password Mismatch!]"}';
     }
   }
 }

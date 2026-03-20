@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert';
 import 'dart:io';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lanline/core/network/encryption_manager.dart';
@@ -29,6 +30,21 @@ class WebSocketServerService {
         socket.listen(
           (message) {
             final decrypted = EncryptionManager().decrypt(message.toString());
+            
+            try {
+              final data = jsonDecode(decrypted);
+              if (data['type'] == 'handshake') {
+                final ack = jsonEncode({'type': 'handshake_ack'});
+                socket.add(EncryptionManager().encrypt(ack));
+                return; // Do NOT broadcast handshake to Chatroom
+              } else if (data['type'] == 'error') {
+                socket.add(EncryptionManager().encrypt(jsonEncode({'type':'error', 'text': 'Wrong password'})));
+                return; // Do NOT spam the Host's Chatroom
+              }
+            } catch (e) {
+              // Ignore
+            }
+
             _messageController.add(decrypted);
             
             // Broadcast raw encrypted packet to other clients securely

@@ -1,4 +1,5 @@
 import 'dart:io' show Platform;
+import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
@@ -22,6 +23,7 @@ class _ClientScannerScreenState extends ConsumerState<ClientScannerScreen> {
   @override
   void initState() {
     super.initState();
+    EncryptionManager().clearPassword(); // Always start fresh
     _startDiscovery();
   }
 
@@ -37,6 +39,7 @@ class _ClientScannerScreenState extends ConsumerState<ClientScannerScreen> {
 
   @override
   void dispose() {
+    _ipController.dispose();
     ref.read(discoveryServiceProvider).stop();
     super.dispose();
   }
@@ -44,54 +47,122 @@ class _ClientScannerScreenState extends ConsumerState<ClientScannerScreen> {
   Future<void> _connectToIp(String ipAddress) async {
     if (_isConnecting || ipAddress.isEmpty) return;
 
+    // Ask if the room has a password
     final passCtrl = TextEditingController();
-    final bool? joined = await showDialog<bool>(
+    final result = await showDialog<String?>(
       context: context,
       builder: (ctx) => AlertDialog(
         backgroundColor: const Color(0xFF252525),
-        title: const Text('Enter Room Password', style: TextStyle(color: Colors.white)),
-        content: TextField(
-          controller: passCtrl,
-          keyboardType: TextInputType.number,
-          style: const TextStyle(color: Colors.white),
-          decoration: const InputDecoration(hintText: "4-Digit PIN", hintStyle: TextStyle(color: Colors.grey)),
+        title: const Text('Room Password', style: TextStyle(color: Colors.white)),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Text('If the host set a password, enter it below.\nLeave empty if no password was set.',
+                style: TextStyle(color: Colors.grey, fontSize: 13)),
+            const SizedBox(height: 16),
+            TextField(
+              controller: passCtrl,
+              style: const TextStyle(color: Colors.white),
+              decoration: const InputDecoration(
+                hintText: 'Password (optional)',
+                hintStyle: TextStyle(color: Colors.grey),
+              ),
+            ),
+          ],
         ),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel')),
+          TextButton(onPressed: () => Navigator.pop(ctx, null), child: const Text('Cancel')),
           TextButton(
-            onPressed: () {
-              if (passCtrl.text.isNotEmpty) {
-                EncryptionManager().setPassword(passCtrl.text);
-                Navigator.pop(ctx, true);
-              }
-            },
+            onPressed: () => Navigator.pop(ctx, passCtrl.text.trim()),
             child: const Text('Join'),
           ),
         ],
       ),
     );
-    
-    if (joined == true) {
-      setState(() => _isConnecting = true);
-      try {
-        await ref.read(webSocketClientProvider).connect(ipAddress);
+
+    if (result == null) return; // User canceled
+
+    // Set or clear encryption based on whether a password was entered
+    if (result.isNotEmpty) {
+      EncryptionManager().setPassword(result);
+    } else {
+      EncryptionManager().clearPassword();
+    }
+
+    setState(() => _isConnecting = true);
+    try {
+      final client = ref.read(webSocketClientProvider);
+      await client.connect(ipAddress);
+
+      if (!client.isConnected) {
         if (mounted) {
+          setState(() => _isConnecting = false);
           ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Connected securely!')),
-          );
-          Navigator.pushReplacement(
-            context,
-            MaterialPageRoute(builder: (context) => const ChatScreen(isHost: false)),
+            const SnackBar(content: Text('Could not connect. Is the host running?')),
           );
         }
-      } catch (e) {
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('Failed to connect: $e')),
-          );
-        }
-        setState(() => _isConnecting = false);
+        return;
       }
+
+      // If encryption is enabled, do a handshake to verify the password
+      if (EncryptionManager().isEnabled) {
+        final hsPayload = jsonEncode({'type': 'handshake', 'sender': 'Client'});
+        client.sendMessage(hsPayload);
+
+        try {
+          final response = await client.onMessageReceived
+              .firstWhere((msg) =>
+                  msg.contains('"type":"handshake_ack"') ||
+                  msg.contains('"type":"error"'))
+              .timeout(const Duration(seconds: 5));
+          final data = jsonDecode(response);
+
+          if (!mounted) return;
+
+          if (data['type'] == 'handshake_ack') {
+            // Password verified!
+            _goToChatRoom();
+          } else {
+            client.disconnect();
+            setState(() => _isConnecting = false);
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(content: Text('Incorrect password! Try again.')),
+            );
+          }
+        } catch (e) {
+          // Timeout or parse failure = password mismatch
+          if (mounted) {
+            client.disconnect();
+            setState(() => _isConnecting = false);
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(content: Text('Handshake timed out. Wrong password?')),
+            );
+          }
+        }
+      } else {
+        // No encryption — go straight to chat
+        _goToChatRoom();
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() => _isConnecting = false);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Connection failed: $e')),
+        );
+      }
+    }
+  }
+
+  void _goToChatRoom() {
+    if (mounted) {
+      setState(() => _isConnecting = false);
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Connected!')),
+      );
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(builder: (_) => const ChatScreen(isHost: false)),
+      );
     }
   }
 
@@ -102,7 +173,7 @@ class _ClientScannerScreenState extends ConsumerState<ClientScannerScreen> {
       final ipAddress = barcode.rawValue;
       if (ipAddress != null && ipAddress.isNotEmpty) {
         _connectToIp(ipAddress);
-        break; 
+        break;
       }
     }
   }

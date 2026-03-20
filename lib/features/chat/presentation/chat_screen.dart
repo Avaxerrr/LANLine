@@ -83,6 +83,11 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
             }
           }
         });
+      } else if (data['type'] == 'error') {
+        setState(() {
+          _messages.add(ChatMessage(sender: "System", text: data['text'], isMe: false));
+        });
+        _scrollToBottom();
       } else if (data['type'] == 'message') {
         final sender = data['sender'];
         final text = data['text'];

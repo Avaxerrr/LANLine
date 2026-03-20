@@ -11,19 +11,24 @@ class WebSocketClientService {
   WebSocket? _socket;
   final int _port = 55556;
   
-  final _messageController = StreamController<String>.broadcast();
+  var _messageController = StreamController<String>.broadcast();
   Stream<String> get onMessageReceived => _messageController.stream;
 
   bool get isConnected => _socket != null && _socket!.readyState == WebSocket.open;
 
   Future<void> connect(String ipAddress) async {
+    // Always close stale connections first
+    disconnect();
+    _messageController = StreamController<String>.broadcast();
     try {
       _socket = await WebSocket.connect('ws://$ipAddress:$_port');
       
       _socket?.listen(
         (message) {
           final decrypted = EncryptionManager().decrypt(message.toString());
-          _messageController.add(decrypted);
+          if (!_messageController.isClosed) {
+            _messageController.add(decrypted);
+          }
         },
         onDone: () {
           _socket = null;
@@ -45,8 +50,10 @@ class WebSocketClientService {
   }
 
   void disconnect() {
-    _socket?.close();
+    try { _socket?.close(); } catch (_) {}
     _socket = null;
-    _messageController.close();
+    if (!_messageController.isClosed) {
+      _messageController.close();
+    }
   }
 }

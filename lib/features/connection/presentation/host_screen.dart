@@ -15,13 +15,13 @@ class HostScreen extends ConsumerStatefulWidget {
 
 class _HostScreenState extends ConsumerState<HostScreen> {
   String? _localIp;
-  String? _roomPassword;
+  bool _enablePassword = false;
+  final TextEditingController _passwordController = TextEditingController();
 
   @override
   void initState() {
     super.initState();
-    _roomPassword = (1000 + DateTime.now().millisecondsSinceEpoch % 9000).toString();
-    EncryptionManager().setPassword(_roomPassword!);
+    EncryptionManager().clearPassword(); // Always start fresh
     _initHost();
   }
 
@@ -33,15 +33,33 @@ class _HostScreenState extends ConsumerState<HostScreen> {
     });
 
     if (ip != null) {
-      // Start the server to accept connections
       await ref.read(webSocketServerProvider).startServer();
-      // Start broadcasting mDNS/UDP presence
       await discoveryService.startBroadcasting();
     }
   }
 
+  void _enterChatRoom() {
+    if (_enablePassword) {
+      final pin = _passwordController.text.trim();
+      if (pin.isEmpty) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Please enter a password first!')),
+        );
+        return;
+      }
+      EncryptionManager().setPassword(pin);
+    } else {
+      EncryptionManager().clearPassword();
+    }
+    Navigator.pushReplacement(
+      context,
+      MaterialPageRoute(builder: (_) => const ChatScreen(isHost: true)),
+    );
+  }
+
   @override
   void dispose() {
+    _passwordController.dispose();
     ref.read(discoveryServiceProvider).stop();
     ref.read(webSocketServerProvider).stopServer();
     super.dispose();
@@ -50,57 +68,83 @@ class _HostScreenState extends ConsumerState<HostScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Host a Connection')),
+      appBar: AppBar(title: const Text('Host a Room')),
       body: Center(
         child: _localIp == null
             ? const CircularProgressIndicator()
             : SingleChildScrollView(
+                padding: const EdgeInsets.all(24),
                 child: Column(
                   mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  const Text('Scan this QR code from the mobile app:', 
-                      style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
-                  const SizedBox(height: 20),
-                  Text(
-                    'Listening on port 55556\nWaiting for participants...',
-                    textAlign: TextAlign.center,
-                    style: const TextStyle(color: Colors.grey),
-                  ),
-                  const SizedBox(height: 16),
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                    decoration: BoxDecoration(color: Colors.blueAccent.withOpacity(0.2), borderRadius: BorderRadius.circular(8)),
-                    child: Text(
-                      'Room Password: $_roomPassword',
-                      style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: Colors.blueAccent),
+                  children: [
+                    const Text('Scan this QR code from the mobile app:',
+                        style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+                    const SizedBox(height: 20),
+                    Text(
+                      'Listening on port 55556\nWaiting for participants...',
+                      textAlign: TextAlign.center,
+                      style: const TextStyle(color: Colors.grey),
                     ),
-                  ),
-                  const SizedBox(height: 20),
-                  Container(
-                    padding: const EdgeInsets.all(20),
-                    decoration: BoxDecoration(
-                      color: Colors.white,
-                      borderRadius: BorderRadius.circular(20),
+                    const SizedBox(height: 20),
+                    Container(
+                      padding: const EdgeInsets.all(20),
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        borderRadius: BorderRadius.circular(20),
+                      ),
+                      child: QrImageView(
+                        data: _localIp!,
+                        version: QrVersions.auto,
+                        size: 220.0,
+                      ),
                     ),
-                    child: QrImageView(
-                      data: _localIp!,
-                      version: QrVersions.auto,
-                      size: 250.0,
+                    const SizedBox(height: 16),
+                    Text('Or connect manually to IP: $_localIp',
+                        style: const TextStyle(fontSize: 14)),
+                    const SizedBox(height: 24),
+                    // E2EE Toggle
+                    SwitchListTile(
+                      title: const Text('Enable Room Password (E2EE)',
+                          style: TextStyle(fontWeight: FontWeight.bold)),
+                      subtitle: Text(_enablePassword
+                          ? 'All messages will be AES-256 encrypted'
+                          : 'Messages will be sent without encryption'),
+                      value: _enablePassword,
+                      activeColor: Colors.blueAccent,
+                      onChanged: (val) => setState(() => _enablePassword = val),
                     ),
-                  ),
-                  const SizedBox(height: 20),
-                  Text('Or connect manually to IP: $_localIp', 
-                      style: const TextStyle(fontSize: 14)),
-                  const SizedBox(height: 40),
-                  ElevatedButton(
-                    onPressed: () {
-                      Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => const ChatScreen(isHost: true)));
-                    },
-                    child: const Text('Enter Chat Room'),
-                  ),
-                ],
+                    if (_enablePassword) ...[
+                      const SizedBox(height: 8),
+                      TextField(
+                        controller: _passwordController,
+                        keyboardType: TextInputType.visiblePassword,
+                        decoration: InputDecoration(
+                          labelText: 'Room Password',
+                          hintText: 'Enter any password',
+                          border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                          prefixIcon: const Icon(Icons.lock, color: Colors.blueAccent),
+                        ),
+                      ),
+                    ],
+                    const SizedBox(height: 32),
+                    SizedBox(
+                      width: double.infinity,
+                      height: 55,
+                      child: ElevatedButton.icon(
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: Colors.blueAccent,
+                          foregroundColor: Colors.white,
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                        ),
+                        icon: const Icon(Icons.chat_bubble, size: 22),
+                        label: const Text('Enter Chat Room',
+                            style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+                        onPressed: _enterChatRoom,
+                      ),
+                    ),
+                  ],
+                ),
               ),
-            ),
       ),
     );
   }
