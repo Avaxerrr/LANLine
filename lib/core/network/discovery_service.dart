@@ -1,19 +1,36 @@
 import 'dart:io';
 import 'dart:async';
+import 'dart:convert';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 final discoveryServiceProvider = Provider<DiscoveryService>((ref) {
   return DiscoveryService();
 });
 
+/// Structured info about a room discovered on the LAN
+class DiscoveredRoom {
+  final String ip;
+  final String roomName;
+  final bool e2eeEnabled;
+
+  DiscoveredRoom({required this.ip, required this.roomName, required this.e2eeEnabled});
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is DiscoveredRoom && ip == other.ip;
+
+  @override
+  int get hashCode => ip.hashCode;
+}
+
 class DiscoveryService {
   RawDatagramSocket? _udpSocket;
   final int _discoveryPort = 55555;
   Timer? _broadcastTimer;
   
-  // Stream to listen to other devices declaring their presence
-  final _deviceDiscoveredController = StreamController<String>.broadcast();
-  Stream<String> get onDeviceDiscovered => _deviceDiscoveredController.stream;
+  final _deviceDiscoveredController = StreamController<DiscoveredRoom>.broadcast();
+  Stream<DiscoveredRoom> get onRoomDiscovered => _deviceDiscoveredController.stream;
 
   /// Starts listening for broadcasts from other LANLine apps
   Future<void> startListening() async {
@@ -26,19 +43,47 @@ class DiscoveryService {
         if (datagram != null) {
           final message = String.fromCharCodes(datagram.data);
           final senderIp = datagram.address.address;
-          if (message == 'LANLINE_DISCOVERY') {
-            _deviceDiscoveredController.add(senderIp);
+          try {
+            final data = jsonDecode(message);
+            if (data['app'] == 'LANLINE') {
+              _deviceDiscoveredController.add(DiscoveredRoom(
+                ip: data['ip'] ?? senderIp,
+                roomName: data['room'] ?? 'Unknown Room',
+                e2eeEnabled: data['e2ee'] ?? false,
+              ));
+            }
+          } catch (_) {
+            // Legacy plain-text broadcast fallback
+            if (message == 'LANLINE_DISCOVERY') {
+              _deviceDiscoveredController.add(DiscoveredRoom(
+                ip: senderIp,
+                roomName: 'LANLine Room',
+                e2eeEnabled: false,
+              ));
+            }
           }
         }
       }
     });
   }
 
-  /// Broadcasts our presence out to the network
-  Future<void> startBroadcasting() async {
+  /// Broadcasts our room's presence to the network
+  Future<void> startBroadcasting({
+    required String roomName,
+    required bool e2eeEnabled,
+  }) async {
+    final ip = await getLocalIpAddress();
+    _udpSocket ??= await RawDatagramSocket.bind(InternetAddress.anyIPv4, 0);
+    _udpSocket?.broadcastEnabled = true;
+
     _broadcastTimer = Timer.periodic(const Duration(seconds: 2), (timer) {
-      final data = 'LANLINE_DISCOVERY'.codeUnits;
-      _udpSocket?.send(data, InternetAddress('255.255.255.255'), _discoveryPort);
+      final payload = jsonEncode({
+        'app': 'LANLINE',
+        'room': roomName,
+        'e2ee': e2eeEnabled,
+        'ip': ip,
+      });
+      _udpSocket?.send(payload.codeUnits, InternetAddress('255.255.255.255'), _discoveryPort);
     });
   }
 
@@ -71,6 +116,8 @@ class DiscoveryService {
   void stop() {
     _broadcastTimer?.cancel();
     _udpSocket?.close();
-    _deviceDiscoveredController.close();
+    if (!_deviceDiscoveredController.isClosed) {
+      _deviceDiscoveredController.close();
+    }
   }
 }

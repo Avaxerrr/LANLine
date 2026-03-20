@@ -9,8 +9,11 @@ import 'package:record/record.dart';
 import 'package:audioplayers/audioplayers.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:qr_flutter/qr_flutter.dart';
+import '../../../core/models/room_model.dart';
 import '../../../core/network/websocket_server.dart';
 import '../../../core/network/websocket_client.dart';
+import '../../../core/network/discovery_service.dart';
 import '../../../core/providers/username_provider.dart';
 import '../../../core/network/file_transfer_manager.dart';
 
@@ -26,7 +29,8 @@ class ChatMessage {
 
 class ChatScreen extends ConsumerStatefulWidget {
   final bool isHost;
-  const ChatScreen({super.key, required this.isHost});
+  final Room room;
+  const ChatScreen({super.key, required this.isHost, required this.room});
 
   @override
   ConsumerState<ChatScreen> createState() => _ChatScreenState();
@@ -42,10 +46,13 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
   final _audioRecorder = AudioRecorder();
   final _audioPlayer = AudioPlayer();
   bool _isRecording = false;
+  String? _localIp;
 
   @override
   void initState() {
     super.initState();
+    _loadLocalIp();
+    
     final stream = widget.isHost
         ? ref.read(webSocketServerProvider).onMessageReceived
         : ref.read(webSocketClientProvider).onMessageReceived;
@@ -57,6 +64,11 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     });
   }
 
+  Future<void> _loadLocalIp() async {
+    final ip = await ref.read(discoveryServiceProvider).getLocalIpAddress();
+    if (mounted) setState(() => _localIp = ip);
+  }
+
   void _handleIncomingMessage(String rawMessage) async {
     try {
       final data = jsonDecode(rawMessage);
@@ -65,7 +77,6 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
         setState(() {
           _typingUsers.add(sender);
         });
-        // Clear typing status after a few seconds
         Future.delayed(const Duration(seconds: 3), () {
           if (mounted) {
             setState(() {
@@ -94,12 +105,11 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
         final msgId = data['id'] ?? DateTime.now().millisecondsSinceEpoch.toString();
         
         setState(() {
-          _typingUsers.remove(sender); // stop typing when message arrives
+          _typingUsers.remove(sender);
           _messages.add(ChatMessage(id: msgId, sender: sender, text: text, isMe: false));
         });
         _scrollToBottom();
         
-        // Blast the ACK back to confirm Delivery!
         final ackPayload = jsonEncode({'type': 'ack', 'id': msgId});
         if (widget.isHost) {
           ref.read(webSocketServerProvider).broadcastMessage(ackPayload);
@@ -127,7 +137,6 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
         _scrollToBottom();
       }
     } catch (e) {
-      // Fallback for old plaintext mesages in mesh
       setState(() {
         _messages.add(ChatMessage(sender: "Peer", text: rawMessage, isMe: false));
       });
@@ -174,6 +183,14 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     _audioPlayer.dispose();
     _textController.dispose();
     _scrollController.dispose();
+    
+    // Stop server/broadcasting when leaving (host only)
+    if (widget.isHost) {
+      ref.read(discoveryServiceProvider).stop();
+      ref.read(webSocketServerProvider).stopServer();
+    } else {
+      ref.read(webSocketClientProvider).disconnect();
+    }
     super.dispose();
   }
 
@@ -302,6 +319,126 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     }
   }
 
+  void _showRoomInfoPanel() {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: const Color(0xFF1E1E1E),
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      isScrollControlled: true,
+      builder: (ctx) => DraggableScrollableSheet(
+        initialChildSize: 0.55,
+        minChildSize: 0.3,
+        maxChildSize: 0.85,
+        expand: false,
+        builder: (_, scrollController) => SingleChildScrollView(
+          controller: scrollController,
+          padding: const EdgeInsets.all(24),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // Drag handle
+              Center(
+                child: Container(
+                  width: 40,
+                  height: 4,
+                  decoration: BoxDecoration(
+                    color: Colors.grey.shade600,
+                    borderRadius: BorderRadius.circular(2),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 20),
+
+              // Room name
+              Text(widget.room.name,
+                  style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: Colors.white)),
+              const SizedBox(height: 16),
+
+              // Connection info
+              _infoTile(Icons.wifi, 'Connection',
+                  widget.isHost
+                      ? 'Host • ${_localIp ?? "Loading..."} : 55556'
+                      : 'Client • Connected'),
+
+              // E2EE status
+              _infoTile(
+                widget.room.e2eeEnabled ? Icons.lock : Icons.lock_open,
+                'Encryption',
+                widget.room.e2eeEnabled ? 'End-to-End Encrypted (AES-256)' : 'No encryption',
+                iconColor: widget.room.e2eeEnabled ? Colors.greenAccent : Colors.grey,
+              ),
+
+              // Your display name
+              _infoTile(Icons.person, 'Display Name', ref.read(usernameProvider)),
+
+              // QR Code for host
+              if (widget.isHost && _localIp != null) ...[
+                const SizedBox(height: 20),
+                const Text('Share this room', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.white)),
+                const SizedBox(height: 8),
+                const Text('Others can scan this QR code to join:',
+                    style: TextStyle(color: Colors.grey, fontSize: 13)),
+                const SizedBox(height: 16),
+                Center(
+                  child: Container(
+                    padding: const EdgeInsets.all(16),
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(16),
+                    ),
+                    child: QrImageView(
+                      data: jsonEncode({
+                        'ip': _localIp,
+                        'e2ee': widget.room.e2eeEnabled,
+                        'room': widget.room.name,
+                      }),
+                      version: QrVersions.auto,
+                      size: 180.0,
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 12),
+                Center(
+                  child: Text('IP: $_localIp',
+                      style: const TextStyle(color: Colors.grey, fontSize: 13)),
+                ),
+              ],
+              const SizedBox(height: 24),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _infoTile(IconData icon, String label, String value, {Color iconColor = Colors.blueAccent}) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 14),
+      child: Row(
+        children: [
+          Container(
+            padding: const EdgeInsets.all(10),
+            decoration: BoxDecoration(
+              color: iconColor.withValues(alpha: 0.12),
+              borderRadius: BorderRadius.circular(10),
+            ),
+            child: Icon(icon, color: iconColor, size: 20),
+          ),
+          const SizedBox(width: 14),
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(label, style: const TextStyle(color: Colors.grey, fontSize: 12, fontWeight: FontWeight.bold)),
+              Text(value, style: const TextStyle(color: Colors.white, fontSize: 15)),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return DropTarget(
@@ -312,59 +449,78 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
       onDragEntered: (detail) => setState(() => _isDragging = true),
       onDragExited: (detail) => setState(() => _isDragging = false),
       child: Scaffold(
-        backgroundColor: const Color(0xFF1E1E1E), // Dark grey background
+        backgroundColor: const Color(0xFF1E1E1E),
         appBar: AppBar(
           title: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const Text('LANLine Room', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
-              Text(widget.isHost ? 'Host Server' : 'Connected', style: const TextStyle(fontSize: 12, color: Colors.greenAccent)),
+              Text(widget.room.name, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
+              Row(
+                children: [
+                  if (widget.room.e2eeEnabled)
+                    const Padding(
+                      padding: EdgeInsets.only(right: 4),
+                      child: Icon(Icons.lock, size: 11, color: Colors.greenAccent),
+                    ),
+                  Text(
+                    widget.isHost ? 'Hosting' : 'Connected',
+                    style: const TextStyle(fontSize: 12, color: Colors.greenAccent),
+                  ),
+                ],
+              ),
             ],
           ),
           backgroundColor: const Color(0xFF252525),
           elevation: 4,
+          actions: [
+            IconButton(
+              icon: const Icon(Icons.info_outline, color: Colors.white70),
+              tooltip: 'Room Info',
+              onPressed: _showRoomInfoPanel,
+            ),
+          ],
         ),
         body: Stack(
           children: [
             Column(
-        children: [
-          Expanded(
-            child: ListView.builder(
-              controller: _scrollController,
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 24),
-              itemCount: _messages.length,
-              itemBuilder: (context, index) {
-                return _buildMessageBubble(_messages[index]);
-              },
+              children: [
+                Expanded(
+                  child: ListView.builder(
+                    controller: _scrollController,
+                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 24),
+                    itemCount: _messages.length,
+                    itemBuilder: (context, index) {
+                      return _buildMessageBubble(_messages[index]);
+                    },
+                  ),
+                ),
+                if (_typingUsers.isNotEmpty)
+                  Padding(
+                    padding: const EdgeInsets.only(left: 24.0, bottom: 8),
+                    child: Align(
+                      alignment: Alignment.centerLeft,
+                      child: Text(
+                        '${_typingUsers.join(", ")} ${_typingUsers.length > 1 ? "are" : "is"} typing...', 
+                        style: const TextStyle(color: Colors.grey, fontStyle: FontStyle.italic, fontSize: 13),
+                      ),
+                    ),
+                  ),
+                _buildMessageInput(),
+              ],
             ),
-          ),
-          if (_typingUsers.isNotEmpty)
-            Padding(
-              padding: const EdgeInsets.only(left: 24.0, bottom: 8),
-              child: Align(
-                alignment: Alignment.centerLeft,
-                child: Text(
-                  '${_typingUsers.join(", ")} ${_typingUsers.length > 1 ? "are" : "is"} typing...', 
-                  style: const TextStyle(color: Colors.grey, fontStyle: FontStyle.italic, fontSize: 13),
+            if (_isDragging)
+              Container(
+                color: Colors.blueAccent.withValues(alpha: 0.2),
+                child: const Center(
+                  child: Text(
+                    'Drop files here to send!',
+                    style: TextStyle(fontSize: 28, color: Colors.white, fontWeight: FontWeight.bold),
+                  ),
                 ),
               ),
-            ),
-          _buildMessageInput(),
-        ],
-      ),
-      if (_isDragging)
-        Container(
-          color: Colors.blueAccent.withOpacity(0.2),
-          child: const Center(
-            child: Text(
-              'Drop files here to send!',
-              style: TextStyle(fontSize: 28, color: Colors.white, fontWeight: FontWeight.bold),
-            ),
-          ),
+          ],
         ),
-      ],
-    ),
-    ),
+      ),
     );
   }
 

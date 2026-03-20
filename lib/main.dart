@@ -5,7 +5,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:window_manager/window_manager.dart';
 import 'core/theme/app_theme.dart';
 import 'core/providers/username_provider.dart';
-import 'features/connection/presentation/host_screen.dart';
+import 'features/room/presentation/room_list_screen.dart';
 import 'features/connection/presentation/client_scanner_screen.dart';
 
 class WindowSaver with WindowListener {
@@ -31,12 +31,12 @@ class WindowSaver with WindowListener {
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  
+
   final prefs = await SharedPreferences.getInstance();
 
   if (Platform.isWindows || Platform.isLinux || Platform.isMacOS) {
     await windowManager.ensureInitialized();
-    
+
     final x = prefs.getDouble('window_x');
     final y = prefs.getDouble('window_y');
     final w = prefs.getDouble('window_w') ?? 450;
@@ -49,11 +49,11 @@ void main() async {
       backgroundColor: Colors.transparent,
       title: 'LANLine',
     );
-    
+
     windowManager.waitUntilReadyToShow(windowOptions, () async {
       await windowManager.show();
       await windowManager.focus();
-      
+
       if (x != null && y != null) {
         await windowManager.setPosition(Offset(x, y));
       }
@@ -64,9 +64,7 @@ void main() async {
 
   runApp(
     ProviderScope(
-      overrides: [
-        sharedPreferencesProvider.overrideWithValue(prefs),
-      ],
+      overrides: [sharedPreferencesProvider.overrideWithValue(prefs)],
       child: const LANLineApp(),
     ),
   );
@@ -114,18 +112,22 @@ class _MainMenuScreenState extends ConsumerState<MainMenuScreen> {
       appBar: AppBar(
         title: const Row(
           children: [
-            Text('LANLine ', style: TextStyle(fontWeight: FontWeight.w800, letterSpacing: 1.2)),
+            Text(
+              'LANLine ',
+              style: TextStyle(fontWeight: FontWeight.w800, letterSpacing: 1.2),
+            ),
             Text('v0.1.0', style: TextStyle(fontSize: 12, color: Colors.grey)),
           ],
         ),
         elevation: 0,
         backgroundColor: Colors.transparent,
       ),
-      body: Center(
-        child: currentName.isEmpty 
-            ? _buildNamePrompt() 
-            : _buildActionMenu(currentName),
-      ),
+      body: currentName.isEmpty
+          ? Center(child: _buildNamePrompt())
+          : Align(
+              alignment: Alignment.topCenter,
+              child: _buildActionMenu(currentName),
+            ),
     );
   }
 
@@ -138,15 +140,19 @@ class _MainMenuScreenState extends ConsumerState<MainMenuScreen> {
           Container(
             padding: const EdgeInsets.all(20),
             decoration: BoxDecoration(
-              color: Colors.blueAccent.withOpacity(0.1),
+              color: Colors.blueAccent.withValues(alpha: 0.1),
               shape: BoxShape.circle,
             ),
-            child: const Icon(Icons.person_pin, size: 80, color: Colors.blueAccent),
+            child: const Icon(
+              Icons.person_pin,
+              size: 80,
+              color: Colors.blueAccent,
+            ),
           ),
           const SizedBox(height: 32),
           const Text(
-            'Who are you?', 
-            style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold)
+            'Who are you?',
+            style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
           ),
           const SizedBox(height: 8),
           const Text(
@@ -160,11 +166,19 @@ class _MainMenuScreenState extends ConsumerState<MainMenuScreen> {
             style: const TextStyle(fontSize: 18),
             decoration: InputDecoration(
               hintText: 'e.g. Maverick',
-              contentPadding: const EdgeInsets.symmetric(horizontal: 24, vertical: 20),
-              border: OutlineInputBorder(borderRadius: BorderRadius.circular(30)),
+              contentPadding: const EdgeInsets.symmetric(
+                horizontal: 24,
+                vertical: 20,
+              ),
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(30),
+              ),
               focusedBorder: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(30),
-                borderSide: const BorderSide(color: Colors.blueAccent, width: 2),
+                borderSide: const BorderSide(
+                  color: Colors.blueAccent,
+                  width: 2,
+                ),
               ),
             ),
             onSubmitted: (_) => _saveName(),
@@ -177,65 +191,102 @@ class _MainMenuScreenState extends ConsumerState<MainMenuScreen> {
               style: ElevatedButton.styleFrom(
                 backgroundColor: Colors.blueAccent,
                 foregroundColor: Colors.white,
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(30)),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(30),
+                ),
               ),
               onPressed: _saveName,
-              child: const Text('Continue', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+              child: const Text(
+                'Continue',
+                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+              ),
             ),
-          )
+          ),
         ],
       ),
     );
   }
 
   Widget _buildActionMenu(String name) {
-    return Column(
-      mainAxisAlignment: MainAxisAlignment.center,
-      children: [
-        CircleAvatar(
-          radius: 40,
-          backgroundColor: Colors.blueAccent,
-          child: Text(name[0].toUpperCase(), style: const TextStyle(fontSize: 32, fontWeight: FontWeight.bold, color: Colors.white)),
-        ),
-        const SizedBox(height: 16),
-        Text('Welcome, $name!', style: const TextStyle(fontSize: 28, fontWeight: FontWeight.w800)),
-        const SizedBox(height: 48),
-        _buildMenuButton(
-          icon: Icons.hub_rounded,
-          label: 'Create Room (Host)',
-          color: Colors.blueAccent,
-          onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const HostScreen())),
-        ),
-        const SizedBox(height: 20),
-        _buildMenuButton(
-          icon: Icons.login_rounded,
-          label: 'Join Room',
-          color: Colors.tealAccent.shade400,
-          onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const ClientScannerScreen())),
-        ),
-        const SizedBox(height: 48),
-        TextButton.icon(
-          icon: const Icon(Icons.edit, size: 16, color: Colors.grey),
-          label: const Text('Change Name', style: TextStyle(color: Colors.grey)),
-          onPressed: () => ref.read(usernameProvider.notifier).setName(''),
-        )
-      ],
+    return Padding(
+      padding: const EdgeInsets.only(top: 120),
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.start,
+        children: [
+          CircleAvatar(
+            radius: 40,
+            backgroundColor: Colors.blueAccent,
+            child: Text(
+              name[0].toUpperCase(),
+              style: const TextStyle(
+                fontSize: 32,
+                fontWeight: FontWeight.bold,
+                color: Colors.white,
+              ),
+            ),
+          ),
+          const SizedBox(height: 16),
+          Text(
+            'Welcome, $name!',
+            style: const TextStyle(fontSize: 28, fontWeight: FontWeight.w800),
+          ),
+          const SizedBox(height: 48),
+          _buildMenuButton(
+            icon: Icons.hub_rounded,
+            label: 'My Rooms',
+            color: Colors.blueAccent,
+            onTap: () => Navigator.push(
+              context,
+              MaterialPageRoute(builder: (_) => const RoomListScreen()),
+            ),
+          ),
+          const SizedBox(height: 20),
+          _buildMenuButton(
+            icon: Icons.login_rounded,
+            label: 'Join Room',
+            color: Colors.tealAccent.shade400,
+            onTap: () => Navigator.push(
+              context,
+              MaterialPageRoute(builder: (_) => const ClientScannerScreen()),
+            ),
+          ),
+          const SizedBox(height: 18),
+          TextButton.icon(
+            icon: const Icon(Icons.edit, size: 16, color: Colors.grey),
+            label: const Text(
+              'Change Name',
+              style: TextStyle(color: Colors.grey),
+            ),
+            onPressed: () => ref.read(usernameProvider.notifier).setName(''),
+          ),
+        ],
+      ),
     );
   }
 
-  Widget _buildMenuButton({required IconData icon, required String label, required Color color, required VoidCallback onTap}) {
+  Widget _buildMenuButton({
+    required IconData icon,
+    required String label,
+    required Color color,
+    required VoidCallback onTap,
+  }) {
     return SizedBox(
       width: 280,
       height: 65,
       child: ElevatedButton.icon(
         icon: Icon(icon, size: 28),
-        label: Text(label, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+        label: Text(
+          label,
+          style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+        ),
         style: ElevatedButton.styleFrom(
           backgroundColor: color,
           foregroundColor: Colors.white,
           elevation: 8,
-          shadowColor: color.withOpacity(0.5),
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          shadowColor: color.withValues(alpha: 0.5),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
+          ),
         ),
         onPressed: onTap,
       ),
