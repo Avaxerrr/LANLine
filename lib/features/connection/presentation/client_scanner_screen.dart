@@ -8,6 +8,7 @@ import '../../../core/models/room_model.dart';
 import '../../../core/network/discovery_service.dart';
 import '../../../core/network/websocket_client.dart';
 import '../../../core/network/encryption_manager.dart';
+import '../../../core/providers/username_provider.dart';
 import '../../chat/presentation/chat_screen.dart';
 
 class ClientScannerScreen extends ConsumerStatefulWidget {
@@ -84,8 +85,24 @@ class _ClientScannerScreenState extends ConsumerState<ClientScannerScreen> {
     await _doConnect(discovered);
   }
 
-  Future<void> _connectToIp(String ipAddress) async {
-    if (_isConnecting || ipAddress.isEmpty) return;
+  /// Connect by IP with optional port (e.g. "192.168.1.5" or "192.168.1.5:12345")
+  String _extractIp(String input) {
+    if (input.contains(':')) return input.split(':').first;
+    return input;
+  }
+
+  int _extractPort(String input) {
+    if (input.contains(':')) {
+      return int.tryParse(input.split(':').last) ?? 55556;
+    }
+    return 55556;
+  }
+
+  Future<void> _connectToIp(String rawInput) async {
+    if (_isConnecting || rawInput.isEmpty) return;
+
+    final ipAddress = _extractIp(rawInput);
+    final port = _extractPort(rawInput);
 
     final passCtrl = TextEditingController();
     final result = await showDialog<String?>(
@@ -131,6 +148,7 @@ class _ClientScannerScreenState extends ConsumerState<ClientScannerScreen> {
       ip: ipAddress,
       roomName: 'LANLine Room',
       e2eeEnabled: result.isNotEmpty,
+      port: port,
     ));
   }
 
@@ -199,7 +217,7 @@ class _ClientScannerScreenState extends ConsumerState<ClientScannerScreen> {
     setState(() => _isConnecting = true);
     try {
       final client = ref.read(webSocketClientProvider);
-      await client.connect(discovered.ip);
+      await client.connect(discovered.ip, port: discovered.port);
 
       if (!client.isConnected) {
         if (mounted) {
@@ -264,8 +282,14 @@ class _ClientScannerScreenState extends ConsumerState<ClientScannerScreen> {
         id: 'client_${discovered.ip}',
         name: discovered.roomName,
         e2eeEnabled: discovered.e2eeEnabled,
+        port: discovered.port,
         createdAt: DateTime.now(),
       );
+
+      // Send join message with our username
+      final username = ref.read(usernameProvider);
+      final joinPayload = '{"type":"join","sender":"$username"}';
+      ref.read(webSocketClientProvider).sendMessage(joinPayload);
 
       Navigator.pushReplacement(
         context,
@@ -286,6 +310,7 @@ class _ClientScannerScreenState extends ConsumerState<ClientScannerScreen> {
             ip: data['ip'] as String,
             roomName: data['room'] as String? ?? 'LANLine Room',
             e2eeEnabled: data['e2ee'] as bool? ?? false,
+            port: data['port'] as int? ?? 55556,
           );
           _connectToRoom(discovered);
         } catch (_) {
@@ -418,7 +443,7 @@ class _ClientScannerScreenState extends ConsumerState<ClientScannerScreen> {
                       TextField(
                         controller: _ipController,
                         decoration: InputDecoration(
-                          hintText: 'e.g. 192.168.1.5',
+                          hintText: 'e.g. 192.168.1.5 or 100.64.0.1:12345',
                           border: const OutlineInputBorder(),
                           suffixIcon: IconButton(
                             icon: const Icon(Icons.send),

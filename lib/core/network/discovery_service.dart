@@ -12,16 +12,22 @@ class DiscoveredRoom {
   final String ip;
   final String roomName;
   final bool e2eeEnabled;
+  final int port;
 
-  DiscoveredRoom({required this.ip, required this.roomName, required this.e2eeEnabled});
+  DiscoveredRoom({
+    required this.ip,
+    required this.roomName,
+    required this.e2eeEnabled,
+    this.port = 55556,
+  });
 
   @override
   bool operator ==(Object other) =>
       identical(this, other) ||
-      other is DiscoveredRoom && ip == other.ip;
+      other is DiscoveredRoom && ip == other.ip && port == other.port;
 
   @override
-  int get hashCode => ip.hashCode;
+  int get hashCode => Object.hash(ip, port);
 }
 
 class DiscoveryService {
@@ -67,6 +73,7 @@ class DiscoveryService {
                   ip: data['ip'] ?? senderIp,
                   roomName: data['room'] ?? 'Unknown Room',
                   e2eeEnabled: data['e2ee'] ?? false,
+                  port: data['port'] as int? ?? 55556,
                 ));
               }
             } catch (_) {
@@ -98,6 +105,7 @@ class DiscoveryService {
   Future<void> startBroadcasting({
     required String roomName,
     required bool e2eeEnabled,
+    int port = 55556,
   }) async {
     final ip = await getLocalIpAddress();
     _broadcastSocket ??= await RawDatagramSocket.bind(InternetAddress.anyIPv4, 0);
@@ -109,6 +117,7 @@ class DiscoveryService {
         'room': roomName,
         'e2ee': e2eeEnabled,
         'ip': ip,
+        'port': port,
       });
       _broadcastSocket?.send(payload.codeUnits, InternetAddress('255.255.255.255'), _discoveryPort);
     });
@@ -130,7 +139,7 @@ class DiscoveryService {
             fallbackIp = ip;
             continue;
           }
-          if (ip.startsWith('192.168.') || ip.startsWith('10.')) {
+          if (ip.startsWith('192.168.') || ip.startsWith('10.') || ip.startsWith('100.')) {
             return ip;
           }
           fallbackIp ??= ip;

@@ -5,6 +5,7 @@
 list(APPEND FLUTTER_PLUGIN_LIST
   audioplayers_windows
   desktop_drop
+  file_selector_windows
   record_windows
   screen_retriever_windows
   share_plus

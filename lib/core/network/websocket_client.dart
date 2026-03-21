@@ -9,19 +9,18 @@ final webSocketClientProvider = Provider<WebSocketClientService>((ref) {
 
 class WebSocketClientService {
   WebSocket? _socket;
-  final int _port = 55556;
   
   var _messageController = StreamController<String>.broadcast();
   Stream<String> get onMessageReceived => _messageController.stream;
 
   bool get isConnected => _socket != null && _socket!.readyState == WebSocket.open;
 
-  Future<void> connect(String ipAddress) async {
+  Future<void> connect(String ipAddress, {int port = 55556}) async {
     // Always close stale connections first
     disconnect();
     _messageController = StreamController<String>.broadcast();
     try {
-      _socket = await WebSocket.connect('ws://$ipAddress:$_port');
+      _socket = await WebSocket.connect('ws://$ipAddress:$port');
       
       _socket?.listen(
         (message) {

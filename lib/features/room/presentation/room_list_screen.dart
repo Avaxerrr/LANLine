@@ -19,13 +19,17 @@ class RoomListScreen extends ConsumerWidget {
       EncryptionManager().clearPassword();
     }
 
-    // Start the server
-    await ref.read(webSocketServerProvider).startServer();
+    // Start the server with custom port/bind address
+    await ref.read(webSocketServerProvider).startServer(
+      port: room.port,
+      bindAddress: room.bindAddress,
+    );
 
     // Start broadcasting with room metadata
     await ref.read(discoveryServiceProvider).startBroadcasting(
       roomName: room.name,
       e2eeEnabled: room.e2eeEnabled,
+      port: room.port,
     );
 
     if (context.mounted) {

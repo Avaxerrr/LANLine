@@ -22,12 +22,20 @@ class RoomListNotifier extends Notifier<List<Room>> {
     prefs.setString(_storageKey, Room.serialize(state));
   }
 
-  Room createRoom({required String name, bool e2eeEnabled = false, String? password}) {
+  Room createRoom({
+    required String name,
+    bool e2eeEnabled = false,
+    String? password,
+    int port = 55556,
+    String? bindAddress,
+  }) {
     final room = Room(
       id: DateTime.now().millisecondsSinceEpoch.toString(),
       name: name,
       e2eeEnabled: e2eeEnabled,
       password: e2eeEnabled ? password : null,
+      port: port,
+      bindAddress: bindAddress,
       createdAt: DateTime.now(),
     );
     state = [...state, room];
@@ -35,7 +43,15 @@ class RoomListNotifier extends Notifier<List<Room>> {
     return room;
   }
 
-  void updateRoom(String id, {String? name, bool? e2eeEnabled, String? password, bool clearPassword = false}) {
+  void updateRoom(String id, {
+    String? name,
+    bool? e2eeEnabled,
+    String? password,
+    bool clearPassword = false,
+    int? port,
+    String? bindAddress,
+    bool clearBindAddress = false,
+  }) {
     state = [
       for (final room in state)
         if (room.id == id)
@@ -44,6 +60,9 @@ class RoomListNotifier extends Notifier<List<Room>> {
             e2eeEnabled: e2eeEnabled,
             password: password,
             clearPassword: clearPassword,
+            port: port,
+            bindAddress: bindAddress,
+            clearBindAddress: clearBindAddress,
           )
         else
           room,
