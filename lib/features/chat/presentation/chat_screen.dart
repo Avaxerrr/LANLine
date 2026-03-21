@@ -19,6 +19,7 @@ import '../../../core/providers/username_provider.dart';
 import '../../../core/network/file_transfer_manager.dart';
 import '../../../core/providers/download_history_provider.dart';
 import '../../../core/services/notification_service.dart';
+import 'package:share_plus/share_plus.dart';
 
 class ChatMessage {
   final String? id;
@@ -668,13 +669,16 @@ class _ChatScreenState extends ConsumerState<ChatScreen> with WidgetsBindingObse
     final dir = p.dirname(path);
     if (Platform.isWindows) {
       await Process.run('explorer', [dir]);
-    } else if (Platform.isAndroid) {
-      await OpenFilex.open(path);
     } else if (Platform.isMacOS) {
       await Process.run('open', [dir]);
     } else if (Platform.isLinux) {
       await Process.run('xdg-open', [dir]);
     }
+  }
+
+  void _shareFile(String path) async {
+    final file = XFile(path);
+    await SharePlus.instance.share(ShareParams(files: [file]));
   }
 
   void _showRoomInfoPanel() {
@@ -1074,7 +1078,10 @@ class _ChatScreenState extends ConsumerState<ChatScreen> with WidgetsBindingObse
               }),
             _fileActionButton(Icons.open_in_new, 'Open', () => _openFile(msg.filePath!)),
             const SizedBox(width: 8),
-            _fileActionButton(Icons.folder_open, 'Folder', () => _openFolder(msg.filePath!)),
+            if (Platform.isAndroid)
+              _fileActionButton(Icons.share, 'Share', () => _shareFile(msg.filePath!))
+            else
+              _fileActionButton(Icons.folder_open, 'Folder', () => _openFolder(msg.filePath!)),
           ]),
         ],
       ],

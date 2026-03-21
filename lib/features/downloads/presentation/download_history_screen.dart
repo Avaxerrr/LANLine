@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:open_filex/open_filex.dart';
 import 'package:path/path.dart' as p;
+import 'package:share_plus/share_plus.dart';
 import '../../../core/providers/download_history_provider.dart';
 
 class DownloadHistoryScreen extends ConsumerWidget {
@@ -83,12 +84,15 @@ class DownloadHistoryScreen extends ConsumerWidget {
     OpenFilex.open(path, type: mimeMap[ext]);
   }
 
+  void _shareFile(String path) async {
+    final file = XFile(path);
+    await SharePlus.instance.share(ShareParams(files: [file]));
+  }
+
   void _openFolder(String path) async {
     final dir = p.dirname(path);
     if (Platform.isWindows) {
       await Process.run('explorer', [dir]);
-    } else if (Platform.isAndroid) {
-      OpenFilex.open(path);
     } else if (Platform.isMacOS) {
       await Process.run('open', [dir]);
     } else if (Platform.isLinux) {
@@ -165,9 +169,12 @@ class DownloadHistoryScreen extends ConsumerWidget {
                   const SizedBox(height: 16),
                   const Text('No downloads yet', style: TextStyle(color: Colors.grey, fontSize: 16)),
                   const SizedBox(height: 8),
-                  const Text(
-                    'Files you receive in chat will appear here',
-                    style: TextStyle(color: Colors.grey, fontSize: 13),
+                  Text(
+                    Platform.isAndroid
+                        ? 'Files you receive will be saved to Downloads/LANLine'
+                        : 'Files you receive in chat will appear here',
+                    style: const TextStyle(color: Colors.grey, fontSize: 13),
+                    textAlign: TextAlign.center,
                   ),
                 ],
               ),
@@ -239,11 +246,18 @@ class DownloadHistoryScreen extends ConsumerWidget {
                                 tooltip: 'Open',
                                 onPressed: () => _openFile(record.filePath),
                               ),
-                              IconButton(
-                                icon: const Icon(Icons.folder_open, color: Colors.orangeAccent, size: 20),
-                                tooltip: 'Open Folder',
-                                onPressed: () => _openFolder(record.filePath),
-                              ),
+                              if (Platform.isAndroid)
+                                IconButton(
+                                  icon: const Icon(Icons.share, color: Colors.orangeAccent, size: 20),
+                                  tooltip: 'Share',
+                                  onPressed: () => _shareFile(record.filePath),
+                                )
+                              else
+                                IconButton(
+                                  icon: const Icon(Icons.folder_open, color: Colors.orangeAccent, size: 20),
+                                  tooltip: 'Open Folder',
+                                  onPressed: () => _openFolder(record.filePath),
+                                ),
                             ],
                           )
                         : const Icon(Icons.error_outline, color: Colors.redAccent, size: 20),

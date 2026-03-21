@@ -7,6 +7,8 @@ list(APPEND FLUTTER_PLUGIN_LIST
   desktop_drop
   record_windows
   screen_retriever_windows
+  share_plus
+  url_launcher_windows
   window_manager
 )
 

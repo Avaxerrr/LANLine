@@ -1,5 +1,4 @@
 import 'package:flutter/foundation.dart';
-import 'dart:io';
 
 /// Lightweight notification service.
 /// Currently a placeholder — notifications are logged but not shown as system notifications.
