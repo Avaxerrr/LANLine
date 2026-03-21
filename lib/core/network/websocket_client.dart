@@ -38,7 +38,7 @@ class WebSocketClientService {
         }
       );
     } catch (e) {
-      print('Connection error: $e');
+      // Ignored
     }
   }
 

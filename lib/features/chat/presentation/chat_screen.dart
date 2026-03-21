@@ -74,6 +74,9 @@ class _ChatScreenState extends ConsumerState<ChatScreen> with WidgetsBindingObse
   String? _localIp;
   int _participantCount = 0;
 
+  StreamSubscription? _messageSubscription;
+  StreamSubscription? _participantSubscription;
+
   // File threshold: 10 MB
   static const int _autoDownloadThreshold = 10 * 1024 * 1024;
 
@@ -109,7 +112,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> with WidgetsBindingObse
         ? ref.read(webSocketServerProvider).onMessageReceived
         : ref.read(webSocketClientProvider).onMessageReceived;
 
-    stream.listen((message) {
+    _messageSubscription = stream.listen((message) {
       if (mounted) {
         _handleIncomingMessage(message);
       }
@@ -117,7 +120,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> with WidgetsBindingObse
 
     // Host tracks participant count from the server directly
     if (widget.isHost) {
-      ref.read(webSocketServerProvider).onParticipantCountChanged.listen((count) {
+      _participantSubscription = ref.read(webSocketServerProvider).onParticipantCountChanged.listen((count) {
         if (mounted) {
           setState(() => _participantCount = count);
         }
@@ -420,6 +423,8 @@ class _ChatScreenState extends ConsumerState<ChatScreen> with WidgetsBindingObse
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
+    _messageSubscription?.cancel();
+    _participantSubscription?.cancel();
     _progressThrottleTimer?.cancel();
     _audioRecorder.dispose();
     _audioPlayer.dispose();
