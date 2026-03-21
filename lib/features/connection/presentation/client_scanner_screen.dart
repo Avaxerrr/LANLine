@@ -1,4 +1,5 @@
 import 'dart:io' show Platform;
+import 'dart:async';
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -22,6 +23,7 @@ class _ClientScannerScreenState extends ConsumerState<ClientScannerScreen> {
   final TextEditingController _ipController = TextEditingController();
   final List<DiscoveredRoom> _discoveredRooms = [];
   MobileScannerController? _scannerController;
+  StreamSubscription<DiscoveredRoom>? _discoverySubscription;
 
   @override
   void initState() {
@@ -33,7 +35,7 @@ class _ClientScannerScreenState extends ConsumerState<ClientScannerScreen> {
   Future<void> _startDiscovery() async {
     final discoveryService = ref.read(discoveryServiceProvider);
     await discoveryService.startListening();
-    discoveryService.onRoomDiscovered.listen((room) {
+    _discoverySubscription = discoveryService.onRoomDiscovered.listen((room) {
       if (mounted) {
         setState(() {
           _discoveredRooms.removeWhere((r) => r.ip == room.ip);
@@ -45,9 +47,10 @@ class _ClientScannerScreenState extends ConsumerState<ClientScannerScreen> {
 
   @override
   void dispose() {
+    _discoverySubscription?.cancel();
     _scannerController?.dispose();
     _ipController.dispose();
-    ref.read(discoveryServiceProvider).stop();
+    ref.read(discoveryServiceProvider).stopListening();
     super.dispose();
   }
 

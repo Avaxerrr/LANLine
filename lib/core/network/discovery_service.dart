@@ -25,46 +25,73 @@ class DiscoveredRoom {
 }
 
 class DiscoveryService {
-  RawDatagramSocket? _udpSocket;
+  RawDatagramSocket? _listenSocket;
+  RawDatagramSocket? _broadcastSocket;
   final int _discoveryPort = 55555;
   Timer? _broadcastTimer;
+  StreamSubscription? _listenSubscription;
   
-  final _deviceDiscoveredController = StreamController<DiscoveredRoom>.broadcast();
+  // Re-creatable controller so it survives stop/start cycles
+  StreamController<DiscoveredRoom> _deviceDiscoveredController = StreamController<DiscoveredRoom>.broadcast();
   Stream<DiscoveredRoom> get onRoomDiscovered => _deviceDiscoveredController.stream;
 
   /// Starts listening for broadcasts from other LANLine apps
   Future<void> startListening() async {
-    _udpSocket = await RawDatagramSocket.bind(InternetAddress.anyIPv4, _discoveryPort);
-    _udpSocket?.broadcastEnabled = true;
+    // Don't double-bind
+    if (_listenSocket != null) return;
 
-    _udpSocket?.listen((RawSocketEvent event) {
-      if (event == RawSocketEvent.read) {
-        final datagram = _udpSocket?.receive();
-        if (datagram != null) {
-          final message = String.fromCharCodes(datagram.data);
-          final senderIp = datagram.address.address;
-          try {
-            final data = jsonDecode(message);
-            if (data['app'] == 'LANLINE') {
-              _deviceDiscoveredController.add(DiscoveredRoom(
-                ip: data['ip'] ?? senderIp,
-                roomName: data['room'] ?? 'Unknown Room',
-                e2eeEnabled: data['e2ee'] ?? false,
-              ));
-            }
-          } catch (_) {
-            // Legacy plain-text broadcast fallback
-            if (message == 'LANLINE_DISCOVERY') {
-              _deviceDiscoveredController.add(DiscoveredRoom(
-                ip: senderIp,
-                roomName: 'LANLine Room',
-                e2eeEnabled: false,
-              ));
+    // Ensure the controller is open
+    if (_deviceDiscoveredController.isClosed) {
+      _deviceDiscoveredController = StreamController<DiscoveredRoom>.broadcast();
+    }
+
+    try {
+      _listenSocket = await RawDatagramSocket.bind(
+        InternetAddress.anyIPv4,
+        _discoveryPort,
+        reuseAddress: true,
+        reusePort: !Platform.isWindows, // reusePort not supported on Windows
+      );
+      _listenSocket?.broadcastEnabled = true;
+
+      _listenSubscription = _listenSocket?.listen((RawSocketEvent event) {
+        if (event == RawSocketEvent.read) {
+          final datagram = _listenSocket?.receive();
+          if (datagram != null) {
+            final message = String.fromCharCodes(datagram.data);
+            final senderIp = datagram.address.address;
+            try {
+              final data = jsonDecode(message);
+              if (data['app'] == 'LANLINE') {
+                _deviceDiscoveredController.add(DiscoveredRoom(
+                  ip: data['ip'] ?? senderIp,
+                  roomName: data['room'] ?? 'Unknown Room',
+                  e2eeEnabled: data['e2ee'] ?? false,
+                ));
+              }
+            } catch (_) {
+              if (message == 'LANLINE_DISCOVERY') {
+                _deviceDiscoveredController.add(DiscoveredRoom(
+                  ip: senderIp,
+                  roomName: 'LANLine Room',
+                  e2eeEnabled: false,
+                ));
+              }
             }
           }
         }
-      }
-    });
+      });
+    } catch (e) {
+      // Port already in use — ignore on hot reload
+    }
+  }
+
+  /// Stop listening only (does NOT close the StreamController)
+  void stopListening() {
+    _listenSubscription?.cancel();
+    _listenSubscription = null;
+    _listenSocket?.close();
+    _listenSocket = null;
   }
 
   /// Broadcasts our room's presence to the network
@@ -73,8 +100,8 @@ class DiscoveryService {
     required bool e2eeEnabled,
   }) async {
     final ip = await getLocalIpAddress();
-    _udpSocket ??= await RawDatagramSocket.bind(InternetAddress.anyIPv4, 0);
-    _udpSocket?.broadcastEnabled = true;
+    _broadcastSocket ??= await RawDatagramSocket.bind(InternetAddress.anyIPv4, 0);
+    _broadcastSocket?.broadcastEnabled = true;
 
     _broadcastTimer = Timer.periodic(const Duration(seconds: 2), (timer) {
       final payload = jsonEncode({
@@ -83,7 +110,7 @@ class DiscoveryService {
         'e2ee': e2eeEnabled,
         'ip': ip,
       });
-      _udpSocket?.send(payload.codeUnits, InternetAddress('255.255.255.255'), _discoveryPort);
+      _broadcastSocket?.send(payload.codeUnits, InternetAddress('255.255.255.255'), _discoveryPort);
     });
   }
 
@@ -100,11 +127,11 @@ class DiscoveryService {
         if (!address.isLoopback) {
           final ip = address.address;
           if (ip.startsWith('169.254.')) {
-            fallbackIp = ip; // Link-local fallback
+            fallbackIp = ip;
             continue;
           }
           if (ip.startsWith('192.168.') || ip.startsWith('10.')) {
-            return ip; // Highly probable correct LAN IP
+            return ip;
           }
           fallbackIp ??= ip;
         }
@@ -113,9 +140,13 @@ class DiscoveryService {
     return fallbackIp;
   }
 
+  /// Full stop — closes everything including the stream controller
   void stop() {
     _broadcastTimer?.cancel();
-    _udpSocket?.close();
+    _broadcastTimer = null;
+    stopListening();
+    _broadcastSocket?.close();
+    _broadcastSocket = null;
     if (!_deviceDiscoveredController.isClosed) {
       _deviceDiscoveredController.close();
     }
