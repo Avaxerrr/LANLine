@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:async';
 import 'dart:io';
 import 'package:file_picker/file_picker.dart';
 import 'package:desktop_drop/desktop_drop.dart';
@@ -86,6 +87,10 @@ class _ChatScreenState extends ConsumerState<ChatScreen> with WidgetsBindingObse
   final Set<String> _cancelledOffers = {};
   final Set<String> _acceptedOffers = {};
 
+  // Throttle for progress updates to avoid excessive rebuilds
+  Timer? _progressThrottleTimer;
+  bool _progressDirty = false;
+
   bool get _hasParticipants => _participantCount > 0;
 
   @override
@@ -150,14 +155,11 @@ class _ChatScreenState extends ConsumerState<ChatScreen> with WidgetsBindingObse
       final data = jsonDecode(rawMessage);
       if (data['type'] == 'typing') {
         final sender = data['sender'];
-        setState(() {
-          _typingUsers.add(sender);
-        });
+        final changed = _typingUsers.add(sender);
+        if (changed) setState(() {});
         Future.delayed(const Duration(seconds: 3), () {
-          if (mounted) {
-            setState(() {
-              _typingUsers.remove(sender);
-            });
+          if (mounted && _typingUsers.remove(sender)) {
+            setState(() {});
           }
         });
       } else if (data['type'] == 'ack') {
@@ -213,12 +215,21 @@ class _ChatScreenState extends ConsumerState<ChatScreen> with WidgetsBindingObse
         // For offer-based downloads, only process if WE accepted it
         if (offerId != null && !_acceptedOffers.contains(offerId)) return;
 
-        // Track progress for offer-based downloads
+        // Track progress for offer-based downloads (throttled)
         if (offerId != null) {
           final total = data['total_chunks'] as int;
           final chunkIdx = data['chunk_index'] as int;
           _downloadProgress[offerId] = [chunkIdx + 1, total];
-          setState(() {});
+          _progressDirty = true;
+          _progressThrottleTimer ??= Timer.periodic(
+            const Duration(milliseconds: 200),
+            (_) {
+              if (_progressDirty && mounted) {
+                _progressDirty = false;
+                setState(() {});
+              }
+            },
+          );
         }
 
         final manager = ref.read(fileTransferProvider);
@@ -409,6 +420,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> with WidgetsBindingObse
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
+    _progressThrottleTimer?.cancel();
     _audioRecorder.dispose();
     _audioPlayer.dispose();
     _textController.dispose();

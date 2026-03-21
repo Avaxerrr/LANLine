@@ -18,8 +18,10 @@ class ClientScannerScreen extends ConsumerStatefulWidget {
 
 class _ClientScannerScreenState extends ConsumerState<ClientScannerScreen> {
   bool _isConnecting = false;
+  bool _isScannerOpen = false;
   final TextEditingController _ipController = TextEditingController();
   final List<DiscoveredRoom> _discoveredRooms = [];
+  MobileScannerController? _scannerController;
 
   @override
   void initState() {
@@ -34,7 +36,6 @@ class _ClientScannerScreenState extends ConsumerState<ClientScannerScreen> {
     discoveryService.onRoomDiscovered.listen((room) {
       if (mounted) {
         setState(() {
-          // Update or add discovered room
           _discoveredRooms.removeWhere((r) => r.ip == room.ip);
           _discoveredRooms.add(room);
         });
@@ -44,21 +45,36 @@ class _ClientScannerScreenState extends ConsumerState<ClientScannerScreen> {
 
   @override
   void dispose() {
+    _scannerController?.dispose();
     _ipController.dispose();
     ref.read(discoveryServiceProvider).stop();
     super.dispose();
+  }
+
+  void _toggleScanner() {
+    setState(() {
+      if (_isScannerOpen) {
+        _scannerController?.dispose();
+        _scannerController = null;
+        _isScannerOpen = false;
+      } else {
+        _scannerController = MobileScannerController(
+          detectionSpeed: DetectionSpeed.normal,
+          facing: CameraFacing.back,
+        );
+        _isScannerOpen = true;
+      }
+    });
   }
 
   Future<void> _connectToRoom(DiscoveredRoom discovered) async {
     if (_isConnecting) return;
 
     if (discovered.e2eeEnabled) {
-      // Room has E2EE — ask for password
       final password = await _showPasswordPrompt(discovered.roomName);
-      if (password == null) return; // User cancelled
+      if (password == null) return;
       EncryptionManager().setPassword(password);
     } else {
-      // No E2EE — connect directly
       EncryptionManager().clearPassword();
     }
 
@@ -68,7 +84,6 @@ class _ClientScannerScreenState extends ConsumerState<ClientScannerScreen> {
   Future<void> _connectToIp(String ipAddress) async {
     if (_isConnecting || ipAddress.isEmpty) return;
 
-    // For manual IP entry, we don't know the room details, so ask about E2EE
     final passCtrl = TextEditingController();
     final result = await showDialog<String?>(
       context: context,
@@ -171,6 +186,13 @@ class _ClientScannerScreenState extends ConsumerState<ClientScannerScreen> {
   }
 
   Future<void> _doConnect(DiscoveredRoom discovered) async {
+    // Close scanner to free camera resources before connecting
+    if (_isScannerOpen) {
+      _scannerController?.dispose();
+      _scannerController = null;
+      _isScannerOpen = false;
+    }
+
     setState(() => _isConnecting = true);
     try {
       final client = ref.read(webSocketClientProvider);
@@ -186,7 +208,6 @@ class _ClientScannerScreenState extends ConsumerState<ClientScannerScreen> {
         return;
       }
 
-      // If encryption is enabled, do a handshake to verify the password
       if (EncryptionManager().isEnabled) {
         final hsPayload = jsonEncode({'type': 'handshake', 'sender': 'Client'});
         client.sendMessage(hsPayload);
@@ -236,7 +257,6 @@ class _ClientScannerScreenState extends ConsumerState<ClientScannerScreen> {
     if (mounted) {
       setState(() => _isConnecting = false);
 
-      // Create a transient Room object for the client view
       final room = Room(
         id: 'client_${discovered.ip}',
         name: discovered.roomName,
@@ -258,7 +278,6 @@ class _ClientScannerScreenState extends ConsumerState<ClientScannerScreen> {
       final rawValue = barcode.rawValue;
       if (rawValue != null && rawValue.isNotEmpty) {
         try {
-          // Try new JSON QR format
           final data = jsonDecode(rawValue);
           final discovered = DiscoveredRoom(
             ip: data['ip'] as String,
@@ -267,7 +286,6 @@ class _ClientScannerScreenState extends ConsumerState<ClientScannerScreen> {
           );
           _connectToRoom(discovered);
         } catch (_) {
-          // Legacy plain IP QR
           _connectToIp(rawValue);
         }
         break;
@@ -285,15 +303,49 @@ class _ClientScannerScreenState extends ConsumerState<ClientScannerScreen> {
         children: [
           Column(
             children: [
-              if (isMobile)
-                Expanded(
-                  flex: 2,
-                  child: MobileScanner(
-                    onDetect: _handleBarcode,
+              // QR Scanner — only shown when user taps the button
+              if (isMobile && _isScannerOpen && _scannerController != null)
+                SizedBox(
+                  height: 250,
+                  child: ClipRRect(
+                    borderRadius: const BorderRadius.vertical(bottom: Radius.circular(16)),
+                    child: MobileScanner(
+                      controller: _scannerController!,
+                      onDetect: _handleBarcode,
+                    ),
                   ),
                 ),
+
+              // QR scan toggle button (mobile only)
+              if (isMobile)
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+                  child: SizedBox(
+                    width: double.infinity,
+                    child: OutlinedButton.icon(
+                      icon: Icon(
+                        _isScannerOpen ? Icons.close : Icons.qr_code_scanner,
+                        color: _isScannerOpen ? Colors.redAccent : Colors.blueAccent,
+                      ),
+                      label: Text(
+                        _isScannerOpen ? 'Close Scanner' : 'Scan QR Code',
+                        style: TextStyle(
+                          color: _isScannerOpen ? Colors.redAccent : Colors.blueAccent,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                      style: OutlinedButton.styleFrom(
+                        side: BorderSide(color: _isScannerOpen ? Colors.redAccent : Colors.blueAccent),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                        padding: const EdgeInsets.symmetric(vertical: 14),
+                      ),
+                      onPressed: _toggleScanner,
+                    ),
+                  ),
+                ),
+
+              // Rest of the screen — discovered rooms + manual IP
               Expanded(
-                flex: isMobile ? 2 : 3,
                 child: Padding(
                   padding: const EdgeInsets.all(24.0),
                   child: Column(
