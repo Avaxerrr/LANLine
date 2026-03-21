@@ -30,6 +30,7 @@ class ChatMessage {
   bool isAcked;
   bool isDownloading;     // True while downloading an accepted offer
   bool isExpired;         // True if the offer is no longer available
+  bool isCancelled;       // True if the transfer was cancelled
 
   ChatMessage({
     this.id,
@@ -43,6 +44,7 @@ class ChatMessage {
     this.isAcked = false,
     this.isDownloading = false,
     this.isExpired = false,
+    this.isCancelled = false,
   });
 }
 
@@ -73,6 +75,12 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
 
   // Sender keeps track of pending file offers (offerId -> filePath)
   final Map<String, String> _pendingFileOffers = {};
+
+  // Download progress tracking (offerId -> {received, total})
+  final Map<String, List<int>> _downloadProgress = {};
+
+  // Cancelled offers
+  final Set<String> _cancelledOffers = {};
 
   bool get _hasParticipants => _participantCount > 0;
 
@@ -165,12 +173,26 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
           ref.read(webSocketClientProvider).sendMessage(ackPayload);
         }
       } else if (data['type'] == 'file_chunk') {
+        final offerId = data['offer_id'] as String?;
+
+        // Skip chunks for cancelled offers
+        if (offerId != null && _cancelledOffers.contains(offerId)) return;
+
+        // Track progress for offer-based downloads
+        if (offerId != null) {
+          final total = data['total_chunks'] as int;
+          final chunkIdx = data['chunk_index'] as int;
+          _downloadProgress[offerId] = [chunkIdx + 1, total];
+          // Update UI to show progress
+          setState(() {});
+        }
+
         final manager = ref.read(fileTransferProvider);
         final completeFile = await manager.handleChunk(data);
         if (completeFile != null) {
           final sender = data['sender'] as String;
           final filename = data['filename'] as String;
-          final offerId = data['offer_id'] as String?;
+          if (offerId != null) _downloadProgress.remove(offerId);
           setState(() {
             // If this was from an accepted offer, update the existing message
             if (offerId != null) {
@@ -235,6 +257,28 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
             }
           }
         }
+      } else if (data['type'] == 'cancel_file') {
+        // Someone cancelled a file offer or download
+        final offerId = data['offer_id'] as String;
+        _cancelledOffers.add(offerId);
+        _pendingFileOffers.remove(offerId);
+        _downloadProgress.remove(offerId);
+        setState(() {
+          for (int i = 0; i < _messages.length; i++) {
+            if (_messages[i].offerId == offerId) {
+              final old = _messages[i];
+              _messages[i] = ChatMessage(
+                sender: old.sender,
+                text: '',
+                isMe: old.isMe,
+                fileName: old.fileName,
+                fileSize: old.fileSize,
+                offerId: offerId,
+                isCancelled: true,
+              );
+            }
+          }
+        });
       } else if (data['type'] == 'clipboard') {
         final sender = data['sender'] as String;
         final text = data['text'] as String;
@@ -412,6 +456,40 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
           offerId: offerId,
           isDownloading: true,
         );
+      }
+    });
+  }
+
+  void _cancelFileOffer(String offerId) {
+    _cancelledOffers.add(offerId);
+    _pendingFileOffers.remove(offerId);
+    _downloadProgress.remove(offerId);
+
+    final cancelPayload = jsonEncode({
+      'type': 'cancel_file',
+      'offer_id': offerId,
+    });
+
+    if (widget.isHost) {
+      ref.read(webSocketServerProvider).broadcastMessage(cancelPayload);
+    } else {
+      ref.read(webSocketClientProvider).sendMessage(cancelPayload);
+    }
+
+    setState(() {
+      for (int i = 0; i < _messages.length; i++) {
+        if (_messages[i].offerId == offerId) {
+          final old = _messages[i];
+          _messages[i] = ChatMessage(
+            sender: old.sender,
+            text: '',
+            isMe: old.isMe,
+            fileName: old.fileName,
+            fileSize: old.fileSize,
+            offerId: offerId,
+            isCancelled: true,
+          );
+        }
       }
     });
   }
@@ -882,29 +960,119 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
           ],
         ),
 
-        // Pending offer from someone else — show Download button
-        if (isOffer && !msg.isMe && !msg.isDownloading) ...[
-          const SizedBox(height: 10),
-          _fileActionButton(Icons.download, 'Download', () => _acceptFileOffer(msg.offerId!)),
-        ],
-
-        // Downloading state
-        if (msg.isDownloading) ...[
-          const SizedBox(height: 10),
-          const Row(
+        // Cancelled state
+        if (msg.isCancelled) ...[
+          const SizedBox(height: 8),
+          Row(
             mainAxisSize: MainAxisSize.min,
             children: [
-              SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white)),
-              SizedBox(width: 8),
-              Text('Downloading...', style: TextStyle(color: Colors.white, fontSize: 12)),
+              Icon(Icons.cancel, color: Colors.redAccent.withValues(alpha: 0.7), size: 16),
+              const SizedBox(width: 6),
+              Text('Cancelled', style: TextStyle(color: Colors.redAccent.withValues(alpha: 0.7), fontSize: 12)),
             ],
           ),
         ],
 
-        // Sender's pending offer — show "Waiting for download" label
-        if (isOffer && msg.isMe) ...[
+        // Pending offer from someone else — show Download button
+        if (isOffer && !msg.isMe && !msg.isDownloading && !msg.isCancelled) ...[
+          const SizedBox(height: 10),
+          Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              _fileActionButton(Icons.download, 'Download', () => _acceptFileOffer(msg.offerId!)),
+            ],
+          ),
+        ],
+
+        // Downloading state with progress bar and cancel
+        if (msg.isDownloading && !msg.isCancelled) ...[
+          const SizedBox(height: 10),
+          Builder(builder: (_) {
+            final progress = _downloadProgress[msg.offerId];
+            final received = progress?[0] ?? 0;
+            final total = progress?[1] ?? 1;
+            final pct = total > 0 ? received / total : 0.0;
+            return Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                ClipRRect(
+                  borderRadius: BorderRadius.circular(4),
+                  child: LinearProgressIndicator(
+                    value: pct,
+                    backgroundColor: Colors.white.withValues(alpha: 0.15),
+                    valueColor: const AlwaysStoppedAnimation<Color>(Colors.greenAccent),
+                    minHeight: 6,
+                  ),
+                ),
+                const SizedBox(height: 6),
+                Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      '${(pct * 100).toStringAsFixed(0)}%',
+                      style: const TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.bold),
+                    ),
+                    if (msg.fileSize != null) ...[
+                      const SizedBox(width: 6),
+                      Text(
+                        '${_formatFileSize((pct * msg.fileSize!).round())} / ${_formatFileSize(msg.fileSize!)}',
+                        style: const TextStyle(color: Colors.grey, fontSize: 11),
+                      ),
+                    ],
+                    const Spacer(),
+                    InkWell(
+                      onTap: () => _cancelFileOffer(msg.offerId!),
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                        decoration: BoxDecoration(
+                          color: Colors.redAccent.withValues(alpha: 0.15),
+                          borderRadius: BorderRadius.circular(6),
+                        ),
+                        child: const Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(Icons.close, color: Colors.redAccent, size: 14),
+                            SizedBox(width: 4),
+                            Text('Cancel', style: TextStyle(color: Colors.redAccent, fontSize: 11, fontWeight: FontWeight.w600)),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            );
+          }),
+        ],
+
+        // Sender's pending offer — show waiting label + cancel button
+        if (isOffer && msg.isMe && !msg.isCancelled) ...[
           const SizedBox(height: 8),
-          const Text('⏳ Waiting for recipients to download', style: TextStyle(color: Colors.grey, fontSize: 11)),
+          Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Text('⏳ Waiting for download', style: TextStyle(color: Colors.grey, fontSize: 11)),
+              const SizedBox(width: 12),
+              InkWell(
+                onTap: () => _cancelFileOffer(msg.offerId!),
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: Colors.redAccent.withValues(alpha: 0.15),
+                    borderRadius: BorderRadius.circular(6),
+                  ),
+                  child: const Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(Icons.close, color: Colors.redAccent, size: 14),
+                      SizedBox(width: 4),
+                      Text('Cancel', style: TextStyle(color: Colors.redAccent, fontSize: 11, fontWeight: FontWeight.w600)),
+                    ],
+                  ),
+                ),
+              ),
+            ],
+          ),
         ],
 
         // Completed file — show Open/Folder/Play buttons
