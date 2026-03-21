@@ -17,20 +17,22 @@ import '../../../core/network/websocket_client.dart';
 import '../../../core/network/discovery_service.dart';
 import '../../../core/providers/username_provider.dart';
 import '../../../core/network/file_transfer_manager.dart';
+import '../../../core/providers/download_history_provider.dart';
+import '../../../core/services/notification_service.dart';
 
 class ChatMessage {
   final String? id;
   final String sender;
   final String text;
   final bool isMe;
-  final String? filePath; // Non-null for completed file messages
-  final String? fileName; // Display name for file messages
-  final String? offerId;  // Non-null for pending file offers
-  final int? fileSize;    // Size in bytes for file offers
+  final String? filePath;
+  final String? fileName;
+  final String? offerId;
+  final int? fileSize;
   bool isAcked;
-  bool isDownloading;     // True while downloading an accepted offer
-  bool isExpired;         // True if the offer is no longer available
-  bool isCancelled;       // True if the transfer was cancelled
+  bool isDownloading;
+  bool isExpired;
+  bool isCancelled;
 
   ChatMessage({
     this.id,
@@ -57,7 +59,7 @@ class ChatScreen extends ConsumerStatefulWidget {
   ConsumerState<ChatScreen> createState() => _ChatScreenState();
 }
 
-class _ChatScreenState extends ConsumerState<ChatScreen> {
+class _ChatScreenState extends ConsumerState<ChatScreen> with WidgetsBindingObserver {
   final TextEditingController _textController = TextEditingController();
   final ScrollController _scrollController = ScrollController();
   final List<ChatMessage> _messages = [];
@@ -76,18 +78,21 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
   // Sender keeps track of pending file offers (offerId -> filePath)
   final Map<String, String> _pendingFileOffers = {};
 
-  // Download progress tracking (offerId -> {received, total})
+  // Download progress tracking (offerId -> [received, total])
   final Map<String, List<int>> _downloadProgress = {};
 
-  // Cancelled offers
+  // Cancelled and accepted offers
   final Set<String> _cancelledOffers = {};
+  final Set<String> _acceptedOffers = {};
 
   bool get _hasParticipants => _participantCount > 0;
 
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _loadLocalIp();
+    NotificationService().initialize();
 
     // Client always has at least the host as a participant
     if (!widget.isHost) {
@@ -114,9 +119,29 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     }
   }
 
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    NotificationService().appInForeground = state == AppLifecycleState.resumed;
+  }
+
   Future<void> _loadLocalIp() async {
     final ip = await ref.read(discoveryServiceProvider).getLocalIpAddress();
     if (mounted) setState(() => _localIp = ip);
+  }
+
+  void _showTopSnackBar(String message) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(message),
+        behavior: SnackBarBehavior.floating,
+        margin: EdgeInsets.only(
+          bottom: MediaQuery.of(context).size.height - 150,
+          left: 16,
+          right: 16,
+        ),
+        duration: const Duration(seconds: 2),
+      ),
+    );
   }
 
   void _handleIncomingMessage(String rawMessage) async {
@@ -145,10 +170,9 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
           }
         });
       } else if (data['type'] == 'participant_count') {
-        // Client receives participant count from the host's broadcast
         if (!widget.isHost) {
           final count = data['count'] as int;
-          setState(() => _participantCount = count - 1); // subtract self
+          setState(() => _participantCount = count - 1);
         }
       } else if (data['type'] == 'error') {
         setState(() {
@@ -166,6 +190,13 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
         });
         _scrollToBottom();
 
+        // Send notification
+        NotificationService().showMessageNotification(
+          sender: sender,
+          message: text,
+          roomName: widget.room.name,
+        );
+
         final ackPayload = jsonEncode({'type': 'ack', 'id': msgId});
         if (widget.isHost) {
           ref.read(webSocketServerProvider).broadcastMessage(ackPayload);
@@ -178,12 +209,14 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
         // Skip chunks for cancelled offers
         if (offerId != null && _cancelledOffers.contains(offerId)) return;
 
+        // For offer-based downloads, only process if WE accepted it
+        if (offerId != null && !_acceptedOffers.contains(offerId)) return;
+
         // Track progress for offer-based downloads
         if (offerId != null) {
           final total = data['total_chunks'] as int;
           final chunkIdx = data['chunk_index'] as int;
           _downloadProgress[offerId] = [chunkIdx + 1, total];
-          // Update UI to show progress
           setState(() {});
         }
 
@@ -193,18 +226,17 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
           final sender = data['sender'] as String;
           final filename = data['filename'] as String;
           if (offerId != null) _downloadProgress.remove(offerId);
+
+          // Log to download history
+          _logDownload(filename, completeFile.path, sender);
+
           setState(() {
-            // If this was from an accepted offer, update the existing message
             if (offerId != null) {
               final idx = _messages.indexWhere((m) => m.offerId == offerId && !m.isMe);
               if (idx != -1) {
                 _messages[idx] = ChatMessage(
-                  sender: sender,
-                  text: '',
-                  isMe: false,
-                  filePath: completeFile.path,
-                  fileName: filename,
-                  offerId: offerId,
+                  sender: sender, text: '', isMe: false,
+                  filePath: completeFile.path, fileName: filename, offerId: offerId,
                 );
               } else {
                 _messages.add(ChatMessage(
@@ -220,28 +252,42 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
             }
           });
           _scrollToBottom();
+
+          // Send file_downloaded ack back to everyone
+          final downloadedPayload = jsonEncode({
+            'type': 'file_downloaded',
+            'offer_id': offerId,
+            'downloader': ref.read(usernameProvider),
+            'filename': filename,
+          });
+          if (widget.isHost) {
+            ref.read(webSocketServerProvider).broadcastMessage(downloadedPayload);
+          } else {
+            ref.read(webSocketClientProvider).sendMessage(downloadedPayload);
+          }
+
+          // Notify if app is backgrounded
+          NotificationService().showFileNotification(sender: sender, fileName: filename);
         }
       } else if (data['type'] == 'file_offer') {
-        // Someone is offering a large file — show download card
         final sender = data['sender'] as String;
         final filename = data['filename'] as String;
         final fileSize = data['size'] as int;
         final offerId = data['offer_id'] as String;
         setState(() {
           _messages.add(ChatMessage(
-            sender: sender,
-            text: '',
-            isMe: false,
-            fileName: filename,
-            fileSize: fileSize,
-            offerId: offerId,
+            sender: sender, text: '', isMe: false,
+            fileName: filename, fileSize: fileSize, offerId: offerId,
           ));
         });
         _scrollToBottom();
+
+        NotificationService().showFileNotification(
+          sender: sender, fileName: '$filename (${_formatFileSize(fileSize)})', isOffer: true,
+        );
       } else if (data['type'] == 'accept_file') {
-        // Someone accepted our file offer — stream it now
         final offerId = data['offer_id'] as String;
-        final filePath = _pendingFileOffers.remove(offerId);
+        final filePath = _pendingFileOffers[offerId]; // Don't remove yet — might be multi-user
         if (filePath != null) {
           final file = File(filePath);
           if (await file.exists()) {
@@ -257,8 +303,25 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
             }
           }
         }
+      } else if (data['type'] == 'file_downloaded') {
+        // Someone finished downloading our file — update sender state
+        final offerId = data['offer_id'] as String?;
+        final downloader = data['downloader'] as String? ?? 'Someone';
+        if (offerId != null) {
+          setState(() {
+            final idx = _messages.indexWhere((m) => m.offerId == offerId && m.isMe);
+            if (idx != -1) {
+              final old = _messages[idx];
+              _messages[idx] = ChatMessage(
+                sender: old.sender, text: '', isMe: true,
+                fileName: old.fileName, fileSize: old.fileSize, offerId: offerId,
+                filePath: old.filePath ?? _pendingFileOffers[offerId],
+              );
+            }
+          });
+          _showTopSnackBar('✅ $downloader downloaded the file');
+        }
       } else if (data['type'] == 'cancel_file') {
-        // Someone cancelled a file offer or download
         final offerId = data['offer_id'] as String;
         _cancelledOffers.add(offerId);
         _pendingFileOffers.remove(offerId);
@@ -268,12 +331,8 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
             if (_messages[i].offerId == offerId) {
               final old = _messages[i];
               _messages[i] = ChatMessage(
-                sender: old.sender,
-                text: '',
-                isMe: old.isMe,
-                fileName: old.fileName,
-                fileSize: old.fileSize,
-                offerId: offerId,
+                sender: old.sender, text: '', isMe: old.isMe,
+                fileName: old.fileName, fileSize: old.fileSize, offerId: offerId,
                 isCancelled: true,
               );
             }
@@ -296,6 +355,18 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     }
   }
 
+  void _logDownload(String filename, String filePath, String sender) {
+    final fileSize = File(filePath).lengthSync();
+    ref.read(downloadHistoryProvider.notifier).addRecord(DownloadRecord(
+      fileName: filename,
+      filePath: filePath,
+      fileSize: fileSize,
+      senderName: sender,
+      roomName: widget.room.name,
+      downloadedAt: DateTime.now(),
+    ));
+  }
+
   void _scrollToBottom() {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (_scrollController.hasClients) {
@@ -313,9 +384,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     if (text.isEmpty) return;
 
     if (!_hasParticipants) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('No one else is in the room'), duration: Duration(seconds: 2)),
-      );
+      _showTopSnackBar('No one else is in the room');
       return;
     }
 
@@ -338,12 +407,12 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     _audioRecorder.dispose();
     _audioPlayer.dispose();
     _textController.dispose();
     _scrollController.dispose();
 
-    // Stop server/broadcasting when leaving (host only)
     if (widget.isHost) {
       ref.read(discoveryServiceProvider).stop();
       ref.read(webSocketServerProvider).stopServer();
@@ -354,9 +423,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
   }
 
   void _showNoParticipantsWarning() {
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('No one else is in the room'), duration: Duration(seconds: 2)),
-    );
+    _showTopSnackBar('No one else is in the room');
   }
 
   Future<void> _handleDroppedFiles(List<File> files) async {
@@ -395,12 +462,9 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
 
       setState(() {
         _messages.add(ChatMessage(
-          sender: senderName,
-          text: '',
-          isMe: true,
+          sender: senderName, text: '', isMe: true,
           fileName: '📤 $filename (${_formatFileSize(fileSize)})',
-          fileSize: fileSize,
-          offerId: offerId,
+          fileSize: fileSize, offerId: offerId,
         ));
       });
       _scrollToBottom();
@@ -408,9 +472,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
       // Small file: auto-send immediately
       setState(() {
         _messages.add(ChatMessage(
-          sender: senderName,
-          text: '',
-          isMe: true,
+          sender: senderName, text: '', isMe: true,
           filePath: file.path,
           fileName: '📤 $filename (${_formatFileSize(fileSize)})',
         ));
@@ -431,6 +493,8 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
   }
 
   void _acceptFileOffer(String offerId) {
+    _acceptedOffers.add(offerId);
+
     final acceptPayload = jsonEncode({
       'type': 'accept_file',
       'offer_id': offerId,
@@ -442,19 +506,14 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
       ref.read(webSocketClientProvider).sendMessage(acceptPayload);
     }
 
-    // Update the message to show downloading state
     setState(() {
       final idx = _messages.indexWhere((m) => m.offerId == offerId && !m.isMe);
       if (idx != -1) {
         final old = _messages[idx];
         _messages[idx] = ChatMessage(
-          sender: old.sender,
-          text: '',
-          isMe: false,
-          fileName: old.fileName,
-          fileSize: old.fileSize,
-          offerId: offerId,
-          isDownloading: true,
+          sender: old.sender, text: '', isMe: false,
+          fileName: old.fileName, fileSize: old.fileSize,
+          offerId: offerId, isDownloading: true,
         );
       }
     });
@@ -481,13 +540,9 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
         if (_messages[i].offerId == offerId) {
           final old = _messages[i];
           _messages[i] = ChatMessage(
-            sender: old.sender,
-            text: '',
-            isMe: old.isMe,
-            fileName: old.fileName,
-            fileSize: old.fileSize,
-            offerId: offerId,
-            isCancelled: true,
+            sender: old.sender, text: '', isMe: old.isMe,
+            fileName: old.fileName, fileSize: old.fileSize,
+            offerId: offerId, isCancelled: true,
           );
         }
       }
@@ -540,7 +595,6 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     try {
       final path = await _audioRecorder.stop();
       setState(() => _isRecording = false);
-
       if (path != null) {
         final file = File(path);
         await _sendFile(file);
@@ -589,16 +643,12 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
   String? _getMimeType(String path) {
     final ext = p.extension(path).toLowerCase();
     const mimeMap = {
-      // Images
       '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.png': 'image/png',
       '.gif': 'image/gif', '.webp': 'image/webp', '.bmp': 'image/bmp', '.svg': 'image/svg+xml',
-      // Video
       '.mp4': 'video/mp4', '.mkv': 'video/x-matroska', '.avi': 'video/x-msvideo',
       '.mov': 'video/quicktime', '.webm': 'video/webm',
-      // Audio
       '.mp3': 'audio/mpeg', '.m4a': 'audio/mp4', '.wav': 'audio/wav',
       '.ogg': 'audio/ogg', '.flac': 'audio/flac', '.aac': 'audio/aac',
-      // Documents
       '.pdf': 'application/pdf', '.doc': 'application/msword',
       '.docx': 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
       '.xls': 'application/vnd.ms-excel',
@@ -606,14 +656,12 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
       '.ppt': 'application/vnd.ms-powerpoint',
       '.pptx': 'application/vnd.openxmlformats-officedocument.presentationml.presentation',
       '.txt': 'text/plain', '.csv': 'text/csv', '.json': 'application/json',
-      // Archives
       '.zip': 'application/zip', '.rar': 'application/x-rar-compressed',
       '.7z': 'application/x-7z-compressed', '.tar': 'application/x-tar',
       '.gz': 'application/gzip',
-      // APK
       '.apk': 'application/vnd.android.package-archive',
     };
-    return mimeMap[ext]; // Returns null for unknown types, which is fine — OS handles it
+    return mimeMap[ext];
   }
 
   void _openFolder(String path) async {
@@ -621,7 +669,6 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     if (Platform.isWindows) {
       await Process.run('explorer', [dir]);
     } else if (Platform.isAndroid) {
-      // On Android, just open the file itself as there's no "open folder"
       await OpenFilex.open(path);
     } else if (Platform.isMacOS) {
       await Process.run('open', [dir]);
@@ -649,77 +696,43 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // Drag handle
               Center(
                 child: Container(
-                  width: 40,
-                  height: 4,
-                  decoration: BoxDecoration(
-                    color: Colors.grey.shade600,
-                    borderRadius: BorderRadius.circular(2),
-                  ),
+                  width: 40, height: 4,
+                  decoration: BoxDecoration(color: Colors.grey.shade600, borderRadius: BorderRadius.circular(2)),
                 ),
               ),
               const SizedBox(height: 20),
-
-              // Room name
-              Text(widget.room.name,
-                  style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: Colors.white)),
+              Text(widget.room.name, style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: Colors.white)),
               const SizedBox(height: 16),
-
-              // Connection info
               _infoTile(Icons.wifi, 'Connection',
-                  widget.isHost
-                      ? 'Host • ${_localIp ?? "Loading..."} : 55556'
-                      : 'Client • Connected'),
-
-              // E2EE status
+                  widget.isHost ? 'Host • ${_localIp ?? "Loading..."} : 55556' : 'Client • Connected'),
               _infoTile(
-                widget.room.e2eeEnabled ? Icons.lock : Icons.lock_open,
-                'Encryption',
+                widget.room.e2eeEnabled ? Icons.lock : Icons.lock_open, 'Encryption',
                 widget.room.e2eeEnabled ? 'End-to-End Encrypted (AES-256)' : 'No encryption',
                 iconColor: widget.room.e2eeEnabled ? Colors.greenAccent : Colors.grey,
               ),
-
-              // Your display name
               _infoTile(Icons.person, 'Display Name', ref.read(usernameProvider)),
-
-              // Participant count
-              _infoTile(Icons.people, 'Participants',
-                  '${_participantCount + 1} (including you)',
+              _infoTile(Icons.people, 'Participants', '${_participantCount + 1} (including you)',
                   iconColor: _hasParticipants ? Colors.blueAccent : Colors.orangeAccent),
-
-              // QR Code for host
               if (widget.isHost && _localIp != null) ...[
                 const SizedBox(height: 20),
                 const Text('Share this room', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.white)),
                 const SizedBox(height: 8),
-                const Text('Others can scan this QR code to join:',
-                    style: TextStyle(color: Colors.grey, fontSize: 13)),
+                const Text('Others can scan this QR code to join:', style: TextStyle(color: Colors.grey, fontSize: 13)),
                 const SizedBox(height: 16),
                 Center(
                   child: Container(
                     padding: const EdgeInsets.all(16),
-                    decoration: BoxDecoration(
-                      color: Colors.white,
-                      borderRadius: BorderRadius.circular(16),
-                    ),
+                    decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(16)),
                     child: QrImageView(
-                      data: jsonEncode({
-                        'ip': _localIp,
-                        'e2ee': widget.room.e2eeEnabled,
-                        'room': widget.room.name,
-                      }),
-                      version: QrVersions.auto,
-                      size: 180.0,
+                      data: jsonEncode({'ip': _localIp, 'e2ee': widget.room.e2eeEnabled, 'room': widget.room.name}),
+                      version: QrVersions.auto, size: 180.0,
                     ),
                   ),
                 ),
                 const SizedBox(height: 12),
-                Center(
-                  child: Text('IP: $_localIp',
-                      style: const TextStyle(color: Colors.grey, fontSize: 13)),
-                ),
+                Center(child: Text('IP: $_localIp', style: const TextStyle(color: Colors.grey, fontSize: 13))),
               ],
               const SizedBox(height: 24),
             ],
@@ -736,10 +749,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
         children: [
           Container(
             padding: const EdgeInsets.all(10),
-            decoration: BoxDecoration(
-              color: iconColor.withValues(alpha: 0.12),
-              borderRadius: BorderRadius.circular(10),
-            ),
+            decoration: BoxDecoration(color: iconColor.withValues(alpha: 0.12), borderRadius: BorderRadius.circular(10)),
             child: Icon(icon, color: iconColor, size: 20),
           ),
           const SizedBox(width: 14),
@@ -881,12 +891,9 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
   }
 
   Widget _buildMessageContent(ChatMessage msg) {
-    // File message (completed or offer) — show interactive card
     if (msg.filePath != null || msg.offerId != null) {
       return _buildFileBubble(msg);
     }
-
-    // Voice memo received (audio file with Saved to path — legacy fallback)
     if (msg.text.contains('.m4a') && msg.text.contains('Saved to: ')) {
       return Row(mainAxisSize: MainAxisSize.min, children: [
         IconButton(
@@ -899,8 +906,6 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
         const Expanded(child: Text("🎵 Voice Memo Received", style: TextStyle(color: Colors.white, fontSize: 14))),
       ]);
     }
-
-    // Voice memo sent (legacy fallback)
     if (msg.text.contains('.m4a') && msg.text.startsWith('🎤 Sent Voi')) {
       return const Row(mainAxisSize: MainAxisSize.min, children: [
         Icon(Icons.audiotrack, color: Colors.white, size: 30),
@@ -908,8 +913,6 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
         Text("🎵 Audio message sent", style: TextStyle(color: Colors.white)),
       ]);
     }
-
-    // Regular text message
     return Text(msg.text, style: const TextStyle(color: Colors.white, fontSize: 15));
   }
 
@@ -940,19 +943,14 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(
-                    fileName,
+                  Text(fileName,
                     style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 14),
-                    overflow: TextOverflow.ellipsis,
-                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis, maxLines: 2,
                   ),
                   if (msg.fileSize != null)
                     Padding(
                       padding: const EdgeInsets.only(top: 2),
-                      child: Text(
-                        _formatFileSize(msg.fileSize!),
-                        style: const TextStyle(color: Colors.grey, fontSize: 12),
-                      ),
+                      child: Text(_formatFileSize(msg.fileSize!), style: const TextStyle(color: Colors.grey, fontSize: 12)),
                     ),
                 ],
               ),
@@ -960,31 +958,25 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
           ],
         ),
 
-        // Cancelled state
+        // Cancelled
         if (msg.isCancelled) ...[
           const SizedBox(height: 8),
-          Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Icon(Icons.cancel, color: Colors.redAccent.withValues(alpha: 0.7), size: 16),
-              const SizedBox(width: 6),
-              Text('Cancelled', style: TextStyle(color: Colors.redAccent.withValues(alpha: 0.7), fontSize: 12)),
-            ],
-          ),
+          Row(mainAxisSize: MainAxisSize.min, children: [
+            Icon(Icons.cancel, color: Colors.redAccent.withValues(alpha: 0.7), size: 16),
+            const SizedBox(width: 6),
+            Text('Cancelled', style: TextStyle(color: Colors.redAccent.withValues(alpha: 0.7), fontSize: 12)),
+          ]),
         ],
 
-        // Pending offer from someone else — show Download button
+        // Pending offer — Download button (receiver only)
         if (isOffer && !msg.isMe && !msg.isDownloading && !msg.isCancelled) ...[
           const SizedBox(height: 10),
-          Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              _fileActionButton(Icons.download, 'Download', () => _acceptFileOffer(msg.offerId!)),
-            ],
-          ),
+          Row(mainAxisSize: MainAxisSize.min, children: [
+            _fileActionButton(Icons.download, 'Download', () => _acceptFileOffer(msg.offerId!)),
+          ]),
         ],
 
-        // Downloading state with progress bar and cancel
+        // Downloading — progress bar + cancel
         if (msg.isDownloading && !msg.isCancelled) ...[
           const SizedBox(height: 10),
           Builder(builder: (_) {
@@ -1008,16 +1000,12 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                 Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    Text(
-                      '${(pct * 100).toStringAsFixed(0)}%',
-                      style: const TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.bold),
-                    ),
+                    Text('${(pct * 100).toStringAsFixed(0)}%',
+                      style: const TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.bold)),
                     if (msg.fileSize != null) ...[
                       const SizedBox(width: 6),
-                      Text(
-                        '${_formatFileSize((pct * msg.fileSize!).round())} / ${_formatFileSize(msg.fileSize!)}',
-                        style: const TextStyle(color: Colors.grey, fontSize: 11),
-                      ),
+                      Text('${_formatFileSize((pct * msg.fileSize!).round())} / ${_formatFileSize(msg.fileSize!)}',
+                        style: const TextStyle(color: Colors.grey, fontSize: 11)),
                     ],
                     const Spacer(),
                     InkWell(
@@ -1028,14 +1016,11 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                           color: Colors.redAccent.withValues(alpha: 0.15),
                           borderRadius: BorderRadius.circular(6),
                         ),
-                        child: const Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Icon(Icons.close, color: Colors.redAccent, size: 14),
-                            SizedBox(width: 4),
-                            Text('Cancel', style: TextStyle(color: Colors.redAccent, fontSize: 11, fontWeight: FontWeight.w600)),
-                          ],
-                        ),
+                        child: const Row(mainAxisSize: MainAxisSize.min, children: [
+                          Icon(Icons.close, color: Colors.redAccent, size: 14),
+                          SizedBox(width: 4),
+                          Text('Cancel', style: TextStyle(color: Colors.redAccent, fontSize: 11, fontWeight: FontWeight.w600)),
+                        ]),
                       ),
                     ),
                   ],
@@ -1045,51 +1030,52 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
           }),
         ],
 
-        // Sender's pending offer — show waiting label + cancel button
+        // Sender: waiting for download + cancel, or downloaded status
         if (isOffer && msg.isMe && !msg.isCancelled) ...[
           const SizedBox(height: 8),
-          Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              const Text('⏳ Waiting for download', style: TextStyle(color: Colors.grey, fontSize: 11)),
-              const SizedBox(width: 12),
-              InkWell(
-                onTap: () => _cancelFileOffer(msg.offerId!),
-                child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                  decoration: BoxDecoration(
-                    color: Colors.redAccent.withValues(alpha: 0.15),
-                    borderRadius: BorderRadius.circular(6),
-                  ),
-                  child: const Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Icon(Icons.close, color: Colors.redAccent, size: 14),
-                      SizedBox(width: 4),
-                      Text('Cancel', style: TextStyle(color: Colors.redAccent, fontSize: 11, fontWeight: FontWeight.w600)),
-                    ],
-                  ),
+          Row(mainAxisSize: MainAxisSize.min, children: [
+            const Text('⏳ Waiting for download', style: TextStyle(color: Colors.grey, fontSize: 11)),
+            const SizedBox(width: 12),
+            InkWell(
+              onTap: () => _cancelFileOffer(msg.offerId!),
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                decoration: BoxDecoration(
+                  color: Colors.redAccent.withValues(alpha: 0.15),
+                  borderRadius: BorderRadius.circular(6),
                 ),
+                child: const Row(mainAxisSize: MainAxisSize.min, children: [
+                  Icon(Icons.close, color: Colors.redAccent, size: 14),
+                  SizedBox(width: 4),
+                  Text('Cancel', style: TextStyle(color: Colors.redAccent, fontSize: 11, fontWeight: FontWeight.w600)),
+                ]),
               ),
-            ],
-          ),
+            ),
+          ]),
         ],
 
-        // Completed file — show Open/Folder/Play buttons
-        if (isCompleted && (!msg.isMe || (msg.isMe && msg.fileName != null && !msg.fileName!.startsWith('📤')))) ...[
+        // Sender: file was downloaded by someone (isCompleted && isMe && had offer)
+        if (isCompleted && msg.isMe && msg.offerId != null && !msg.isCancelled) ...[
+          const SizedBox(height: 8),
+          const Row(mainAxisSize: MainAxisSize.min, children: [
+            Icon(Icons.check_circle, color: Colors.greenAccent, size: 16),
+            SizedBox(width: 6),
+            Text('Downloaded', style: TextStyle(color: Colors.greenAccent, fontSize: 12)),
+          ]),
+        ],
+
+        // Completed file: Open/Folder/Play buttons (receiver side)
+        if (isCompleted && !msg.isMe) ...[
           const SizedBox(height: 10),
-          Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              if (isAudio)
-                _fileActionButton(Icons.play_arrow, 'Play', () {
-                  _audioPlayer.play(DeviceFileSource(msg.filePath!));
-                }),
-              _fileActionButton(Icons.open_in_new, 'Open', () => _openFile(msg.filePath!)),
-              const SizedBox(width: 8),
-              _fileActionButton(Icons.folder_open, 'Folder', () => _openFolder(msg.filePath!)),
-            ],
-          ),
+          Row(mainAxisSize: MainAxisSize.min, children: [
+            if (isAudio)
+              _fileActionButton(Icons.play_arrow, 'Play', () {
+                _audioPlayer.play(DeviceFileSource(msg.filePath!));
+              }),
+            _fileActionButton(Icons.open_in_new, 'Open', () => _openFile(msg.filePath!)),
+            const SizedBox(width: 8),
+            _fileActionButton(Icons.folder_open, 'Folder', () => _openFolder(msg.filePath!)),
+          ]),
         ],
       ],
     );
@@ -1107,14 +1093,11 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
             color: Colors.white.withValues(alpha: 0.12),
             borderRadius: BorderRadius.circular(8),
           ),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Icon(icon, color: Colors.white, size: 16),
-              const SizedBox(width: 4),
-              Text(label, style: const TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.w600)),
-            ],
-          ),
+          child: Row(mainAxisSize: MainAxisSize.min, children: [
+            Icon(icon, color: Colors.white, size: 16),
+            const SizedBox(width: 4),
+            Text(label, style: const TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.w600)),
+          ]),
         ),
       ),
     );
@@ -1147,7 +1130,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                   _showNoParticipantsWarning();
                   return;
                 }
-                ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Hold down the mic continuously to record!')));
+                _showTopSnackBar('Hold down the mic continuously to record!');
               },
               onLongPress: _startRecording,
               onLongPressUp: _stopRecording,

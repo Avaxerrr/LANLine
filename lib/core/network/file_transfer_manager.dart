@@ -69,15 +69,18 @@ class FileTransferManager {
     return null;
   }
 
+  /// Clear any in-progress file assembly (e.g., when a transfer is cancelled)
+  void cancelFile(String filename) {
+    _incomingFiles.remove(filename);
+  }
+
   Future<File> _saveFile(String filename, List<int> bytes, {String? customSavePath}) async {
     String saveDir;
     
     if (customSavePath != null) {
-      // Used purely for unit testing the logic without triggering OS path_provider locks
       saveDir = customSavePath;
     } else {
-      final directory = await getApplicationDocumentsDirectory();
-      saveDir = p.join(directory.path, 'LANLine_Downloads');
+      saveDir = await getDownloadPath();
     }
     
     final file = File(p.join(saveDir, filename));
@@ -85,5 +88,33 @@ class FileTransferManager {
       await file.parent.create(recursive: true);
     }
     return await file.writeAsBytes(bytes);
+  }
+
+  /// Returns the platform-appropriate downloads directory path
+  static Future<String> getDownloadPath() async {
+    if (Platform.isWindows || Platform.isMacOS || Platform.isLinux) {
+      final dir = await getDownloadsDirectory();
+      if (dir != null) {
+        return p.join(dir.path, 'LANLine');
+      }
+    }
+    
+    // Android: try external storage first, fall back to app documents
+    if (Platform.isAndroid) {
+      try {
+        // /storage/emulated/0/Download/LANLine/
+        const downloadPath = '/storage/emulated/0/Download/LANLine';
+        final dir = Directory(downloadPath);
+        if (!await dir.exists()) {
+          await dir.create(recursive: true);
+        }
+        return downloadPath;
+      } catch (e) {
+        // Fallback to app documents if external storage fails
+      }
+    }
+    
+    final directory = await getApplicationDocumentsDirectory();
+    return p.join(directory.path, 'LANLine_Downloads');
   }
 }

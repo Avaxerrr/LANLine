@@ -5,8 +5,10 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:window_manager/window_manager.dart';
 import 'core/theme/app_theme.dart';
 import 'core/providers/username_provider.dart';
+import 'core/services/notification_service.dart';
 import 'features/room/presentation/room_list_screen.dart';
 import 'features/connection/presentation/client_scanner_screen.dart';
+import 'features/downloads/presentation/download_history_screen.dart';
 
 class WindowSaver with WindowListener {
   final SharedPreferences prefs;
@@ -33,6 +35,7 @@ void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
   final prefs = await SharedPreferences.getInstance();
+  await NotificationService().initialize();
 
   if (Platform.isWindows || Platform.isLinux || Platform.isMacOS) {
     await windowManager.ensureInitialized();
@@ -248,6 +251,16 @@ class _MainMenuScreenState extends ConsumerState<MainMenuScreen> {
             onTap: () => Navigator.push(
               context,
               MaterialPageRoute(builder: (_) => const ClientScannerScreen()),
+            ),
+          ),
+          const SizedBox(height: 20),
+          _buildMenuButton(
+            icon: Icons.download_rounded,
+            label: 'Downloads',
+            color: Colors.deepPurpleAccent,
+            onTap: () => Navigator.push(
+              context,
+              MaterialPageRoute(builder: (_) => const DownloadHistoryScreen()),
             ),
           ),
           const SizedBox(height: 18),
