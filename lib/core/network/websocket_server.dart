@@ -109,6 +109,17 @@ class WebSocketServerService {
   }
 
   void stopServer() {
+    // Notify all clients that the room is closing before disconnecting
+    try {
+      final closePayload = jsonEncode({'type': 'room_closed'});
+      final encrypted = EncryptionManager().encrypt(closePayload);
+      for (var client in _clients) {
+        if (client.readyState == WebSocket.open) {
+          client.add(encrypted);
+        }
+      }
+    } catch (_) {}
+
     for (var client in _clients) {
       client.close();
     }

@@ -96,6 +96,8 @@ class _ChatScreenState extends ConsumerState<ChatScreen> with WidgetsBindingObse
   int _participantCount = 0;
   List<String> _participantNames = [];
   final FocusNode _textFocusNode = FocusNode();
+  final Set<int> _expandedTimestamps = {};
+  bool _roomClosed = false;
 
   StreamSubscription? _messageSubscription;
   StreamSubscription? _participantSubscription;
@@ -151,6 +153,13 @@ class _ChatScreenState extends ConsumerState<ChatScreen> with WidgetsBindingObse
           });
         }
       });
+    } else {
+      // Client: listen for host disconnect
+      ref.read(webSocketClientProvider).onDisconnected = () {
+        if (mounted && !_roomClosed) {
+          _handleRoomClosed();
+        }
+      };
     }
   }
 
@@ -209,6 +218,10 @@ class _ChatScreenState extends ConsumerState<ChatScreen> with WidgetsBindingObse
             _participantCount = count - 1;
             _participantNames = names;
           });
+        }
+      } else if (data['type'] == 'room_closed') {
+        if (!widget.isHost && !_roomClosed) {
+          _handleRoomClosed();
         }
       } else if (data['type'] == 'error') {
         setState(() {
@@ -466,9 +479,43 @@ class _ChatScreenState extends ConsumerState<ChatScreen> with WidgetsBindingObse
       ref.read(discoveryServiceProvider).stop();
       ref.read(webSocketServerProvider).stopServer();
     } else {
+      ref.read(webSocketClientProvider).onDisconnected = null;
       ref.read(webSocketClientProvider).disconnect();
     }
     super.dispose();
+  }
+
+  void _handleRoomClosed() {
+    if (_roomClosed) return;
+    _roomClosed = true;
+
+    ref.read(webSocketClientProvider).onDisconnected = null;
+
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: const Color(0xFF252525),
+        title: const Row(children: [
+          Icon(Icons.info_outline, color: Colors.orangeAccent),
+          SizedBox(width: 10),
+          Text('Room Closed', style: TextStyle(color: Colors.white)),
+        ]),
+        content: const Text(
+          'The host has closed this room.',
+          style: TextStyle(color: Colors.grey),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () {
+              Navigator.pop(ctx); // close dialog
+              Navigator.pop(context); // go back to join room
+            },
+            child: const Text('OK'),
+          ),
+        ],
+      ),
+    );
   }
 
   void _showNoParticipantsWarning() {
@@ -1071,6 +1118,10 @@ class _ChatScreenState extends ConsumerState<ChatScreen> with WidgetsBindingObse
         _messages[index + 1].sender == msg.sender && !_messages[index + 1].isMe)
         ? 4.0 : 14.0;
 
+    // Only show timestamp on the last message, or when explicitly tapped
+    final isLastMessage = index == _messages.length - 1;
+    final showTimestamp = isLastMessage || _expandedTimestamps.contains(index);
+
     return Padding(
       padding: EdgeInsets.only(bottom: bottomPadding),
       child: Column(
@@ -1083,6 +1134,15 @@ class _ChatScreenState extends ConsumerState<ChatScreen> with WidgetsBindingObse
             ),
           GestureDetector(
             onLongPress: () => _showMessageOptions(msg),
+            onTap: isLastMessage ? null : () {
+              setState(() {
+                if (_expandedTimestamps.contains(index)) {
+                  _expandedTimestamps.remove(index);
+                } else {
+                  _expandedTimestamps.add(index);
+                }
+              });
+            },
             child: Container(
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
               constraints: BoxConstraints(maxWidth: MediaQuery.of(context).size.width * 0.75),
@@ -1098,22 +1158,28 @@ class _ChatScreenState extends ConsumerState<ChatScreen> with WidgetsBindingObse
               child: _buildMessageContent(msg),
             ),
           ),
-          // Timestamp + read receipt row
-          Padding(
-            padding: const EdgeInsets.only(top: 3, left: 12, right: 8),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Text(
-                  _formatTimestamp(msg.timestamp),
-                  style: const TextStyle(color: Colors.grey, fontSize: 10),
-                ),
-                if (msg.isMe && msg.id != null) ...[
-                  const SizedBox(width: 4),
-                  Icon(Icons.done_all, size: 14, color: msg.isAcked ? Colors.blueAccent : Colors.grey),
-                ],
-              ],
-            ),
+          // Timestamp + read receipt — animated slide
+          AnimatedSize(
+            duration: const Duration(milliseconds: 200),
+            curve: Curves.easeOut,
+            child: showTimestamp
+                ? Padding(
+                    padding: const EdgeInsets.only(top: 3, left: 12, right: 8),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text(
+                          _formatTimestamp(msg.timestamp),
+                          style: const TextStyle(color: Colors.grey, fontSize: 10),
+                        ),
+                        if (msg.isMe && msg.id != null) ...[
+                          const SizedBox(width: 4),
+                          Icon(Icons.done_all, size: 14, color: msg.isAcked ? Colors.blueAccent : Colors.grey),
+                        ],
+                      ],
+                    ),
+                  )
+                : const SizedBox.shrink(),
           ),
         ],
       ),

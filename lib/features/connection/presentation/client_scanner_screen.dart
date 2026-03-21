@@ -291,7 +291,7 @@ class _ClientScannerScreenState extends ConsumerState<ClientScannerScreen> {
       final joinPayload = '{"type":"join","sender":"$username"}';
       ref.read(webSocketClientProvider).sendMessage(joinPayload);
 
-      Navigator.pushReplacement(
+      Navigator.push(
         context,
         MaterialPageRoute(builder: (_) => ChatScreen(room: room, isHost: false)),
       );

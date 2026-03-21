@@ -13,6 +13,9 @@ class WebSocketClientService {
   var _messageController = StreamController<String>.broadcast();
   Stream<String> get onMessageReceived => _messageController.stream;
 
+  /// Callback for when the WebSocket connection is closed (e.g., host exits)
+  void Function()? onDisconnected;
+
   bool get isConnected => _socket != null && _socket!.readyState == WebSocket.open;
 
   Future<void> connect(String ipAddress, {int port = 55556}) async {
@@ -31,9 +34,11 @@ class WebSocketClientService {
         },
         onDone: () {
           _socket = null;
+          onDisconnected?.call();
         },
         onError: (e) {
           _socket = null;
+          onDisconnected?.call();
         }
       );
     } catch (e) {
