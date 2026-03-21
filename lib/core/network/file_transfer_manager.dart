@@ -15,7 +15,7 @@ class FileTransferManager {
   final Map<String, BytesBuilder> _incomingFiles = {};
 
   /// Reads a file from disk and breaks it into an array of JSON Base64 payloads
-  Future<List<String>> splitFileIntoChunks(File file, String sender) async {
+  Future<List<String>> splitFileIntoChunks(File file, String sender, {String? offerId}) async {
     final filename = p.basename(file.path);
     final bytes = await file.readAsBytes();
     final totalChunks = (bytes.length / chunkSize).ceil();
@@ -30,15 +30,18 @@ class FileTransferManager {
       final end = (start + chunkSize < bytes.length) ? start + chunkSize : bytes.length;
       final chunkBytes = bytes.sublist(start, end);
       
-      final payload = jsonEncode({
+      final payloadMap = {
         'type': 'file_chunk',
         'sender': sender,
         'filename': filename,
         'chunk_index': i,
         'total_chunks': totalChunks,
         'data': base64Encode(chunkBytes),
-      });
-      payloads.add(payload);
+      };
+      if (offerId != null) {
+        payloadMap['offer_id'] = offerId;
+      }
+      payloads.add(jsonEncode(payloadMap));
     }
     return payloads;
   }

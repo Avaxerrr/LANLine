@@ -12,25 +12,31 @@ class WebSocketServerService {
   HttpServer? _server;
   final int _port = 55556;
   final List<WebSocket> _clients = [];
-  
+
   final _messageController = StreamController<String>.broadcast();
   Stream<String> get onMessageReceived => _messageController.stream;
+
+  // Participant count tracking
+  final _participantController = StreamController<int>.broadcast();
+  Stream<int> get onParticipantCountChanged => _participantController.stream;
+  int get clientCount => _clients.length;
 
   Future<void> startServer() async {
     // Close existing server if it was already running (e.g. after hot reload)
     await _server?.close(force: true);
-    
+
     // shared: true allows hot-reloads to bind to the same port without crashing
     _server = await HttpServer.bind(InternetAddress.anyIPv4, _port, shared: true);
     _server?.listen((HttpRequest request) async {
       if (WebSocketTransformer.isUpgradeRequest(request)) {
         final socket = await WebSocketTransformer.upgrade(request);
         _clients.add(socket);
-        
+        _notifyParticipantChange();
+
         socket.listen(
           (message) {
             final decrypted = EncryptionManager().decrypt(message.toString());
-            
+
             try {
               final data = jsonDecode(decrypted);
               if (data['type'] == 'handshake') {
@@ -38,7 +44,7 @@ class WebSocketServerService {
                 socket.add(EncryptionManager().encrypt(ack));
                 return; // Do NOT broadcast handshake to Chatroom
               } else if (data['type'] == 'error') {
-                socket.add(EncryptionManager().encrypt(jsonEncode({'type':'error', 'text': 'Wrong password'})));
+                socket.add(EncryptionManager().encrypt(jsonEncode({'type': 'error', 'text': 'Wrong password'})));
                 return; // Do NOT spam the Host's Chatroom
               }
             } catch (e) {
@@ -46,7 +52,7 @@ class WebSocketServerService {
             }
 
             _messageController.add(decrypted);
-            
+
             // Broadcast raw encrypted packet to other clients securely
             for (var client in _clients) {
               if (client != socket && client.readyState == WebSocket.open) {
@@ -56,13 +62,26 @@ class WebSocketServerService {
           },
           onDone: () {
             _clients.remove(socket);
+            _notifyParticipantChange();
           },
           onError: (e) {
             _clients.remove(socket);
-          }
+            _notifyParticipantChange();
+          },
         );
       }
     });
+  }
+
+  void _notifyParticipantChange() {
+    _participantController.add(_clients.length);
+
+    // Broadcast participant count to all connected clients
+    final countPayload = jsonEncode({
+      'type': 'participant_count',
+      'count': _clients.length + 1, // +1 to include the host
+    });
+    broadcastMessage(countPayload);
   }
 
   void broadcastMessage(String message) {
@@ -81,5 +100,6 @@ class WebSocketServerService {
     _clients.clear();
     _server?.close(force: true);
     _messageController.close();
+    _participantController.close();
   }
 }
