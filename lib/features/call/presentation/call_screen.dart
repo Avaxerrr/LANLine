@@ -431,10 +431,13 @@ class _CallScreenState extends ConsumerState<CallScreen> with SingleTickerProvid
   // ─── Video Call Layout ───────────────────────────────────────
 
   Widget _buildVideoLayout() {
+    final isDesktop = !Platform.isAndroid && !Platform.isIOS;
+
     return Stack(
       children: [
         // Remote video (full screen) or waiting state
-        if (_remoteRenderers.isNotEmpty)
+        // Skip RTCVideoView on desktop — causes texture threading crash
+        if (_remoteRenderers.isNotEmpty && !isDesktop)
           Positioned.fill(
             child: RTCVideoView(
               _remoteRenderers.values.first,
@@ -474,7 +477,8 @@ class _CallScreenState extends ConsumerState<CallScreen> with SingleTickerProvid
           ),
 
         // Local video (picture-in-picture style, top right)
-        if (_callService.localStream != null)
+        // Skip on desktop — same texture threading issue
+        if (_callService.localStream != null && !isDesktop)
           Positioned(
             top: MediaQuery.of(context).padding.top + 16,
             right: 16,
