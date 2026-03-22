@@ -17,6 +17,7 @@ import 'package:flutter_linkify/flutter_linkify.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../../../core/models/chat_message.dart';
 import '../../../core/models/room_model.dart';
+import '../../../core/providers/chat_provider.dart';
 import '../../../core/network/websocket_server.dart';
 import '../../../core/network/websocket_client.dart';
 import '../../../core/network/discovery_service.dart';
@@ -84,6 +85,11 @@ class _ChatScreenState extends ConsumerState<ChatScreen> with WidgetsBindingObse
     WidgetsBinding.instance.addObserver(this);
     _loadLocalIp();
     NotificationService().initialize();
+
+    // Initialize the chat notifier for this session
+    ref.read(chatProvider.notifier).init(
+      ChatConfig(isHost: widget.isHost, roomName: widget.room.name),
+    );
 
     // Client always has at least the host as a participant
     if (!widget.isHost) {
@@ -239,11 +245,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> with WidgetsBindingObse
         );
 
         final ackPayload = jsonEncode({'type': 'ack', 'id': msgId});
-        if (widget.isHost) {
-          ref.read(webSocketServerProvider).broadcastMessage(ackPayload);
-        } else {
-          ref.read(webSocketClientProvider).sendMessage(ackPayload);
-        }
+        ref.read(chatProvider.notifier).broadcast(ackPayload);
       } else if (data['type'] == 'file_chunk') {
         final offerId = data['offer_id'] as String?;
 
@@ -310,11 +312,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> with WidgetsBindingObse
             'downloader': ref.read(usernameProvider),
             'filename': filename,
           });
-          if (widget.isHost) {
-            ref.read(webSocketServerProvider).broadcastMessage(downloadedPayload);
-          } else {
-            ref.read(webSocketClientProvider).sendMessage(downloadedPayload);
-          }
+          ref.read(chatProvider.notifier).broadcast(downloadedPayload);
 
           // Notify if app is backgrounded
           _notificationPlayer.play(AssetSource('audio/notification.mp3'));
@@ -347,11 +345,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> with WidgetsBindingObse
             final manager = ref.read(fileTransferProvider);
             final payloads = await manager.splitFileIntoChunks(file, senderName, offerId: offerId);
             for (var payload in payloads) {
-              if (widget.isHost) {
-                ref.read(webSocketServerProvider).broadcastMessage(payload);
-              } else {
-                ref.read(webSocketClientProvider).sendMessage(payload);
-              }
+              ref.read(chatProvider.notifier).broadcast(payload);
             }
           }
         }
@@ -440,21 +434,17 @@ class _ChatScreenState extends ConsumerState<ChatScreen> with WidgetsBindingObse
       return;
     }
 
-    final name = ref.read(usernameProvider);
-    final msgId = DateTime.now().millisecondsSinceEpoch.toString();
-    final payload = jsonEncode({'type': 'message', 'id': msgId, 'sender': name, 'text': text});
-
-    if (widget.isHost) {
-      ref.read(webSocketServerProvider).broadcastMessage(payload);
-    } else {
-      ref.read(webSocketClientProvider).sendMessage(payload);
+    // Notifier handles payload construction and WebSocket send
+    final sent = ref.read(chatProvider.notifier).sendMessage(text);
+    if (sent) {
+      // Sync to local display list (will be removed when display reads from notifier)
+      final lastMsg = ref.read(chatProvider).messages.last;
+      setState(() {
+        _messages.add(lastMsg);
+      });
+      _textController.clear();
+      _scrollToBottom();
     }
-
-    setState(() {
-      _messages.add(ChatMessage(id: msgId, sender: name, text: text, isMe: true));
-    });
-    _textController.clear();
-    _scrollToBottom();
   }
 
   @override
@@ -517,11 +507,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> with WidgetsBindingObse
   // ─── Call Handling ─────────────────────────────────────────────
 
   void _sendCallSignal(String message) {
-    if (widget.isHost) {
-      ref.read(webSocketServerProvider).broadcastMessage(message);
-    } else {
-      ref.read(webSocketClientProvider).sendMessage(message);
-    }
+    ref.read(chatProvider.notifier).broadcast(message);
   }
 
   void _openCallScreen({
@@ -776,11 +762,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> with WidgetsBindingObse
         'offer_id': offerId,
       });
 
-      if (widget.isHost) {
-        ref.read(webSocketServerProvider).broadcastMessage(offerPayload);
-      } else {
-        ref.read(webSocketClientProvider).sendMessage(offerPayload);
-      }
+      ref.read(chatProvider.notifier).broadcast(offerPayload);
 
       setState(() {
         _messages.add(ChatMessage(
@@ -805,11 +787,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> with WidgetsBindingObse
       final payloads = await manager.splitFileIntoChunks(file, senderName);
 
       for (var payload in payloads) {
-        if (widget.isHost) {
-          ref.read(webSocketServerProvider).broadcastMessage(payload);
-        } else {
-          ref.read(webSocketClientProvider).sendMessage(payload);
-        }
+        ref.read(chatProvider.notifier).broadcast(payload);
       }
     }
   }
@@ -822,11 +800,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> with WidgetsBindingObse
       'offer_id': offerId,
     });
 
-    if (widget.isHost) {
-      ref.read(webSocketServerProvider).broadcastMessage(acceptPayload);
-    } else {
-      ref.read(webSocketClientProvider).sendMessage(acceptPayload);
-    }
+    ref.read(chatProvider.notifier).broadcast(acceptPayload);
 
     setState(() {
       final idx = _messages.indexWhere((m) => m.offerId == offerId && !m.isMe);
@@ -851,11 +825,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> with WidgetsBindingObse
       'offer_id': offerId,
     });
 
-    if (widget.isHost) {
-      ref.read(webSocketServerProvider).broadcastMessage(cancelPayload);
-    } else {
-      ref.read(webSocketClientProvider).sendMessage(cancelPayload);
-    }
+    ref.read(chatProvider.notifier).broadcast(cancelPayload);
 
     setState(() {
       for (int i = 0; i < _messages.length; i++) {
@@ -878,20 +848,12 @@ class _ChatScreenState extends ConsumerState<ChatScreen> with WidgetsBindingObse
     }
     final data = await Clipboard.getData(Clipboard.kTextPlain);
     if (data?.text != null && data!.text!.isNotEmpty) {
-      final senderName = ref.read(usernameProvider);
-      final text = data.text!;
-
-      setState(() {
-        _messages.add(ChatMessage(sender: senderName, text: "📋 Splashed Clipboard:\n$text", isMe: true));
-      });
-      _scrollToBottom();
-
-      final payload = jsonEncode({'type': 'clipboard', 'sender': senderName, 'text': text});
-
-      if (widget.isHost) {
-        ref.read(webSocketServerProvider).broadcastMessage(payload);
-      } else {
-        ref.read(webSocketClientProvider).sendMessage(payload);
+      final result = ref.read(chatProvider.notifier).sendClipboard(data.text!);
+      if (result != null) {
+        setState(() {
+          _messages.add(ref.read(chatProvider).messages.last);
+        });
+        _scrollToBottom();
       }
     }
   }
@@ -974,14 +936,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> with WidgetsBindingObse
   }
 
   void _sendTypingStatus() {
-    final name = ref.read(usernameProvider);
-    final payload = jsonEncode({'type': 'typing', 'sender': name});
-
-    if (widget.isHost) {
-      ref.read(webSocketServerProvider).broadcastMessage(payload);
-    } else {
-      ref.read(webSocketClientProvider).sendMessage(payload);
-    }
+    ref.read(chatProvider.notifier).sendTypingStatus();
   }
 
   String _formatFileSize(int bytes) {
