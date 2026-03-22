@@ -1,9 +1,11 @@
 package com.lanline.lanline
 
 import android.content.ContentValues
+import android.content.Context
 import android.net.Uri
 import android.os.Build
 import android.os.Environment
+import android.os.PowerManager
 import android.provider.MediaStore
 import androidx.annotation.NonNull
 import io.flutter.embedding.android.FlutterActivity
@@ -13,9 +15,48 @@ import java.io.File
 
 class MainActivity : FlutterActivity() {
     private val CHANNEL = "com.lanline.lanline/mediastore"
+    private val PROXIMITY_CHANNEL = "com.lanline.lanline/proximity"
+    private var proximityWakeLock: PowerManager.WakeLock? = null
 
     override fun configureFlutterEngine(@NonNull flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
+
+        // Proximity wake lock channel
+        MethodChannel(flutterEngine.dartExecutor.binaryMessenger, PROXIMITY_CHANNEL).setMethodCallHandler { call, result ->
+            when (call.method) {
+                "acquire" -> {
+                    try {
+                        val powerManager = getSystemService(Context.POWER_SERVICE) as PowerManager
+                        if (proximityWakeLock == null) {
+                            proximityWakeLock = powerManager.newWakeLock(
+                                PowerManager.PROXIMITY_SCREEN_OFF_WAKE_LOCK,
+                                "lanline:proximity"
+                            )
+                        }
+                        if (proximityWakeLock?.isHeld == false) {
+                            proximityWakeLock?.acquire()
+                        }
+                        result.success(true)
+                    } catch (e: Exception) {
+                        result.error("PROXIMITY_ERROR", e.message, null)
+                    }
+                }
+                "release" -> {
+                    try {
+                        if (proximityWakeLock?.isHeld == true) {
+                            proximityWakeLock?.release(PowerManager.RELEASE_FLAG_WAIT_FOR_NO_PROXIMITY)
+                        }
+                        proximityWakeLock = null
+                        result.success(true)
+                    } catch (e: Exception) {
+                        result.error("PROXIMITY_ERROR", e.message, null)
+                    }
+                }
+                else -> result.notImplemented()
+            }
+        }
+
+        // MediaStore channel
         MethodChannel(flutterEngine.dartExecutor.binaryMessenger, CHANNEL).setMethodCallHandler { call, result ->
             when (call.method) {
                 "saveToDownloads" -> {

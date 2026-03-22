@@ -553,8 +553,8 @@ class _ChatScreenState extends ConsumerState<ChatScreen> with WidgetsBindingObse
     required String myName,
     required String callType,
     required bool isInitiator,
-  }) {
-    Navigator.push(
+  }) async {
+    final result = await Navigator.push<int>(
       context,
       MaterialPageRoute(
         builder: (_) => CallScreen(
@@ -566,6 +566,22 @@ class _ChatScreenState extends ConsumerState<ChatScreen> with WidgetsBindingObse
         ),
       ),
     );
+
+    // Add call summary bubble to chat
+    if (result != null && result > 0 && mounted) {
+      final m = (result ~/ 60).toString().padLeft(2, '0');
+      final s = (result % 60).toString().padLeft(2, '0');
+      final icon = callType == 'video' ? '📹' : '📞';
+      final label = callType == 'video' ? 'Video call' : 'Voice call';
+      setState(() {
+        _messages.add(ChatMessage(
+          sender: myName,
+          text: '$icon $label • $m:$s',
+          isMe: true,
+        ));
+      });
+      _scrollToBottom();
+    }
   }
 
   void _handleIncomingCall(Map<String, dynamic> data) {

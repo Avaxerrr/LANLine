@@ -1,5 +1,7 @@
 import 'dart:async';
+import 'dart:io';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/network/webrtc_call_service.dart';
 
@@ -24,6 +26,8 @@ class CallScreen extends ConsumerStatefulWidget {
 }
 
 class _CallScreenState extends ConsumerState<CallScreen> with SingleTickerProviderStateMixin {
+  static const _proximityChannel = MethodChannel('com.lanline.lanline/proximity');
+
   late final WebRtcCallService _callService;
   bool _isMuted = false;
   bool _isSpeakerOn = false;
@@ -42,8 +46,7 @@ class _CallScreenState extends ConsumerState<CallScreen> with SingleTickerProvid
       if (mounted) {
         setState(() {});
         if (state == CallState.idle) {
-          // Call ended
-          Navigator.pop(context);
+          _popWithDuration();
         }
       }
     };
@@ -61,6 +64,23 @@ class _CallScreenState extends ConsumerState<CallScreen> with SingleTickerProvid
     };
 
     _initCall();
+    _acquireProximityLock();
+  }
+
+  Future<void> _acquireProximityLock() async {
+    if (Platform.isAndroid) {
+      try {
+        await _proximityChannel.invokeMethod('acquire');
+      } catch (_) {}
+    }
+  }
+
+  Future<void> _releaseProximityLock() async {
+    if (Platform.isAndroid) {
+      try {
+        await _proximityChannel.invokeMethod('release');
+      } catch (_) {}
+    }
   }
 
   Future<void> _initCall() async {
@@ -85,7 +105,7 @@ class _CallScreenState extends ConsumerState<CallScreen> with SingleTickerProvid
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('Failed to start call: $e')),
         );
-        Navigator.pop(context);
+        _popWithDuration();
       }
     }
   }
@@ -118,9 +138,17 @@ class _CallScreenState extends ConsumerState<CallScreen> with SingleTickerProvid
     _callService.endCall(widget.myName);
   }
 
+  void _popWithDuration() {
+    _releaseProximityLock();
+    if (mounted) {
+      Navigator.pop(context, _callDurationSeconds);
+    }
+  }
+
   @override
   void dispose() {
     _durationTimer?.cancel();
+    _releaseProximityLock();
     super.dispose();
   }
 
@@ -206,7 +234,6 @@ class _CallScreenState extends ConsumerState<CallScreen> with SingleTickerProvid
                   ],
                 ),
               ] else ...[
-                // Show self avatar when alone
                 _buildParticipantAvatar(widget.myName, isYou: true),
               ],
               const Spacer(flex: 3),
@@ -216,7 +243,6 @@ class _CallScreenState extends ConsumerState<CallScreen> with SingleTickerProvid
                 child: Row(
                   mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                   children: [
-                    // Mute
                     _buildControlButton(
                       icon: _isMuted ? Icons.mic_off : Icons.mic,
                       label: _isMuted ? 'Unmute' : 'Mute',
@@ -224,7 +250,6 @@ class _CallScreenState extends ConsumerState<CallScreen> with SingleTickerProvid
                       activeColor: Colors.redAccent,
                       onTap: _toggleMute,
                     ),
-                    // Speaker
                     _buildControlButton(
                       icon: _isSpeakerOn ? Icons.volume_up : Icons.volume_down,
                       label: 'Speaker',
@@ -232,7 +257,6 @@ class _CallScreenState extends ConsumerState<CallScreen> with SingleTickerProvid
                       activeColor: Colors.blueAccent,
                       onTap: _toggleSpeaker,
                     ),
-                    // End call
                     _buildEndCallButton(),
                   ],
                 ),
