@@ -71,6 +71,7 @@ class _CallScreenState extends ConsumerState<CallScreen> with SingleTickerProvid
               _stopRingback();
               _timeoutTimer?.cancel();
               _playConnectTone();
+              _startDurationTimer();
             }
           } else {
             _participants.remove(name);
@@ -179,7 +180,7 @@ class _CallScreenState extends ConsumerState<CallScreen> with SingleTickerProvid
       }
 
       setState(() => _callStarted = true);
-      _startDurationTimer();
+      if (!widget.isInitiator) _startDurationTimer();
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
