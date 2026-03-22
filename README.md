@@ -49,6 +49,14 @@ flutter build windows          # Windows desktop
 - **WebSocket** — real-time messaging and signaling
 - **Platform channels** — Android-native ringtone, vibration, proximity sensor
 
+## Audio Credits
+
+Sounds sourced from [Pixabay](https://pixabay.com/):
+
+- **Ringtone 027** by Universfield — incoming call ringtone
+- **New Notification 09** by Universfield — message notification
+- **Cellphone Ringing 6475** by Freesound Community — alternate ringtone
+
 ## License
 
 This project is not yet licensed.

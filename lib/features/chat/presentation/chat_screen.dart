@@ -93,6 +93,8 @@ class _ChatScreenState extends ConsumerState<ChatScreen> with WidgetsBindingObse
   bool _isDragging = false;
   final _audioRecorder = AudioRecorder();
   final _audioPlayer = AudioPlayer();
+  final _ringtonePlayer = AudioPlayer();
+  final _notificationPlayer = AudioPlayer();
   bool _isRecording = false;
   String? _localIp;
   int _participantCount = 0;
@@ -275,7 +277,8 @@ class _ChatScreenState extends ConsumerState<ChatScreen> with WidgetsBindingObse
         });
         _scrollToBottom();
 
-        // Send notification
+        // Play notification sound + send notification
+        _notificationPlayer.play(AssetSource('audio/notification.mp3'));
         NotificationService().showMessageNotification(
           sender: sender,
           message: text,
@@ -361,6 +364,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> with WidgetsBindingObse
           }
 
           // Notify if app is backgrounded
+          _notificationPlayer.play(AssetSource('audio/notification.mp3'));
           NotificationService().showFileNotification(sender: sender, fileName: filename);
         }
       } else if (data['type'] == 'file_offer') {
@@ -376,6 +380,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> with WidgetsBindingObse
         });
         _scrollToBottom();
 
+        _notificationPlayer.play(AssetSource('audio/notification.mp3'));
         NotificationService().showFileNotification(
           sender: sender, fileName: '$filename (${_formatFileSize(fileSize)})', isOffer: true,
         );
@@ -507,6 +512,8 @@ class _ChatScreenState extends ConsumerState<ChatScreen> with WidgetsBindingObse
     _progressThrottleTimer?.cancel();
     _audioRecorder.dispose();
     _audioPlayer.dispose();
+    _ringtonePlayer.dispose();
+    _notificationPlayer.dispose();
     _textController.dispose();
     _scrollController.dispose();
     _textFocusNode.dispose();
@@ -630,7 +637,9 @@ class _ChatScreenState extends ConsumerState<ChatScreen> with WidgetsBindingObse
       return;
     }
 
-    // Start ringtone + vibration on Android
+    // Start ringtone (cross-platform) + vibration (Android only)
+    _ringtonePlayer.setReleaseMode(ReleaseMode.loop);
+    _ringtonePlayer.play(AssetSource('audio/ringtone.mp3'));
     if (Platform.isAndroid) {
       try { _proximityChannel.invokeMethod('startRingtone'); } catch (_) {}
     }
@@ -671,10 +680,10 @@ class _ChatScreenState extends ConsumerState<ChatScreen> with WidgetsBindingObse
           // Decline
           GestureDetector(
             onTap: () {
+              _ringtonePlayer.stop();
               if (Platform.isAndroid) {
                 try { _proximityChannel.invokeMethod('stopRingtone'); } catch (_) {}
               }
-              // Send decline signal to caller
               _sendCallSignal(jsonEncode({
                 'type': 'call_decline',
                 'callId': callId,
@@ -698,6 +707,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> with WidgetsBindingObse
           // Accept
           GestureDetector(
             onTap: () {
+              _ringtonePlayer.stop();
               if (Platform.isAndroid) {
                 try { _proximityChannel.invokeMethod('stopRingtone'); } catch (_) {}
               }
