@@ -31,21 +31,25 @@ class WebRtcCallService {
 
   CallState state = CallState.idle;
   String? activeCallId;
-  String? callType;
+  String? callType; // 'audio' or 'video' — indicates current UI mode
   final Set<String> callParticipants = {};
 
-  // Callbacks for UI updates
+  // Callbacks
   void Function(CallState state)? onCallStateChanged;
   void Function(String participant, bool joined)? onParticipantChanged;
   void Function(MediaStream stream, String participantId)? onRemoteStream;
   void Function(String message)? sendSignal;
 
+  // WebRTC config — no STUN/TURN needed for LAN
   final Map<String, dynamic> _rtcConfig = {
     'iceServers': <Map<String, dynamic>>[],
     'sdpSemantics': 'unified-plan',
   };
 
-  /// Start a new call (caller initiates)
+  // ─── Always acquire BOTH audio + video ───────────────────────
+
+  /// Start a new call (caller initiates).
+  /// Always gets both audio+video; video disabled if type is 'audio'.
   Future<void> startCall({
     required String callId,
     required String myName,
@@ -56,12 +60,19 @@ class WebRtcCallService {
     state = CallState.calling;
     callParticipants.add(myName);
 
-    final constraints = <String, dynamic>{
+    // Always request both audio and video
+    _localStream = await navigator.mediaDevices.getUserMedia({
       'audio': true,
-      'video': type == 'video',
-    };
+      'video': true,
+    });
 
-    _localStream = await navigator.mediaDevices.getUserMedia(constraints);
+    // If audio-only mode, disable video track (camera light goes off)
+    if (type == 'audio') {
+      final videoTracks = _localStream!.getVideoTracks();
+      for (var track in videoTracks) {
+        track.enabled = false;
+      }
+    }
 
     sendSignal?.call(jsonEncode({
       'type': CallSignal.callStart,
@@ -74,7 +85,8 @@ class WebRtcCallService {
     onCallStateChanged?.call(state);
   }
 
-  /// Join an existing call (callee accepts)
+  /// Join an existing call (callee accepts).
+  /// Always gets both audio+video; video disabled if type is 'audio'.
   Future<void> joinCall({
     required String callId,
     required String myName,
@@ -84,11 +96,17 @@ class WebRtcCallService {
     callType = type;
     callParticipants.add(myName);
 
-    final constraints = <String, dynamic>{
+    _localStream = await navigator.mediaDevices.getUserMedia({
       'audio': true,
-      'video': type == 'video',
-    };
-    _localStream = await navigator.mediaDevices.getUserMedia(constraints);
+      'video': true,
+    });
+
+    if (type == 'audio') {
+      final videoTracks = _localStream!.getVideoTracks();
+      for (var track in videoTracks) {
+        track.enabled = false;
+      }
+    }
 
     sendSignal?.call(jsonEncode({
       'type': CallSignal.callJoin,
@@ -161,13 +179,10 @@ class WebRtcCallService {
     if (!_peerConnections.containsKey(remoteName)) {
       await setupPeerConnection(remoteName, myName, makeOffer: false);
     }
-
     final pc = _peerConnections[remoteName]!;
     await pc.setRemoteDescription(RTCSessionDescription(sdp['sdp'], sdp['type']));
-
     final answer = await pc.createAnswer();
     await pc.setLocalDescription(answer);
-
     sendSignal?.call(jsonEncode({
       'type': CallSignal.callAnswer,
       'callId': activeCallId,
@@ -274,42 +289,22 @@ class WebRtcCallService {
     Helper.setSpeakerphoneOn(isSpeakerOn);
   }
 
-  /// Toggle video on/off mid-call.
-  /// Returns true if video is now enabled, false if disabled.
-  Future<bool> toggleVideo() async {
+  /// Toggle video on/off — just enables/disables the existing video track.
+  /// No getUserMedia, no track add/remove, no renegotiation.
+  /// Returns true if video is now enabled.
+  bool toggleVideo() {
     if (_localStream == null) return false;
-
     final videoTracks = _localStream!.getVideoTracks();
+    if (videoTracks.isEmpty) return false;
 
-    if (videoTracks.isNotEmpty) {
-      // Video is currently on — disable it
-      for (var track in videoTracks) {
-        track.enabled = false;
-        _localStream!.removeTrack(track);
-        track.stop();
-      }
-      callType = 'audio';
-      return false;
-    } else {
-      // Video is currently off — enable it
-      final newStream = await navigator.mediaDevices.getUserMedia({
-        'audio': false,
-        'video': true,
-      });
-      final videoTrack = newStream.getVideoTracks()[0];
-      _localStream!.addTrack(videoTrack);
-
-      // Add video track to all peer connections
-      for (var pc in _peerConnections.values) {
-        pc.addTrack(videoTrack, _localStream!);
-      }
-
-      callType = 'video';
-      return true;
-    }
+    final nowEnabled = !videoTracks[0].enabled;
+    videoTracks[0].enabled = nowEnabled;
+    callType = nowEnabled ? 'video' : 'audio';
+    return nowEnabled;
   }
 
-  bool get hasVideo {
+  /// Whether the local video track is currently enabled
+  bool get isVideoEnabled {
     final videoTracks = _localStream?.getVideoTracks();
     return videoTracks != null && videoTracks.isNotEmpty && videoTracks[0].enabled;
   }

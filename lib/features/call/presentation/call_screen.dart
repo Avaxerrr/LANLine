@@ -27,7 +27,7 @@ class CallScreen extends ConsumerStatefulWidget {
   ConsumerState<CallScreen> createState() => _CallScreenState();
 }
 
-class _CallScreenState extends ConsumerState<CallScreen> with SingleTickerProviderStateMixin {
+class _CallScreenState extends ConsumerState<CallScreen> {
   static const _channel = MethodChannel('com.lanline.lanline/proximity');
   static const _callTimeout = Duration(seconds: 30);
 
@@ -88,12 +88,10 @@ class _CallScreenState extends ConsumerState<CallScreen> with SingleTickerProvid
       }
     };
 
+    // Remote stream callback — always set up renderers since both
+    // audio+video tracks are always present in the stream
     _callService.onRemoteStream = (stream, participantId) {
-      // Only create video renderers when video is enabled AND stream has video
-      if (!mounted || !_isVideoEnabled) return;
-      final hasVideoTracks = stream.getVideoTracks().isNotEmpty;
-      if (!hasVideoTracks) return;
-
+      if (!mounted) return;
       if (!_remoteRenderers.containsKey(participantId)) {
         final renderer = RTCVideoRenderer();
         _remoteRenderers[participantId] = renderer;
@@ -112,7 +110,7 @@ class _CallScreenState extends ConsumerState<CallScreen> with SingleTickerProvid
     _startCallSequence();
   }
 
-  /// Sequential init: renderer first, then call, then proximity lock
+  /// Initialize renderer first, then start the call
   Future<void> _startCallSequence() async {
     await _localRenderer.initialize();
     _acquireProximityLock();
@@ -189,7 +187,8 @@ class _CallScreenState extends ConsumerState<CallScreen> with SingleTickerProvid
         _startStatsMonitor();
       }
 
-      if (_isVideoEnabled && _callService.localStream != null) {
+      // Always assign local stream to renderer (tracks are always there)
+      if (_callService.localStream != null) {
         _localRenderer.srcObject = _callService.localStream;
       }
 
@@ -291,7 +290,7 @@ class _CallScreenState extends ConsumerState<CallScreen> with SingleTickerProvid
   }
 
   void _flipCamera() {
-    if (_isVideoEnabled && _callService.localStream != null) {
+    if (_callService.localStream != null) {
       final videoTracks = _callService.localStream!.getVideoTracks();
       if (videoTracks.isNotEmpty) {
         Helper.switchCamera(videoTracks[0]);
@@ -300,36 +299,25 @@ class _CallScreenState extends ConsumerState<CallScreen> with SingleTickerProvid
     }
   }
 
-  Future<void> _toggleVideo() async {
-    try {
-      final nowEnabled = await _callService.toggleVideo();
-      if (!mounted) return;
-      setState(() {
-        _isVideoEnabled = nowEnabled;
-        if (nowEnabled && _callService.localStream != null) {
-          _localRenderer.srcObject = _callService.localStream;
-        } else {
-          _localRenderer.srcObject = null;
-        }
-      });
-      _callService.sendSignal?.call(jsonEncode({
-        'type': 'call_video_toggle',
-        'callId': widget.callId,
-        'sender': widget.myName,
-        'videoEnabled': nowEnabled,
-      }));
-      if (Platform.isAndroid) {
-        if (nowEnabled) {
-          _releaseProximityLock();
-        } else {
-          _acquireProximityLock();
-        }
-      }
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Failed to toggle video: $e')),
-        );
+  /// Simple toggle: just flip track.enabled. Synchronous, no renegotiation.
+  void _toggleVideo() {
+    final nowEnabled = _callService.toggleVideo();
+    setState(() => _isVideoEnabled = nowEnabled);
+
+    // Notify peers about the video state change
+    _callService.sendSignal?.call(jsonEncode({
+      'type': 'call_video_toggle',
+      'callId': widget.callId,
+      'sender': widget.myName,
+      'videoEnabled': nowEnabled,
+    }));
+
+    // Toggle proximity lock: on for audio, off for video
+    if (Platform.isAndroid) {
+      if (nowEnabled) {
+        _releaseProximityLock();
+      } else {
+        _acquireProximityLock();
       }
     }
   }
@@ -370,7 +358,7 @@ class _CallScreenState extends ConsumerState<CallScreen> with SingleTickerProvid
         if (!didPop) _endCall();
       },
       child: Scaffold(
-        backgroundColor: const Color(0xFF0D0D0D),
+        backgroundColor: const Color(0xFF1A1A2E),
         body: _isVideoEnabled ? _buildVideoLayout() : _buildAudioLayout(),
       ),
     );
@@ -478,18 +466,14 @@ class _CallScreenState extends ConsumerState<CallScreen> with SingleTickerProvid
 
   // ─── Video Call Layout ───────────────────────────────────────
 
-  bool get _hasRemoteVideo {
-    for (var r in _remoteRenderers.values) {
-      if (r.srcObject != null && r.srcObject!.getVideoTracks().isNotEmpty) return true;
-    }
-    return false;
-  }
-
   Widget _buildVideoLayout() {
+    final hasRemote = _remoteRenderers.isNotEmpty &&
+        _remoteRenderers.values.first.srcObject != null;
+
     return Stack(
       children: [
-        // Background: remote video fullscreen OR waiting placeholder
-        if (_hasRemoteVideo)
+        // Remote video fullscreen or waiting placeholder
+        if (hasRemote)
           Positioned.fill(
             child: RTCVideoView(
               _remoteRenderers.values.first,
@@ -530,8 +514,8 @@ class _CallScreenState extends ConsumerState<CallScreen> with SingleTickerProvid
             ),
           ),
 
-        // Local camera PIP (top-right) — only if we have a valid local video stream
-        if (_callService.localStream != null && _callService.hasVideo)
+        // Local camera PIP (top-right)
+        if (_callService.isVideoEnabled && _localRenderer.srcObject != null)
           Positioned(
             top: MediaQuery.of(context).padding.top + 16,
             right: 16,
@@ -553,7 +537,7 @@ class _CallScreenState extends ConsumerState<CallScreen> with SingleTickerProvid
             ),
           ),
 
-        // Duration + network badge (top-left)
+        // Duration + network (top-left)
         if (_isConnected)
           Positioned(
             top: MediaQuery.of(context).padding.top + 16,
