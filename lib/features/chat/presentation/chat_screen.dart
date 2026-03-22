@@ -15,6 +15,7 @@ import 'package:qr_flutter/qr_flutter.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:flutter_linkify/flutter_linkify.dart';
 import 'package:url_launcher/url_launcher.dart';
+import '../../../core/models/chat_message.dart';
 import '../../../core/models/room_model.dart';
 import '../../../core/network/websocket_server.dart';
 import '../../../core/network/websocket_client.dart';
@@ -26,54 +27,6 @@ import '../../../core/providers/download_history_provider.dart';
 import '../../../core/services/notification_service.dart';
 import '../../call/presentation/call_screen.dart';
 import 'package:share_plus/share_plus.dart';
-
-// Regex to detect emoji-only messages (1-3 emojis, no other text)
-final _emojiOnlyRegex = RegExp(
-  r'^(\p{Emoji_Presentation}|\p{Emoji}\uFE0F|[\u200D\uFE0F]){1,3}$',
-  unicode: true,
-);
-
-bool _isEmojiOnly(String text) => _emojiOnlyRegex.hasMatch(text.trim());
-
-const _imageExtensions = {'.jpg', '.jpeg', '.png', '.gif', '.webp', '.bmp'};
-
-bool _isImageFile(String? path) {
-  if (path == null) return false;
-  final ext = p.extension(path).toLowerCase();
-  return _imageExtensions.contains(ext);
-}
-
-class ChatMessage {
-  final String? id;
-  final String sender;
-  final String text;
-  final bool isMe;
-  final String? filePath;
-  final String? fileName;
-  final String? offerId;
-  final int? fileSize;
-  final DateTime timestamp;
-  bool isAcked;
-  bool isDownloading;
-  bool isExpired;
-  bool isCancelled;
-
-  ChatMessage({
-    this.id,
-    required this.sender,
-    required this.text,
-    required this.isMe,
-    this.filePath,
-    this.fileName,
-    this.offerId,
-    this.fileSize,
-    DateTime? timestamp,
-    this.isAcked = false,
-    this.isDownloading = false,
-    this.isExpired = false,
-    this.isCancelled = false,
-  }) : timestamp = timestamp ?? DateTime.now();
-}
 
 class ChatScreen extends ConsumerStatefulWidget {
   final bool isHost;
@@ -1508,7 +1461,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> with WidgetsBindingObse
     }
 
     // Emoji-only: render large
-    if (_isEmojiOnly(msg.text)) {
+    if (isEmojiOnly(msg.text)) {
       return Text(msg.text, style: const TextStyle(fontSize: 42));
     }
 
@@ -1532,7 +1485,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> with WidgetsBindingObse
     final isOffer = msg.offerId != null && !isCompleted;
     final isAudio = msg.filePath != null &&
         (msg.filePath!.endsWith('.m4a') || msg.filePath!.endsWith('.mp3') || msg.filePath!.endsWith('.wav'));
-    final isImage = _isImageFile(msg.filePath);
+    final isImage = isImageFile(msg.filePath);
     final icon = isAudio ? Icons.audiotrack : (isImage ? Icons.image : Icons.insert_drive_file);
 
     // Show inline image preview for completed image files
