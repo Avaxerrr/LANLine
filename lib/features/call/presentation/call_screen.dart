@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert';
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -33,6 +34,7 @@ class _CallScreenState extends ConsumerState<CallScreen> with SingleTickerProvid
   late final WebRtcCallService _callService;
   bool _isMuted = false;
   bool _isSpeakerOn = false;
+  bool _isOnHold = false;
   bool _isFrontCamera = true;
   final List<String> _participants = [];
   Timer? _durationTimer;
@@ -268,6 +270,22 @@ class _CallScreenState extends ConsumerState<CallScreen> with SingleTickerProvid
     }
   }
 
+  void _toggleHold() {
+    setState(() => _isOnHold = !_isOnHold);
+    final stream = _callService.localStream;
+    if (stream != null) {
+      for (var track in stream.getTracks()) {
+        track.enabled = !_isOnHold;
+      }
+    }
+    _callService.sendSignal?.call(jsonEncode({
+      'type': 'call_hold',
+      'callId': widget.callId,
+      'sender': widget.myName,
+      'onHold': _isOnHold,
+    }));
+  }
+
   void _endCall() {
     _stopRingback();
     _timeoutTimer?.cancel();
@@ -343,44 +361,70 @@ class _CallScreenState extends ConsumerState<CallScreen> with SingleTickerProvid
     );
   }
 
+  // ─── Hold overlay ────────────────────────────────────────────
+
+  Widget _buildHoldOverlay() {
+    if (!_isOnHold) return const SizedBox.shrink();
+    return Positioned.fill(
+      child: Container(
+        color: Colors.black.withValues(alpha: 0.6),
+        child: const Center(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(Icons.pause_circle_outline, color: Colors.orangeAccent, size: 64),
+              SizedBox(height: 12),
+              Text('On Hold', style: TextStyle(color: Colors.orangeAccent, fontSize: 22, fontWeight: FontWeight.w700)),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
   // ─── Audio Call Layout ───────────────────────────────────────
 
   Widget _buildAudioLayout() {
-    return SafeArea(
-      child: Column(
-        children: [
-          const Spacer(flex: 2),
-          Container(
-            width: 100, height: 100,
-            decoration: BoxDecoration(
-              shape: BoxShape.circle,
-              gradient: LinearGradient(
-                begin: Alignment.topLeft, end: Alignment.bottomRight,
-                colors: [Colors.blueAccent.withValues(alpha: 0.3), Colors.purpleAccent.withValues(alpha: 0.2)],
+    return Stack(
+      children: [
+        SafeArea(
+          child: Column(
+            children: [
+              const Spacer(flex: 2),
+              Container(
+                width: 100, height: 100,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  gradient: LinearGradient(
+                    begin: Alignment.topLeft, end: Alignment.bottomRight,
+                    colors: [Colors.blueAccent.withValues(alpha: 0.3), Colors.purpleAccent.withValues(alpha: 0.2)],
+                  ),
+                ),
+                child: const Icon(Icons.call, size: 48, color: Colors.white),
               ),
-            ),
-            child: const Icon(Icons.call, size: 48, color: Colors.white),
+              const SizedBox(height: 24),
+              const Text('Audio Call', style: TextStyle(color: Colors.white, fontSize: 28, fontWeight: FontWeight.w700)),
+              const SizedBox(height: 8),
+              Text(
+                _callStarted
+                    ? (_isConnected ? _formatDuration(_callDurationSeconds) : 'Ringing...')
+                    : 'Connecting...',
+                style: TextStyle(
+                  color: _isConnected ? Colors.grey.shade400 : Colors.orangeAccent,
+                  fontSize: 16, fontWeight: FontWeight.w500,
+                ),
+              ),
+              const SizedBox(height: 8),
+              _buildNetworkBadge(),
+              const SizedBox(height: 32),
+              _buildParticipantList(),
+              const Spacer(flex: 3),
+              _buildAudioControls(),
+            ],
           ),
-          const SizedBox(height: 24),
-          const Text('Audio Call', style: TextStyle(color: Colors.white, fontSize: 28, fontWeight: FontWeight.w700)),
-          const SizedBox(height: 8),
-          Text(
-            _callStarted
-                ? (_isConnected ? _formatDuration(_callDurationSeconds) : 'Ringing...')
-                : 'Connecting...',
-            style: TextStyle(
-              color: _isConnected ? Colors.grey.shade400 : Colors.orangeAccent,
-              fontSize: 16, fontWeight: FontWeight.w500,
-            ),
-          ),
-          const SizedBox(height: 8),
-          _buildNetworkBadge(),
-          const SizedBox(height: 32),
-          _buildParticipantList(),
-          const Spacer(flex: 3),
-          _buildAudioControls(),
-        ],
-      ),
+        ),
+        _buildHoldOverlay(),
+      ],
     );
   }
 
@@ -486,11 +530,14 @@ class _CallScreenState extends ConsumerState<CallScreen> with SingleTickerProvid
               children: [
                 _buildControlButton(icon: _isMuted ? Icons.mic_off : Icons.mic, label: _isMuted ? 'Unmute' : 'Mute', active: _isMuted, activeColor: Colors.redAccent, onTap: _toggleMute),
                 _buildControlButton(icon: Icons.cameraswitch, label: 'Flip', active: false, activeColor: Colors.blueAccent, onTap: _flipCamera),
+                _buildControlButton(icon: _isOnHold ? Icons.play_arrow : Icons.pause, label: _isOnHold ? 'Resume' : 'Hold', active: _isOnHold, activeColor: Colors.orangeAccent, onTap: _toggleHold),
                 _buildEndCallButton(),
               ],
             ),
           ),
         ),
+
+        _buildHoldOverlay(),
       ],
     );
   }
@@ -524,6 +571,7 @@ class _CallScreenState extends ConsumerState<CallScreen> with SingleTickerProvid
         children: [
           _buildControlButton(icon: _isMuted ? Icons.mic_off : Icons.mic, label: _isMuted ? 'Unmute' : 'Mute', active: _isMuted, activeColor: Colors.redAccent, onTap: _toggleMute),
           _buildControlButton(icon: _isSpeakerOn ? Icons.volume_up : Icons.volume_down, label: 'Speaker', active: _isSpeakerOn, activeColor: Colors.blueAccent, onTap: _toggleSpeaker),
+          _buildControlButton(icon: _isOnHold ? Icons.play_arrow : Icons.pause, label: _isOnHold ? 'Resume' : 'Hold', active: _isOnHold, activeColor: Colors.orangeAccent, onTap: _toggleHold),
           _buildEndCallButton(),
         ],
       ),
