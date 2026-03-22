@@ -49,25 +49,22 @@ class WebRtcCallService {
     'sdpSemantics': 'unified-plan',
   };
 
-  /// Start a new call (caller initiates)
+  /// Start a new call (caller initiates).
+  /// Always acquires both audio+video; video disabled if type is 'audio'.
   Future<void> startCall({
     required String callId,
     required String myName,
     required String type,
   }) async {
+    if (state != CallState.idle) await _cleanup();
+
     activeCallId = callId;
     callType = type;
     state = CallState.calling;
     callParticipants.add(myName);
 
-    final constraints = <String, dynamic>{
-      'audio': true,
-      'video': type == 'video',
-    };
+    _localStream = await _getMediaStream(type);
 
-    _localStream = await navigator.mediaDevices.getUserMedia(constraints);
-
-    // Broadcast call_start to everyone in the room
     sendSignal?.call(jsonEncode({
       'type': CallSignal.callStart,
       'callId': callId,
@@ -79,23 +76,21 @@ class WebRtcCallService {
     onCallStateChanged?.call(state);
   }
 
-  /// Join an existing call (callee accepts)
+  /// Join an existing call (callee accepts).
+  /// Always acquires both audio+video; video disabled if type is 'audio'.
   Future<void> joinCall({
     required String callId,
     required String myName,
     required String type,
   }) async {
+    if (state != CallState.idle) await _cleanup();
+
     activeCallId = callId;
     callType = type;
     callParticipants.add(myName);
 
-    final constraints = <String, dynamic>{
-      'audio': true,
-      'video': type == 'video',
-    };
-    _localStream = await navigator.mediaDevices.getUserMedia(constraints);
+    _localStream = await _getMediaStream(type);
 
-    // Notify others that we joined
     sendSignal?.call(jsonEncode({
       'type': CallSignal.callJoin,
       'callId': callId,
@@ -104,6 +99,30 @@ class WebRtcCallService {
 
     state = CallState.inCall;
     onCallStateChanged?.call(state);
+  }
+
+  /// Always request both audio+video so toggling works mid-call.
+  /// For audio-only mode, video track is acquired but disabled.
+  /// If camera fails on a video call, rethrow. On audio call, fallback.
+  Future<MediaStream> _getMediaStream(String type) async {
+    try {
+      final stream = await navigator.mediaDevices.getUserMedia({
+        'audio': true,
+        'video': true,
+      });
+      if (type == 'audio') {
+        for (var track in stream.getVideoTracks()) {
+          track.enabled = false;
+        }
+      }
+      return stream;
+    } catch (e) {
+      if (type == 'video') rethrow;
+      return await navigator.mediaDevices.getUserMedia({
+        'audio': true,
+        'video': false,
+      });
+    }
   }
 
   /// Create a peer connection to a specific remote participant
