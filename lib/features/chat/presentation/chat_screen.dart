@@ -86,10 +86,13 @@ class _ChatScreenState extends ConsumerState<ChatScreen> with WidgetsBindingObse
     _loadLocalIp();
     NotificationService().initialize();
 
-    // Initialize the chat notifier for this session
-    ref.read(chatProvider.notifier).init(
-      ChatConfig(isHost: widget.isHost, roomName: widget.room.name),
-    );
+    // Initialize the chat notifier after the first frame to avoid
+    // modifying provider state during a widget lifecycle method.
+    Future.microtask(() {
+      ref.read(chatProvider.notifier).init(
+        ChatConfig(isHost: widget.isHost, roomName: widget.room.name),
+      );
+    });
 
     // Client always has at least the host as a participant
     if (!widget.isHost) {
