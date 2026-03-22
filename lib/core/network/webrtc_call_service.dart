@@ -292,6 +292,7 @@ class WebRtcCallService {
   bool get isVideoCall => callType == 'video';
 
   MediaStream? get localStream => _localStream;
+  Map<String, RTCPeerConnection> get peerConnections => _peerConnections;
 
   Future<void> dispose() async {
     await _cleanup();

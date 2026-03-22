@@ -37,7 +37,9 @@ class _CallScreenState extends ConsumerState<CallScreen> with SingleTickerProvid
   final List<String> _participants = [];
   Timer? _durationTimer;
   Timer? _timeoutTimer;
+  Timer? _statsTimer;
   int _callDurationSeconds = 0;
+  String _networkQuality = '';
   bool _callStarted = false;
   bool _isConnected = false; // true when at least one participant joins
 
@@ -72,6 +74,7 @@ class _CallScreenState extends ConsumerState<CallScreen> with SingleTickerProvid
               _timeoutTimer?.cancel();
               _playConnectTone();
               _startDurationTimer();
+              _startStatsMonitor();
             }
           } else {
             _participants.remove(name);
@@ -180,7 +183,10 @@ class _CallScreenState extends ConsumerState<CallScreen> with SingleTickerProvid
       }
 
       setState(() => _callStarted = true);
-      if (!widget.isInitiator) _startDurationTimer();
+      if (!widget.isInitiator) {
+        _startDurationTimer();
+        _startStatsMonitor();
+      }
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -194,6 +200,45 @@ class _CallScreenState extends ConsumerState<CallScreen> with SingleTickerProvid
   void _startDurationTimer() {
     _durationTimer = Timer.periodic(const Duration(seconds: 1), (_) {
       if (mounted) setState(() => _callDurationSeconds++);
+    });
+  }
+
+  void _startStatsMonitor() {
+    _statsTimer = Timer.periodic(const Duration(seconds: 3), (_) async {
+      if (!mounted || _callService.state != CallState.inCall) return;
+      final pcs = _callService.peerConnections;
+      if (pcs.isEmpty) return;
+      try {
+        final stats = await pcs.values.first.getStats();
+        double? rtt;
+        int? packetsLost;
+        int? packetsSent;
+        for (var report in stats) {
+          if (report.type == 'candidate-pair' && report.values['state'] == 'succeeded') {
+            rtt = (report.values['currentRoundTripTime'] as num?)?.toDouble();
+          }
+          if (report.type == 'outbound-rtp' && report.values['kind'] == 'audio') {
+            packetsSent = report.values['packetsSent'] as int?;
+          }
+          if (report.type == 'remote-inbound-rtp' && report.values['kind'] == 'audio') {
+            packetsLost = report.values['packetsLost'] as int?;
+          }
+        }
+        String quality = 'excellent';
+        if (rtt != null) {
+          if (rtt > 0.3) quality = 'poor';
+          else if (rtt > 0.15) quality = 'fair';
+          else if (rtt > 0.05) quality = 'good';
+        }
+        if (packetsLost != null && packetsSent != null && packetsSent > 0) {
+          final lossRate = packetsLost / packetsSent;
+          if (lossRate > 0.1) quality = 'poor';
+          else if (lossRate > 0.05 && quality != 'poor') quality = 'fair';
+        }
+        if (mounted && quality != _networkQuality) {
+          setState(() => _networkQuality = quality);
+        }
+      } catch (_) {}
     });
   }
 
@@ -241,6 +286,7 @@ class _CallScreenState extends ConsumerState<CallScreen> with SingleTickerProvid
   void dispose() {
     _durationTimer?.cancel();
     _timeoutTimer?.cancel();
+    _statsTimer?.cancel();
     _stopRingback();
     _releaseProximityLock();
     _localRenderer.dispose();
@@ -260,6 +306,39 @@ class _CallScreenState extends ConsumerState<CallScreen> with SingleTickerProvid
       child: Scaffold(
         backgroundColor: const Color(0xFF0D0D0D),
         body: isVideo ? _buildVideoLayout() : _buildAudioLayout(),
+      ),
+    );
+  }
+
+  // ─── Network quality badge ───────────────────────────────────
+
+  Widget _buildNetworkBadge() {
+    if (_networkQuality.isEmpty || !_isConnected) return const SizedBox.shrink();
+    IconData icon;
+    Color color;
+    switch (_networkQuality) {
+      case 'excellent':
+        icon = Icons.signal_cellular_4_bar; color = Colors.greenAccent; break;
+      case 'good':
+        icon = Icons.signal_cellular_alt; color = Colors.lightGreen; break;
+      case 'fair':
+        icon = Icons.signal_cellular_alt_2_bar; color = Colors.orangeAccent; break;
+      case 'poor':
+        icon = Icons.signal_cellular_alt_1_bar; color = Colors.redAccent; break;
+      default:
+        icon = Icons.signal_cellular_4_bar; color = Colors.grey;
+    }
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      decoration: BoxDecoration(color: Colors.black45, borderRadius: BorderRadius.circular(12)),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, color: color, size: 16),
+          const SizedBox(width: 4),
+          Text(_networkQuality[0].toUpperCase() + _networkQuality.substring(1),
+            style: TextStyle(color: color, fontSize: 11, fontWeight: FontWeight.w600)),
+        ],
       ),
     );
   }
@@ -294,7 +373,9 @@ class _CallScreenState extends ConsumerState<CallScreen> with SingleTickerProvid
               fontSize: 16, fontWeight: FontWeight.w500,
             ),
           ),
-          const SizedBox(height: 40),
+          const SizedBox(height: 8),
+          _buildNetworkBadge(),
+          const SizedBox(height: 32),
           _buildParticipantList(),
           const Spacer(flex: 3),
           _buildAudioControls(),
@@ -371,21 +452,21 @@ class _CallScreenState extends ConsumerState<CallScreen> with SingleTickerProvid
             ),
           ),
 
-        // Duration overlay when connected
+        // Duration + network badge when connected
         if (_isConnected)
           Positioned(
             top: MediaQuery.of(context).padding.top + 16,
             left: 16,
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-              decoration: BoxDecoration(
-                color: Colors.black54,
-                borderRadius: BorderRadius.circular(20),
-              ),
-              child: Text(
-                _formatDuration(_callDurationSeconds),
-                style: const TextStyle(color: Colors.white, fontSize: 14, fontWeight: FontWeight.w600),
-              ),
+            child: Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                  decoration: BoxDecoration(color: Colors.black54, borderRadius: BorderRadius.circular(20)),
+                  child: Text(_formatDuration(_callDurationSeconds), style: const TextStyle(color: Colors.white, fontSize: 14, fontWeight: FontWeight.w600)),
+                ),
+                const SizedBox(width: 8),
+                _buildNetworkBadge(),
+              ],
             ),
           ),
 
