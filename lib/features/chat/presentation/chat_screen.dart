@@ -243,6 +243,22 @@ class _ChatScreenState extends ConsumerState<ChatScreen> with WidgetsBindingObse
         if (sender != myName) {
           _showTopSnackBar('$sender declined the call');
         }
+      } else if (data['type'] == 'call_busy') {
+        final sender = data['sender'] as String;
+        final myName = ref.read(usernameProvider);
+        if (sender != myName) {
+          _showTopSnackBar('$sender is on another call');
+        }
+      } else if (data['type'] == 'call_summary') {
+        final sender = data['sender'] as String;
+        final text = data['text'] as String;
+        final myName = ref.read(usernameProvider);
+        if (sender != myName) {
+          setState(() {
+            _messages.add(ChatMessage(sender: sender, text: text, isMe: false));
+          });
+          _scrollToBottom();
+        }
       } else if (data['type'] == 'error') {
         setState(() {
           _messages.add(ChatMessage(sender: "System", text: data['text'], isMe: false));
@@ -567,20 +583,29 @@ class _ChatScreenState extends ConsumerState<ChatScreen> with WidgetsBindingObse
       ),
     );
 
-    // Add call summary bubble to chat
+    // Add call summary bubble to chat AND broadcast to others
     if (result != null && result > 0 && mounted) {
       final m = (result ~/ 60).toString().padLeft(2, '0');
       final s = (result % 60).toString().padLeft(2, '0');
       final icon = callType == 'video' ? '📹' : '📞';
       final label = callType == 'video' ? 'Video call' : 'Voice call';
+      final summaryText = '$icon $label • $m:$s';
+
       setState(() {
         _messages.add(ChatMessage(
           sender: myName,
-          text: '$icon $label • $m:$s',
+          text: summaryText,
           isMe: true,
         ));
       });
       _scrollToBottom();
+
+      // Broadcast call summary so receiver(s) also see the bubble
+      _sendCallSignal(jsonEncode({
+        'type': 'call_summary',
+        'sender': myName,
+        'text': summaryText,
+      }));
     }
   }
 
@@ -592,8 +617,18 @@ class _ChatScreenState extends ConsumerState<ChatScreen> with WidgetsBindingObse
     final callType = (data['callType'] as String?) ?? 'audio';
     final myName = ref.read(usernameProvider);
 
-    // Don't show incoming call to the person who started it
     if (sender == myName) return;
+
+    // Busy state — if already in a call, auto-decline
+    final callService = ref.read(webRtcCallServiceProvider);
+    if (callService.state == CallState.inCall) {
+      _sendCallSignal(jsonEncode({
+        'type': 'call_busy',
+        'callId': callId,
+        'sender': myName,
+      }));
+      return;
+    }
 
     // Start ringtone + vibration on Android
     if (Platform.isAndroid) {

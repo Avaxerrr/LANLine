@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert';
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -28,16 +29,19 @@ class CallScreen extends ConsumerStatefulWidget {
 
 class _CallScreenState extends ConsumerState<CallScreen> with SingleTickerProviderStateMixin {
   static const _proximityChannel = MethodChannel('com.lanline.lanline/proximity');
+  static const _callTimeout = Duration(seconds: 30);
 
   late final WebRtcCallService _callService;
   bool _isMuted = false;
   bool _isSpeakerOn = false;
   bool _isFrontCamera = true;
+  bool _isVideoEnabled = false;
   final List<String> _participants = [];
   Timer? _durationTimer;
+  Timer? _timeoutTimer;
   int _callDurationSeconds = 0;
   bool _callStarted = false;
-  bool _isConnected = false; // true when at least one participant joins
+  bool _isConnected = false;
 
   // Video renderers
   final RTCVideoRenderer _localRenderer = RTCVideoRenderer();
@@ -46,6 +50,7 @@ class _CallScreenState extends ConsumerState<CallScreen> with SingleTickerProvid
   @override
   void initState() {
     super.initState();
+    _isVideoEnabled = widget.callType == 'video';
     _callService = ref.read(webRtcCallServiceProvider);
     _callService.sendSignal = widget.sendSignal;
 
@@ -66,6 +71,8 @@ class _CallScreenState extends ConsumerState<CallScreen> with SingleTickerProvid
             if (!_isConnected) {
               _isConnected = true;
               _stopRingback();
+              _cancelTimeout();
+              _startDurationTimer(); // Timer starts NOW, only after connection
             }
           } else {
             _participants.remove(name);
@@ -77,19 +84,18 @@ class _CallScreenState extends ConsumerState<CallScreen> with SingleTickerProvid
     };
 
     _callService.onRemoteStream = (stream, participantId) {
-      if (mounted && widget.callType == 'video') {
-        setState(() {
-          if (!_remoteRenderers.containsKey(participantId)) {
-            final renderer = RTCVideoRenderer();
-            renderer.initialize().then((_) {
-              renderer.srcObject = stream;
-              if (mounted) setState(() {});
-            });
-            _remoteRenderers[participantId] = renderer;
-          } else {
-            _remoteRenderers[participantId]!.srcObject = stream;
-          }
-        });
+      if (mounted) {
+        final renderer = _remoteRenderers[participantId] ?? RTCVideoRenderer();
+        if (!_remoteRenderers.containsKey(participantId)) {
+          renderer.initialize().then((_) {
+            renderer.srcObject = stream;
+            if (mounted) setState(() {});
+          });
+          _remoteRenderers[participantId] = renderer;
+        } else {
+          renderer.srcObject = stream;
+        }
+        if (mounted) setState(() {});
       }
     };
 
@@ -99,13 +105,11 @@ class _CallScreenState extends ConsumerState<CallScreen> with SingleTickerProvid
   }
 
   Future<void> _initRenderers() async {
-    if (widget.callType == 'video') {
-      await _localRenderer.initialize();
-    }
+    await _localRenderer.initialize();
   }
 
   Future<void> _acquireProximityLock() async {
-    if (Platform.isAndroid && widget.callType == 'audio') {
+    if (Platform.isAndroid && !_isVideoEnabled) {
       try { await _proximityChannel.invokeMethod('acquire'); } catch (_) {}
     }
   }
@@ -136,8 +140,17 @@ class _CallScreenState extends ConsumerState<CallScreen> with SingleTickerProvid
           myName: widget.myName,
           type: widget.callType,
         );
-        // Caller hears ring-back tone while waiting
         _startRingback();
+        // Start 30s timeout
+        _timeoutTimer = Timer(_callTimeout, () {
+          if (!_isConnected && mounted) {
+            _stopRingback();
+            _callService.endCall(widget.myName);
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(content: Text('No answer')),
+            );
+          }
+        });
       } else {
         await _callService.joinCall(
           callId: widget.callId,
@@ -145,15 +158,15 @@ class _CallScreenState extends ConsumerState<CallScreen> with SingleTickerProvid
           type: widget.callType,
         );
         _isConnected = true;
+        _startDurationTimer();
       }
 
       // Assign local stream to renderer for video
-      if (widget.callType == 'video' && _callService.localStream != null) {
+      if (_isVideoEnabled && _callService.localStream != null) {
         _localRenderer.srcObject = _callService.localStream;
       }
 
       setState(() => _callStarted = true);
-      _startDurationTimer();
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -164,7 +177,14 @@ class _CallScreenState extends ConsumerState<CallScreen> with SingleTickerProvid
     }
   }
 
+  void _cancelTimeout() {
+    _timeoutTimer?.cancel();
+    _timeoutTimer = null;
+  }
+
   void _startDurationTimer() {
+    _durationTimer?.cancel();
+    _callDurationSeconds = 0;
     _durationTimer = Timer.periodic(const Duration(seconds: 1), (_) {
       if (mounted) setState(() => _callDurationSeconds++);
     });
@@ -187,7 +207,7 @@ class _CallScreenState extends ConsumerState<CallScreen> with SingleTickerProvid
   }
 
   void _flipCamera() {
-    if (widget.callType == 'video' && _callService.localStream != null) {
+    if (_isVideoEnabled && _callService.localStream != null) {
       final videoTracks = _callService.localStream!.getVideoTracks();
       if (videoTracks.isNotEmpty) {
         Helper.switchCamera(videoTracks[0]);
@@ -196,20 +216,52 @@ class _CallScreenState extends ConsumerState<CallScreen> with SingleTickerProvid
     }
   }
 
+  Future<void> _toggleVideo() async {
+    final nowEnabled = await _callService.toggleVideo();
+    setState(() {
+      _isVideoEnabled = nowEnabled;
+      if (nowEnabled && _callService.localStream != null) {
+        _localRenderer.srcObject = _callService.localStream;
+      } else {
+        _localRenderer.srcObject = null;
+      }
+    });
+
+    // Notify other participants about the switch
+    _callService.sendSignal?.call(jsonEncode({
+      'type': 'call_video_toggle',
+      'callId': widget.callId,
+      'sender': widget.myName,
+      'videoEnabled': nowEnabled,
+    }));
+
+    // Toggle proximity lock based on video state
+    if (Platform.isAndroid) {
+      if (nowEnabled) {
+        _releaseProximityLock();
+      } else {
+        _acquireProximityLock();
+      }
+    }
+  }
+
   void _endCall() {
     _stopRingback();
+    _cancelTimeout();
     _callService.endCall(widget.myName);
   }
 
   void _popWithDuration() {
     _stopRingback();
+    _cancelTimeout();
     _releaseProximityLock();
-    if (mounted) Navigator.pop(context, _callDurationSeconds);
+    if (mounted) Navigator.pop(context, _isConnected ? _callDurationSeconds : 0);
   }
 
   @override
   void dispose() {
     _durationTimer?.cancel();
+    _timeoutTimer?.cancel();
     _stopRingback();
     _releaseProximityLock();
     _localRenderer.dispose();
@@ -219,8 +271,6 @@ class _CallScreenState extends ConsumerState<CallScreen> with SingleTickerProvid
 
   @override
   Widget build(BuildContext context) {
-    final isVideo = widget.callType == 'video';
-
     return PopScope(
       canPop: false,
       onPopInvokedWithResult: (didPop, _) {
@@ -228,7 +278,7 @@ class _CallScreenState extends ConsumerState<CallScreen> with SingleTickerProvid
       },
       child: Scaffold(
         backgroundColor: const Color(0xFF0D0D0D),
-        body: isVideo ? _buildVideoLayout() : _buildAudioLayout(),
+        body: _isVideoEnabled ? _buildVideoLayout() : _buildAudioLayout(),
       ),
     );
   }
@@ -277,7 +327,6 @@ class _CallScreenState extends ConsumerState<CallScreen> with SingleTickerProvid
   Widget _buildVideoLayout() {
     return Stack(
       children: [
-        // Remote video (full screen) or waiting state
         if (_remoteRenderers.isNotEmpty)
           Positioned.fill(
             child: RTCVideoView(
@@ -317,8 +366,8 @@ class _CallScreenState extends ConsumerState<CallScreen> with SingleTickerProvid
             ),
           ),
 
-        // Local video (picture-in-picture style, top right)
-        if (_callService.localStream != null)
+        // Local video PIP
+        if (_callService.localStream != null && _callService.hasVideo)
           Positioned(
             top: MediaQuery.of(context).padding.top + 16,
             right: 16,
@@ -340,21 +389,15 @@ class _CallScreenState extends ConsumerState<CallScreen> with SingleTickerProvid
             ),
           ),
 
-        // Duration overlay when connected
+        // Duration overlay
         if (_isConnected)
           Positioned(
             top: MediaQuery.of(context).padding.top + 16,
             left: 16,
             child: Container(
               padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-              decoration: BoxDecoration(
-                color: Colors.black54,
-                borderRadius: BorderRadius.circular(20),
-              ),
-              child: Text(
-                _formatDuration(_callDurationSeconds),
-                style: const TextStyle(color: Colors.white, fontSize: 14, fontWeight: FontWeight.w600),
-              ),
+              decoration: BoxDecoration(color: Colors.black54, borderRadius: BorderRadius.circular(20)),
+              child: Text(_formatDuration(_callDurationSeconds), style: const TextStyle(color: Colors.white, fontSize: 14, fontWeight: FontWeight.w600)),
             ),
           ),
 
@@ -374,6 +417,7 @@ class _CallScreenState extends ConsumerState<CallScreen> with SingleTickerProvid
               children: [
                 _buildControlButton(icon: _isMuted ? Icons.mic_off : Icons.mic, label: _isMuted ? 'Unmute' : 'Mute', active: _isMuted, activeColor: Colors.redAccent, onTap: _toggleMute),
                 _buildControlButton(icon: Icons.cameraswitch, label: 'Flip', active: false, activeColor: Colors.blueAccent, onTap: _flipCamera),
+                _buildControlButton(icon: Icons.call, label: 'Audio', active: false, activeColor: Colors.greenAccent, onTap: _toggleVideo),
                 _buildEndCallButton(),
               ],
             ),
@@ -412,6 +456,7 @@ class _CallScreenState extends ConsumerState<CallScreen> with SingleTickerProvid
         children: [
           _buildControlButton(icon: _isMuted ? Icons.mic_off : Icons.mic, label: _isMuted ? 'Unmute' : 'Mute', active: _isMuted, activeColor: Colors.redAccent, onTap: _toggleMute),
           _buildControlButton(icon: _isSpeakerOn ? Icons.volume_up : Icons.volume_down, label: 'Speaker', active: _isSpeakerOn, activeColor: Colors.blueAccent, onTap: _toggleSpeaker),
+          _buildControlButton(icon: Icons.videocam, label: 'Video', active: false, activeColor: Colors.greenAccent, onTap: _toggleVideo),
           _buildEndCallButton(),
         ],
       ),

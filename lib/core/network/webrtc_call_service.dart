@@ -20,30 +20,26 @@ class CallSignal {
 
 enum CallState {
   idle,
-  ringing,   // incoming call ringing
-  calling,   // outgoing call waiting
-  inCall,    // active call
+  ringing,
+  calling,
+  inCall,
 }
 
 class WebRtcCallService {
-  // Peer connections: keyed by remote participant name
   final Map<String, RTCPeerConnection> _peerConnections = {};
   MediaStream? _localStream;
 
   CallState state = CallState.idle;
   String? activeCallId;
-  String? callType; // 'audio' or 'video'
+  String? callType;
   final Set<String> callParticipants = {};
 
   // Callbacks for UI updates
   void Function(CallState state)? onCallStateChanged;
   void Function(String participant, bool joined)? onParticipantChanged;
   void Function(MediaStream stream, String participantId)? onRemoteStream;
-
-  // Callback to send signaling messages over WebSocket
   void Function(String message)? sendSignal;
 
-  // WebRTC config — no STUN/TURN needed for LAN
   final Map<String, dynamic> _rtcConfig = {
     'iceServers': <Map<String, dynamic>>[],
     'sdpSemantics': 'unified-plan',
@@ -67,7 +63,6 @@ class WebRtcCallService {
 
     _localStream = await navigator.mediaDevices.getUserMedia(constraints);
 
-    // Broadcast call_start to everyone in the room
     sendSignal?.call(jsonEncode({
       'type': CallSignal.callStart,
       'callId': callId,
@@ -95,7 +90,6 @@ class WebRtcCallService {
     };
     _localStream = await navigator.mediaDevices.getUserMedia(constraints);
 
-    // Notify others that we joined
     sendSignal?.call(jsonEncode({
       'type': CallSignal.callJoin,
       'callId': callId,
@@ -113,21 +107,18 @@ class WebRtcCallService {
     final pc = await createPeerConnection(_rtcConfig);
     _peerConnections[remoteName] = pc;
 
-    // Add local tracks
     if (_localStream != null) {
       for (var track in _localStream!.getTracks()) {
         pc.addTrack(track, _localStream!);
       }
     }
 
-    // Handle remote stream
     pc.onTrack = (RTCTrackEvent event) {
       if (event.streams.isNotEmpty) {
         onRemoteStream?.call(event.streams[0], remoteName);
       }
     };
 
-    // Handle ICE candidates
     pc.onIceCandidate = (RTCIceCandidate candidate) {
       sendSignal?.call(jsonEncode({
         'type': CallSignal.iceCandidate,
@@ -166,7 +157,6 @@ class WebRtcCallService {
     }
   }
 
-  /// Handle an incoming SDP offer
   Future<void> handleOffer(String remoteName, String myName, Map<String, dynamic> sdp) async {
     if (!_peerConnections.containsKey(remoteName)) {
       await setupPeerConnection(remoteName, myName, makeOffer: false);
@@ -190,7 +180,6 @@ class WebRtcCallService {
     }));
   }
 
-  /// Handle an incoming SDP answer
   Future<void> handleAnswer(String remoteName, Map<String, dynamic> sdp) async {
     final pc = _peerConnections[remoteName];
     if (pc != null) {
@@ -198,7 +187,6 @@ class WebRtcCallService {
     }
   }
 
-  /// Handle an incoming ICE candidate
   Future<void> handleIceCandidate(String remoteName, Map<String, dynamic> candidate) async {
     final pc = _peerConnections[remoteName];
     if (pc != null) {
@@ -210,7 +198,6 @@ class WebRtcCallService {
     }
   }
 
-  /// Leave the call
   Future<void> leaveCall(String myName) async {
     sendSignal?.call(jsonEncode({
       'type': CallSignal.callLeave,
@@ -220,7 +207,6 @@ class WebRtcCallService {
     await _cleanup();
   }
 
-  /// End the call for everyone (host)
   Future<void> endCall(String myName) async {
     sendSignal?.call(jsonEncode({
       'type': CallSignal.callEnd,
@@ -237,7 +223,6 @@ class WebRtcCallService {
     onParticipantChanged?.call(remoteName, false);
   }
 
-  /// Handle a participant leaving the call
   void handleParticipantLeft(String remoteName) {
     _removePeer(remoteName);
     if (_peerConnections.isEmpty && state == CallState.inCall) {
@@ -266,7 +251,8 @@ class WebRtcCallService {
     onCallStateChanged?.call(state);
   }
 
-  // Mute / unmute mic
+  // ─── Media controls ────────────────────────────────────────
+
   bool get isMuted {
     final audioTracks = _localStream?.getAudioTracks();
     if (audioTracks != null && audioTracks.isNotEmpty) {
@@ -282,15 +268,53 @@ class WebRtcCallService {
     }
   }
 
-  // Speaker toggle (only works on mobile)
   bool isSpeakerOn = false;
   void toggleSpeaker() {
     isSpeakerOn = !isSpeakerOn;
     Helper.setSpeakerphoneOn(isSpeakerOn);
   }
 
-  bool get isVideoCall => callType == 'video';
+  /// Toggle video on/off mid-call.
+  /// Returns true if video is now enabled, false if disabled.
+  Future<bool> toggleVideo() async {
+    if (_localStream == null) return false;
 
+    final videoTracks = _localStream!.getVideoTracks();
+
+    if (videoTracks.isNotEmpty) {
+      // Video is currently on — disable it
+      for (var track in videoTracks) {
+        track.enabled = false;
+        _localStream!.removeTrack(track);
+        track.stop();
+      }
+      callType = 'audio';
+      return false;
+    } else {
+      // Video is currently off — enable it
+      final newStream = await navigator.mediaDevices.getUserMedia({
+        'audio': false,
+        'video': true,
+      });
+      final videoTrack = newStream.getVideoTracks()[0];
+      _localStream!.addTrack(videoTrack);
+
+      // Add video track to all peer connections
+      for (var pc in _peerConnections.values) {
+        pc.addTrack(videoTrack, _localStream!);
+      }
+
+      callType = 'video';
+      return true;
+    }
+  }
+
+  bool get hasVideo {
+    final videoTracks = _localStream?.getVideoTracks();
+    return videoTracks != null && videoTracks.isNotEmpty && videoTracks[0].enabled;
+  }
+
+  bool get isVideoCall => callType == 'video';
   MediaStream? get localStream => _localStream;
 
   Future<void> dispose() async {
