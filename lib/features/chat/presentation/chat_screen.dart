@@ -19,10 +19,12 @@ import '../../../core/models/room_model.dart';
 import '../../../core/network/websocket_server.dart';
 import '../../../core/network/websocket_client.dart';
 import '../../../core/network/discovery_service.dart';
+import '../../../core/network/webrtc_call_service.dart';
 import '../../../core/providers/username_provider.dart';
 import '../../../core/network/file_transfer_manager.dart';
 import '../../../core/providers/download_history_provider.dart';
 import '../../../core/services/notification_service.dart';
+import '../../call/presentation/call_screen.dart';
 import 'package:share_plus/share_plus.dart';
 
 // Regex to detect emoji-only messages (1-3 emojis, no other text)
@@ -223,6 +225,18 @@ class _ChatScreenState extends ConsumerState<ChatScreen> with WidgetsBindingObse
         if (!widget.isHost && !_roomClosed) {
           _handleRoomClosed();
         }
+      } else if (data['type'] == 'call_start') {
+        _handleIncomingCall(data);
+      } else if (data['type'] == 'call_join') {
+        _handleCallJoin(data);
+      } else if (data['type'] == 'call_offer') {
+        _handleCallOffer(data);
+      } else if (data['type'] == 'call_answer') {
+        _handleCallAnswer(data);
+      } else if (data['type'] == 'ice_candidate') {
+        _handleIceCandidate(data);
+      } else if (data['type'] == 'call_leave' || data['type'] == 'call_end') {
+        _handleCallEnd(data);
       } else if (data['type'] == 'error') {
         setState(() {
           _messages.add(ChatMessage(sender: "System", text: data['text'], isMe: false));
@@ -517,6 +531,166 @@ class _ChatScreenState extends ConsumerState<ChatScreen> with WidgetsBindingObse
       ),
     );
   }
+
+  // ─── Call Handling ─────────────────────────────────────────────
+
+  void _sendCallSignal(String message) {
+    if (widget.isHost) {
+      ref.read(webSocketServerProvider).broadcastMessage(message);
+    } else {
+      ref.read(webSocketClientProvider).sendMessage(message);
+    }
+  }
+
+  void _startAudioCall() {
+    final name = ref.read(usernameProvider);
+    final callId = 'call_${DateTime.now().millisecondsSinceEpoch}';
+    _openCallScreen(callId: callId, myName: name, callType: 'audio', isInitiator: true);
+  }
+
+  void _openCallScreen({
+    required String callId,
+    required String myName,
+    required String callType,
+    required bool isInitiator,
+  }) {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => CallScreen(
+          callId: callId,
+          myName: myName,
+          callType: callType,
+          isInitiator: isInitiator,
+          sendSignal: _sendCallSignal,
+        ),
+      ),
+    );
+  }
+
+  void _handleIncomingCall(Map<String, dynamic> data) {
+    final sender = data['sender'] as String;
+    final callId = data['callId'] as String;
+    final callType = (data['callType'] as String?) ?? 'audio';
+    final myName = ref.read(usernameProvider);
+
+    // Don't show incoming call to the person who started it
+    if (sender == myName) return;
+
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: const Color(0xFF1A1A2E),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: Column(
+          children: [
+            Container(
+              width: 72, height: 72,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: Colors.greenAccent.withValues(alpha: 0.15),
+              ),
+              child: Icon(
+                callType == 'video' ? Icons.videocam : Icons.call,
+                size: 36, color: Colors.greenAccent,
+              ),
+            ),
+            const SizedBox(height: 16),
+            const Text('Incoming Call', style: TextStyle(color: Colors.white, fontSize: 20)),
+          ],
+        ),
+        content: Text(
+          '$sender is calling...',
+          style: const TextStyle(color: Colors.grey, fontSize: 16),
+          textAlign: TextAlign.center,
+        ),
+        actionsAlignment: MainAxisAlignment.spaceEvenly,
+        actions: [
+          // Decline
+          GestureDetector(
+            onTap: () => Navigator.pop(ctx),
+            child: Container(
+              width: 56, height: 56,
+              decoration: const BoxDecoration(shape: BoxShape.circle, color: Colors.redAccent),
+              child: const Icon(Icons.call_end, color: Colors.white, size: 28),
+            ),
+          ),
+          // Accept
+          GestureDetector(
+            onTap: () {
+              Navigator.pop(ctx);
+              _openCallScreen(callId: callId, myName: myName, callType: callType, isInitiator: false);
+            },
+            child: Container(
+              width: 56, height: 56,
+              decoration: const BoxDecoration(shape: BoxShape.circle, color: Colors.greenAccent),
+              child: const Icon(Icons.call, color: Colors.white, size: 28),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _handleCallJoin(Map<String, dynamic> data) {
+    final sender = data['sender'] as String;
+    final myName = ref.read(usernameProvider);
+    if (sender == myName) return;
+
+    final callService = ref.read(webRtcCallServiceProvider);
+    if (callService.state == CallState.inCall) {
+      callService.callParticipants.add(sender);
+      callService.onParticipantChanged?.call(sender, true);
+      // I create offer to the new joiner
+      callService.setupPeerConnection(sender, myName, makeOffer: true);
+    }
+  }
+
+  void _handleCallOffer(Map<String, dynamic> data) {
+    final sender = data['sender'] as String;
+    final target = data['target'] as String;
+    final myName = ref.read(usernameProvider);
+    if (target != myName) return;
+
+    final callService = ref.read(webRtcCallServiceProvider);
+    callService.handleOffer(sender, myName, data['sdp'] as Map<String, dynamic>);
+  }
+
+  void _handleCallAnswer(Map<String, dynamic> data) {
+    final sender = data['sender'] as String;
+    final target = data['target'] as String;
+    final myName = ref.read(usernameProvider);
+    if (target != myName) return;
+
+    final callService = ref.read(webRtcCallServiceProvider);
+    callService.handleAnswer(sender, data['sdp'] as Map<String, dynamic>);
+  }
+
+  void _handleIceCandidate(Map<String, dynamic> data) {
+    final sender = data['sender'] as String;
+    final target = data['target'] as String;
+    final myName = ref.read(usernameProvider);
+    if (target != myName) return;
+
+    final callService = ref.read(webRtcCallServiceProvider);
+    callService.handleIceCandidate(sender, data['candidate'] as Map<String, dynamic>);
+  }
+
+  void _handleCallEnd(Map<String, dynamic> data) {
+    final sender = data['sender'] as String;
+    final callService = ref.read(webRtcCallServiceProvider);
+
+    if (data['type'] == 'call_end') {
+      // Entire call ended
+      callService.handleParticipantLeft(sender);
+    } else {
+      // Single participant left
+      callService.handleParticipantLeft(sender);
+    }
+  }
+
+  // ─── End Call Handling ─────────────────────────────────────────
 
   void _showNoParticipantsWarning() {
     _showTopSnackBar('No one else is in the room');
@@ -997,6 +1171,12 @@ class _ChatScreenState extends ConsumerState<ChatScreen> with WidgetsBindingObse
           backgroundColor: const Color(0xFF252525),
           elevation: 4,
           actions: [
+            // Audio call button
+            IconButton(
+              icon: const Icon(Icons.call, color: Colors.greenAccent),
+              tooltip: 'Audio Call',
+              onPressed: _hasParticipants ? _startAudioCall : () => _showTopSnackBar('No one else is in the room'),
+            ),
             IconButton(
               icon: const Icon(Icons.info_outline, color: Colors.white70),
               tooltip: 'Room Info',
