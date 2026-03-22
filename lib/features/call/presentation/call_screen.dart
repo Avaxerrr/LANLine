@@ -53,6 +53,7 @@ class _CallScreenState extends ConsumerState<CallScreen> with SingleTickerProvid
       if (mounted) {
         setState(() {});
         if (state == CallState.idle) {
+          _playDisconnectTone();
           _popWithDuration();
         }
       }
@@ -66,6 +67,7 @@ class _CallScreenState extends ConsumerState<CallScreen> with SingleTickerProvid
             if (!_isConnected) {
               _isConnected = true;
               _stopRingback();
+              _playConnectTone();
             }
           } else {
             _participants.remove(name);
@@ -125,6 +127,18 @@ class _CallScreenState extends ConsumerState<CallScreen> with SingleTickerProvid
   Future<void> _stopRingback() async {
     if (Platform.isAndroid) {
       try { await _proximityChannel.invokeMethod('stopRingback'); } catch (_) {}
+    }
+  }
+
+  Future<void> _playConnectTone() async {
+    if (Platform.isAndroid) {
+      try { await _proximityChannel.invokeMethod('playConnectTone'); } catch (_) {}
+    }
+  }
+
+  Future<void> _playDisconnectTone() async {
+    if (Platform.isAndroid) {
+      try { await _proximityChannel.invokeMethod('playDisconnectTone'); } catch (_) {}
     }
   }
 
@@ -198,6 +212,7 @@ class _CallScreenState extends ConsumerState<CallScreen> with SingleTickerProvid
 
   void _endCall() {
     _stopRingback();
+    _playDisconnectTone();
     _callService.endCall(widget.myName);
   }
 
