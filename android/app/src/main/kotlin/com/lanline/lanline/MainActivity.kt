@@ -134,6 +134,28 @@ class MainActivity : FlutterActivity() {
                         result.error("RINGBACK_ERROR", e.message, null)
                     }
                 }
+                "playConnectTone" -> {
+                    try {
+                        // Short confirmation beep when call connects
+                        val tg = ToneGenerator(AudioManager.STREAM_VOICE_CALL, 100)
+                        tg.startTone(ToneGenerator.TONE_PROP_ACK, 200)
+                        android.os.Handler(mainLooper).postDelayed({ tg.release() }, 300)
+                        result.success(true)
+                    } catch (e: Exception) {
+                        result.error("TONE_ERROR", e.message, null)
+                    }
+                }
+                "playDisconnectTone" -> {
+                    try {
+                        // Short end-call tone
+                        val tg = ToneGenerator(AudioManager.STREAM_VOICE_CALL, 100)
+                        tg.startTone(ToneGenerator.TONE_PROP_NACK, 300)
+                        android.os.Handler(mainLooper).postDelayed({ tg.release() }, 400)
+                        result.success(true)
+                    } catch (e: Exception) {
+                        result.error("TONE_ERROR", e.message, null)
+                    }
+                }
                 else -> result.notImplemented()
             }
         }
