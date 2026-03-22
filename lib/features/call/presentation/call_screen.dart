@@ -44,7 +44,7 @@ class _CallScreenState extends ConsumerState<CallScreen> with SingleTickerProvid
   int _callDurationSeconds = 0;
   bool _callStarted = false;
   bool _isConnected = false;
-  String _networkQuality = ''; // '', 'excellent', 'good', 'fair', 'poor'
+  String _networkQuality = '';
 
   final RTCVideoRenderer _localRenderer = RTCVideoRenderer();
   final Map<String, RTCVideoRenderer> _remoteRenderers = {};
@@ -89,31 +89,37 @@ class _CallScreenState extends ConsumerState<CallScreen> with SingleTickerProvid
     };
 
     _callService.onRemoteStream = (stream, participantId) {
-      if (mounted) {
-        final renderer = _remoteRenderers[participantId] ?? RTCVideoRenderer();
-        if (!_remoteRenderers.containsKey(participantId)) {
-          renderer.initialize().then((_) {
+      // Only create video renderers when video is enabled AND stream has video
+      if (!mounted || !_isVideoEnabled) return;
+      final hasVideoTracks = stream.getVideoTracks().isNotEmpty;
+      if (!hasVideoTracks) return;
+
+      if (!_remoteRenderers.containsKey(participantId)) {
+        final renderer = RTCVideoRenderer();
+        _remoteRenderers[participantId] = renderer;
+        renderer.initialize().then((_) {
+          if (mounted) {
             renderer.srcObject = stream;
-            if (mounted) setState(() {});
-          });
-          _remoteRenderers[participantId] = renderer;
-        } else {
-          renderer.srcObject = stream;
-        }
+            setState(() {});
+          }
+        });
+      } else {
+        _remoteRenderers[participantId]!.srcObject = stream;
         if (mounted) setState(() {});
       }
     };
 
-    _initRenderers();
-    _initCall();
-    _acquireProximityLock();
+    _startCallSequence();
   }
 
-  // ─── Platform methods ────────────────────────────────────────
-
-  Future<void> _initRenderers() async {
+  /// Sequential init: renderer first, then call, then proximity lock
+  Future<void> _startCallSequence() async {
     await _localRenderer.initialize();
+    _acquireProximityLock();
+    await _initCall();
   }
+
+  // ─── Platform helpers ────────────────────────────────────────
 
   Future<void> _acquireProximityLock() async {
     if (Platform.isAndroid && !_isVideoEnabled) {
@@ -211,21 +217,16 @@ class _CallScreenState extends ConsumerState<CallScreen> with SingleTickerProvid
     });
   }
 
-  // ─── Network quality monitor ─────────────────────────────────
-
   void _startStatsMonitor() {
     _statsTimer = Timer.periodic(const Duration(seconds: 3), (_) async {
       if (!mounted || _callService.state != CallState.inCall) return;
-      // We use the first peer connection to get stats
       final pcs = _callService.peerConnections;
       if (pcs.isEmpty) return;
-
       try {
         final stats = await pcs.values.first.getStats();
         double? rtt;
         int? packetsLost;
         int? packetsSent;
-
         for (var report in stats) {
           if (report.type == 'candidate-pair' && report.values['state'] == 'succeeded') {
             rtt = (report.values['currentRoundTripTime'] as num?)?.toDouble();
@@ -237,25 +238,17 @@ class _CallScreenState extends ConsumerState<CallScreen> with SingleTickerProvid
             packetsLost = report.values['packetsLost'] as int?;
           }
         }
-
         String quality = 'excellent';
         if (rtt != null) {
-          if (rtt > 0.3) {
-            quality = 'poor';
-          } else if (rtt > 0.15) {
-            quality = 'fair';
-          } else if (rtt > 0.05) {
-            quality = 'good';
-          }
+          if (rtt > 0.3) quality = 'poor';
+          else if (rtt > 0.15) quality = 'fair';
+          else if (rtt > 0.05) quality = 'good';
         }
-
-        // Factor in packet loss
         if (packetsLost != null && packetsSent != null && packetsSent > 0) {
           final lossRate = packetsLost / packetsSent;
           if (lossRate > 0.1) quality = 'poor';
           else if (lossRate > 0.05 && quality != 'poor') quality = 'fair';
         }
-
         if (mounted && quality != _networkQuality) {
           setState(() => _networkQuality = quality);
         }
@@ -283,14 +276,12 @@ class _CallScreenState extends ConsumerState<CallScreen> with SingleTickerProvid
 
   void _toggleHold() {
     setState(() => _isOnHold = !_isOnHold);
-    // Mute audio + disable video tracks when on hold
     final stream = _callService.localStream;
     if (stream != null) {
       for (var track in stream.getTracks()) {
         track.enabled = !_isOnHold;
       }
     }
-    // Notify peers
     _callService.sendSignal?.call(jsonEncode({
       'type': 'call_hold',
       'callId': widget.callId,
@@ -310,28 +301,35 @@ class _CallScreenState extends ConsumerState<CallScreen> with SingleTickerProvid
   }
 
   Future<void> _toggleVideo() async {
-    final nowEnabled = await _callService.toggleVideo();
-    setState(() {
-      _isVideoEnabled = nowEnabled;
-      if (nowEnabled && _callService.localStream != null) {
-        _localRenderer.srcObject = _callService.localStream;
-      } else {
-        _localRenderer.srcObject = null;
+    try {
+      final nowEnabled = await _callService.toggleVideo();
+      if (!mounted) return;
+      setState(() {
+        _isVideoEnabled = nowEnabled;
+        if (nowEnabled && _callService.localStream != null) {
+          _localRenderer.srcObject = _callService.localStream;
+        } else {
+          _localRenderer.srcObject = null;
+        }
+      });
+      _callService.sendSignal?.call(jsonEncode({
+        'type': 'call_video_toggle',
+        'callId': widget.callId,
+        'sender': widget.myName,
+        'videoEnabled': nowEnabled,
+      }));
+      if (Platform.isAndroid) {
+        if (nowEnabled) {
+          _releaseProximityLock();
+        } else {
+          _acquireProximityLock();
+        }
       }
-    });
-
-    _callService.sendSignal?.call(jsonEncode({
-      'type': 'call_video_toggle',
-      'callId': widget.callId,
-      'sender': widget.myName,
-      'videoEnabled': nowEnabled,
-    }));
-
-    if (Platform.isAndroid) {
-      if (nowEnabled) {
-        _releaseProximityLock();
-      } else {
-        _acquireProximityLock();
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Failed to toggle video: $e')),
+        );
       }
     }
   }
@@ -382,46 +380,30 @@ class _CallScreenState extends ConsumerState<CallScreen> with SingleTickerProvid
 
   Widget _buildNetworkBadge() {
     if (_networkQuality.isEmpty || !_isConnected) return const SizedBox.shrink();
-
     IconData icon;
     Color color;
     switch (_networkQuality) {
       case 'excellent':
-        icon = Icons.signal_cellular_4_bar;
-        color = Colors.greenAccent;
-        break;
+        icon = Icons.signal_cellular_4_bar; color = Colors.greenAccent; break;
       case 'good':
-        icon = Icons.signal_cellular_alt;
-        color = Colors.lightGreen;
-        break;
+        icon = Icons.signal_cellular_alt; color = Colors.lightGreen; break;
       case 'fair':
-        icon = Icons.signal_cellular_alt_2_bar;
-        color = Colors.orangeAccent;
-        break;
+        icon = Icons.signal_cellular_alt_2_bar; color = Colors.orangeAccent; break;
       case 'poor':
-        icon = Icons.signal_cellular_alt_1_bar;
-        color = Colors.redAccent;
-        break;
+        icon = Icons.signal_cellular_alt_1_bar; color = Colors.redAccent; break;
       default:
-        icon = Icons.signal_cellular_4_bar;
-        color = Colors.grey;
+        icon = Icons.signal_cellular_4_bar; color = Colors.grey;
     }
-
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-      decoration: BoxDecoration(
-        color: Colors.black45,
-        borderRadius: BorderRadius.circular(12),
-      ),
+      decoration: BoxDecoration(color: Colors.black45, borderRadius: BorderRadius.circular(12)),
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
           Icon(icon, color: color, size: 16),
           const SizedBox(width: 4),
-          Text(
-            _networkQuality[0].toUpperCase() + _networkQuality.substring(1),
-            style: TextStyle(color: color, fontSize: 11, fontWeight: FontWeight.w600),
-          ),
+          Text(_networkQuality[0].toUpperCase() + _networkQuality.substring(1),
+            style: TextStyle(color: color, fontSize: 11, fontWeight: FontWeight.w600)),
         ],
       ),
     );
@@ -496,10 +478,18 @@ class _CallScreenState extends ConsumerState<CallScreen> with SingleTickerProvid
 
   // ─── Video Call Layout ───────────────────────────────────────
 
+  bool get _hasRemoteVideo {
+    for (var r in _remoteRenderers.values) {
+      if (r.srcObject != null && r.srcObject!.getVideoTracks().isNotEmpty) return true;
+    }
+    return false;
+  }
+
   Widget _buildVideoLayout() {
     return Stack(
       children: [
-        if (_remoteRenderers.isNotEmpty)
+        // Background: remote video fullscreen OR waiting placeholder
+        if (_hasRemoteVideo)
           Positioned.fill(
             child: RTCVideoView(
               _remoteRenderers.values.first,
@@ -509,7 +499,7 @@ class _CallScreenState extends ConsumerState<CallScreen> with SingleTickerProvid
         else
           Positioned.fill(
             child: Container(
-              color: const Color(0xFF0D0D0D),
+              color: const Color(0xFF1A1A2E),
               child: Center(
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
@@ -520,7 +510,7 @@ class _CallScreenState extends ConsumerState<CallScreen> with SingleTickerProvid
                         shape: BoxShape.circle,
                         gradient: LinearGradient(
                           begin: Alignment.topLeft, end: Alignment.bottomRight,
-                          colors: [Colors.blueAccent.withValues(alpha: 0.3), Colors.purpleAccent.withValues(alpha: 0.2)],
+                          colors: [Colors.blueAccent.withValues(alpha: 0.4), Colors.purpleAccent.withValues(alpha: 0.3)],
                         ),
                       ),
                       child: const Icon(Icons.videocam, size: 48, color: Colors.white),
@@ -532,13 +522,15 @@ class _CallScreenState extends ConsumerState<CallScreen> with SingleTickerProvid
                       _callStarted ? (_isConnected ? _formatDuration(_callDurationSeconds) : 'Ringing...') : 'Connecting...',
                       style: TextStyle(color: _isConnected ? Colors.grey.shade400 : Colors.orangeAccent, fontSize: 16),
                     ),
+                    const SizedBox(height: 8),
+                    _buildNetworkBadge(),
                   ],
                 ),
               ),
             ),
           ),
 
-        // Local video PIP
+        // Local camera PIP (top-right) — only if we have a valid local video stream
         if (_callService.localStream != null && _callService.hasVideo)
           Positioned(
             top: MediaQuery.of(context).padding.top + 16,
@@ -561,7 +553,7 @@ class _CallScreenState extends ConsumerState<CallScreen> with SingleTickerProvid
             ),
           ),
 
-        // Top bar: duration + network quality
+        // Duration + network badge (top-left)
         if (_isConnected)
           Positioned(
             top: MediaQuery.of(context).padding.top + 16,
