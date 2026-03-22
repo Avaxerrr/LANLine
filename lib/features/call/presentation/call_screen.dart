@@ -48,6 +48,7 @@ class _CallScreenState extends ConsumerState<CallScreen> {
 
   final RTCVideoRenderer _localRenderer = RTCVideoRenderer();
   final Map<String, RTCVideoRenderer> _remoteRenderers = {};
+  final Map<String, Completer<void>> _rendererReady = {};
 
   @override
   void initState() {
@@ -94,16 +95,30 @@ class _CallScreenState extends ConsumerState<CallScreen> {
       if (!mounted) return;
       if (!_remoteRenderers.containsKey(participantId)) {
         final renderer = RTCVideoRenderer();
+        final completer = Completer<void>();
         _remoteRenderers[participantId] = renderer;
+        _rendererReady[participantId] = completer;
         renderer.initialize().then((_) {
+          completer.complete();
           if (mounted) {
             renderer.srcObject = stream;
             setState(() {});
           }
         });
       } else {
-        _remoteRenderers[participantId]!.srcObject = stream;
-        if (mounted) setState(() {});
+        // Wait for initialization before setting srcObject
+        final ready = _rendererReady[participantId];
+        if (ready != null && !ready.isCompleted) {
+          ready.future.then((_) {
+            if (mounted) {
+              _remoteRenderers[participantId]?.srcObject = stream;
+              setState(() {});
+            }
+          });
+        } else {
+          _remoteRenderers[participantId]!.srcObject = stream;
+          if (mounted) setState(() {});
+        }
       }
     };
 
