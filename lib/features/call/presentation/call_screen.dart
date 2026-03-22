@@ -1,5 +1,4 @@
 import 'dart:async';
-import 'dart:convert';
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -27,23 +26,18 @@ class CallScreen extends ConsumerStatefulWidget {
   ConsumerState<CallScreen> createState() => _CallScreenState();
 }
 
-class _CallScreenState extends ConsumerState<CallScreen> {
+class _CallScreenState extends ConsumerState<CallScreen> with SingleTickerProviderStateMixin {
   static const _proximityChannel = MethodChannel('com.lanline.lanline/proximity');
-  static const _callTimeout = Duration(seconds: 30);
 
   late final WebRtcCallService _callService;
   bool _isMuted = false;
   bool _isSpeakerOn = false;
-  bool _isOnHold = false;
   bool _isFrontCamera = true;
   final List<String> _participants = [];
   Timer? _durationTimer;
-  Timer? _timeoutTimer;
   int _callDurationSeconds = 0;
-  Timer? _statsTimer;
   bool _callStarted = false;
   bool _isConnected = false; // true when at least one participant joins
-  String _networkQuality = '';
 
   // Video renderers
   final RTCVideoRenderer _localRenderer = RTCVideoRenderer();
@@ -59,7 +53,6 @@ class _CallScreenState extends ConsumerState<CallScreen> {
       if (mounted) {
         setState(() {});
         if (state == CallState.idle) {
-          _playDisconnectTone();
           _popWithDuration();
         }
       }
@@ -73,10 +66,6 @@ class _CallScreenState extends ConsumerState<CallScreen> {
             if (!_isConnected) {
               _isConnected = true;
               _stopRingback();
-              _timeoutTimer?.cancel();
-              _playConnectTone();
-              _startDurationTimer();
-              _startStatsMonitor();
             }
           } else {
             _participants.remove(name);
@@ -139,18 +128,6 @@ class _CallScreenState extends ConsumerState<CallScreen> {
     }
   }
 
-  Future<void> _playConnectTone() async {
-    if (Platform.isAndroid) {
-      try { await _proximityChannel.invokeMethod('playConnectTone'); } catch (_) {}
-    }
-  }
-
-  Future<void> _playDisconnectTone() async {
-    if (Platform.isAndroid) {
-      try { await _proximityChannel.invokeMethod('playDisconnectTone'); } catch (_) {}
-    }
-  }
-
   Future<void> _initCall() async {
     try {
       if (widget.isInitiator) {
@@ -161,15 +138,6 @@ class _CallScreenState extends ConsumerState<CallScreen> {
         );
         // Caller hears ring-back tone while waiting
         _startRingback();
-        _timeoutTimer = Timer(_callTimeout, () {
-          if (!_isConnected && mounted) {
-            _stopRingback();
-            _callService.endCall(widget.myName);
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(content: Text('No answer')),
-            );
-          }
-        });
       } else {
         await _callService.joinCall(
           callId: widget.callId,
@@ -185,12 +153,7 @@ class _CallScreenState extends ConsumerState<CallScreen> {
       }
 
       setState(() => _callStarted = true);
-      // For callee, start timer + stats immediately (already connected)
-      if (!widget.isInitiator) {
-        _playConnectTone();
-        _startDurationTimer();
-        _startStatsMonitor();
-      }
+      _startDurationTimer();
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -204,45 +167,6 @@ class _CallScreenState extends ConsumerState<CallScreen> {
   void _startDurationTimer() {
     _durationTimer = Timer.periodic(const Duration(seconds: 1), (_) {
       if (mounted) setState(() => _callDurationSeconds++);
-    });
-  }
-
-  void _startStatsMonitor() {
-    _statsTimer = Timer.periodic(const Duration(seconds: 3), (_) async {
-      if (!mounted || _callService.state != CallState.inCall) return;
-      final pcs = _callService.peerConnections;
-      if (pcs.isEmpty) return;
-      try {
-        final stats = await pcs.values.first.getStats();
-        double? rtt;
-        int? packetsLost;
-        int? packetsSent;
-        for (var report in stats) {
-          if (report.type == 'candidate-pair' && report.values['state'] == 'succeeded') {
-            rtt = (report.values['currentRoundTripTime'] as num?)?.toDouble();
-          }
-          if (report.type == 'outbound-rtp' && report.values['kind'] == 'audio') {
-            packetsSent = report.values['packetsSent'] as int?;
-          }
-          if (report.type == 'remote-inbound-rtp' && report.values['kind'] == 'audio') {
-            packetsLost = report.values['packetsLost'] as int?;
-          }
-        }
-        String quality = 'excellent';
-        if (rtt != null) {
-          if (rtt > 0.3) quality = 'poor';
-          else if (rtt > 0.15) quality = 'fair';
-          else if (rtt > 0.05) quality = 'good';
-        }
-        if (packetsLost != null && packetsSent != null && packetsSent > 0) {
-          final lossRate = packetsLost / packetsSent;
-          if (lossRate > 0.1) quality = 'poor';
-          else if (lossRate > 0.05 && quality != 'poor') quality = 'fair';
-        }
-        if (mounted && quality != _networkQuality) {
-          setState(() => _networkQuality = quality);
-        }
-      } catch (_) {}
     });
   }
 
@@ -272,41 +196,20 @@ class _CallScreenState extends ConsumerState<CallScreen> {
     }
   }
 
-  void _toggleHold() {
-    setState(() => _isOnHold = !_isOnHold);
-    final stream = _callService.localStream;
-    if (stream != null) {
-      for (var track in stream.getTracks()) {
-        track.enabled = !_isOnHold;
-      }
-    }
-    _callService.sendSignal?.call(jsonEncode({
-      'type': 'call_hold',
-      'callId': widget.callId,
-      'sender': widget.myName,
-      'onHold': _isOnHold,
-    }));
-  }
-
   void _endCall() {
     _stopRingback();
-    _timeoutTimer?.cancel();
-    _playDisconnectTone();
     _callService.endCall(widget.myName);
   }
 
   void _popWithDuration() {
     _stopRingback();
-    _timeoutTimer?.cancel();
     _releaseProximityLock();
-    if (mounted) Navigator.pop(context, _isConnected ? _callDurationSeconds : 0);
+    if (mounted) Navigator.pop(context, _callDurationSeconds);
   }
 
   @override
   void dispose() {
     _durationTimer?.cancel();
-    _timeoutTimer?.cancel();
-    _statsTimer?.cancel();
     _stopRingback();
     _releaseProximityLock();
     _localRenderer.dispose();
@@ -330,103 +233,42 @@ class _CallScreenState extends ConsumerState<CallScreen> {
     );
   }
 
-  // ─── Network quality badge ───────────────────────────────────
-
-  Widget _buildNetworkBadge() {
-    if (_networkQuality.isEmpty || !_isConnected) return const SizedBox.shrink();
-    IconData icon;
-    Color color;
-    switch (_networkQuality) {
-      case 'excellent':
-        icon = Icons.signal_cellular_4_bar; color = Colors.greenAccent; break;
-      case 'good':
-        icon = Icons.signal_cellular_alt; color = Colors.lightGreen; break;
-      case 'fair':
-        icon = Icons.signal_cellular_alt_2_bar; color = Colors.orangeAccent; break;
-      case 'poor':
-        icon = Icons.signal_cellular_alt_1_bar; color = Colors.redAccent; break;
-      default:
-        icon = Icons.signal_cellular_4_bar; color = Colors.grey;
-    }
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-      decoration: BoxDecoration(color: Colors.black45, borderRadius: BorderRadius.circular(12)),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(icon, color: color, size: 16),
-          const SizedBox(width: 4),
-          Text(_networkQuality[0].toUpperCase() + _networkQuality.substring(1),
-            style: TextStyle(color: color, fontSize: 11, fontWeight: FontWeight.w600)),
-        ],
-      ),
-    );
-  }
-
-  // ─── Hold overlay ────────────────────────────────────────────
-
-  Widget _buildHoldOverlay() {
-    if (!_isOnHold) return const SizedBox.shrink();
-    return Positioned.fill(
-      child: Container(
-        color: Colors.black.withValues(alpha: 0.6),
-        child: const Center(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Icon(Icons.pause_circle_outline, color: Colors.orangeAccent, size: 64),
-              SizedBox(height: 12),
-              Text('On Hold', style: TextStyle(color: Colors.orangeAccent, fontSize: 22, fontWeight: FontWeight.w700)),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
   // ─── Audio Call Layout ───────────────────────────────────────
 
   Widget _buildAudioLayout() {
-    return Stack(
-      children: [
-        SafeArea(
-          child: Column(
-            children: [
-              const Spacer(flex: 2),
-              Container(
-                width: 100, height: 100,
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  gradient: LinearGradient(
-                    begin: Alignment.topLeft, end: Alignment.bottomRight,
-                    colors: [Colors.blueAccent.withValues(alpha: 0.3), Colors.purpleAccent.withValues(alpha: 0.2)],
-                  ),
-                ),
-                child: const Icon(Icons.call, size: 48, color: Colors.white),
+    return SafeArea(
+      child: Column(
+        children: [
+          const Spacer(flex: 2),
+          Container(
+            width: 100, height: 100,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              gradient: LinearGradient(
+                begin: Alignment.topLeft, end: Alignment.bottomRight,
+                colors: [Colors.blueAccent.withValues(alpha: 0.3), Colors.purpleAccent.withValues(alpha: 0.2)],
               ),
-              const SizedBox(height: 24),
-              const Text('Audio Call', style: TextStyle(color: Colors.white, fontSize: 28, fontWeight: FontWeight.w700)),
-              const SizedBox(height: 8),
-              Text(
-                _callStarted
-                    ? (_isConnected ? _formatDuration(_callDurationSeconds) : 'Ringing...')
-                    : 'Connecting...',
-                style: TextStyle(
-                  color: _isConnected ? Colors.grey.shade400 : Colors.orangeAccent,
-                  fontSize: 16, fontWeight: FontWeight.w500,
-                ),
-              ),
-              const SizedBox(height: 8),
-              _buildNetworkBadge(),
-              const SizedBox(height: 32),
-              _buildParticipantList(),
-              const Spacer(flex: 3),
-              _buildAudioControls(),
-            ],
+            ),
+            child: const Icon(Icons.call, size: 48, color: Colors.white),
           ),
-        ),
-        _buildHoldOverlay(),
-      ],
+          const SizedBox(height: 24),
+          const Text('Audio Call', style: TextStyle(color: Colors.white, fontSize: 28, fontWeight: FontWeight.w700)),
+          const SizedBox(height: 8),
+          Text(
+            _callStarted
+                ? (_isConnected ? _formatDuration(_callDurationSeconds) : 'Ringing...')
+                : 'Connecting...',
+            style: TextStyle(
+              color: _isConnected ? Colors.grey.shade400 : Colors.orangeAccent,
+              fontSize: 16, fontWeight: FontWeight.w500,
+            ),
+          ),
+          const SizedBox(height: 40),
+          _buildParticipantList(),
+          const Spacer(flex: 3),
+          _buildAudioControls(),
+        ],
+      ),
     );
   }
 
@@ -498,21 +340,21 @@ class _CallScreenState extends ConsumerState<CallScreen> {
             ),
           ),
 
-        // Duration + network badge when connected
+        // Duration overlay when connected
         if (_isConnected)
           Positioned(
             top: MediaQuery.of(context).padding.top + 16,
             left: 16,
-            child: Row(
-              children: [
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                  decoration: BoxDecoration(color: Colors.black54, borderRadius: BorderRadius.circular(20)),
-                  child: Text(_formatDuration(_callDurationSeconds), style: const TextStyle(color: Colors.white, fontSize: 14, fontWeight: FontWeight.w600)),
-                ),
-                const SizedBox(width: 8),
-                _buildNetworkBadge(),
-              ],
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+              decoration: BoxDecoration(
+                color: Colors.black54,
+                borderRadius: BorderRadius.circular(20),
+              ),
+              child: Text(
+                _formatDuration(_callDurationSeconds),
+                style: const TextStyle(color: Colors.white, fontSize: 14, fontWeight: FontWeight.w600),
+              ),
             ),
           ),
 
@@ -532,14 +374,11 @@ class _CallScreenState extends ConsumerState<CallScreen> {
               children: [
                 _buildControlButton(icon: _isMuted ? Icons.mic_off : Icons.mic, label: _isMuted ? 'Unmute' : 'Mute', active: _isMuted, activeColor: Colors.redAccent, onTap: _toggleMute),
                 _buildControlButton(icon: Icons.cameraswitch, label: 'Flip', active: false, activeColor: Colors.blueAccent, onTap: _flipCamera),
-                _buildControlButton(icon: _isOnHold ? Icons.play_arrow : Icons.pause, label: _isOnHold ? 'Resume' : 'Hold', active: _isOnHold, activeColor: Colors.orangeAccent, onTap: _toggleHold),
                 _buildEndCallButton(),
               ],
             ),
           ),
         ),
-
-        _buildHoldOverlay(),
       ],
     );
   }
@@ -573,7 +412,6 @@ class _CallScreenState extends ConsumerState<CallScreen> {
         children: [
           _buildControlButton(icon: _isMuted ? Icons.mic_off : Icons.mic, label: _isMuted ? 'Unmute' : 'Mute', active: _isMuted, activeColor: Colors.redAccent, onTap: _toggleMute),
           _buildControlButton(icon: _isSpeakerOn ? Icons.volume_up : Icons.volume_down, label: 'Speaker', active: _isSpeakerOn, activeColor: Colors.blueAccent, onTap: _toggleSpeaker),
-          _buildControlButton(icon: _isOnHold ? Icons.play_arrow : Icons.pause, label: _isOnHold ? 'Resume' : 'Hold', active: _isOnHold, activeColor: Colors.orangeAccent, onTap: _toggleHold),
           _buildEndCallButton(),
         ],
       ),
