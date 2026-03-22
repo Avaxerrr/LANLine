@@ -28,6 +28,7 @@ class CallScreen extends ConsumerStatefulWidget {
 
 class _CallScreenState extends ConsumerState<CallScreen> with SingleTickerProviderStateMixin {
   static const _proximityChannel = MethodChannel('com.lanline.lanline/proximity');
+  static const _callTimeout = Duration(seconds: 30);
 
   late final WebRtcCallService _callService;
   bool _isMuted = false;
@@ -35,6 +36,7 @@ class _CallScreenState extends ConsumerState<CallScreen> with SingleTickerProvid
   bool _isFrontCamera = true;
   final List<String> _participants = [];
   Timer? _durationTimer;
+  Timer? _timeoutTimer;
   int _callDurationSeconds = 0;
   bool _callStarted = false;
   bool _isConnected = false; // true when at least one participant joins
@@ -67,6 +69,7 @@ class _CallScreenState extends ConsumerState<CallScreen> with SingleTickerProvid
             if (!_isConnected) {
               _isConnected = true;
               _stopRingback();
+              _timeoutTimer?.cancel();
               _playConnectTone();
             }
           } else {
@@ -152,6 +155,15 @@ class _CallScreenState extends ConsumerState<CallScreen> with SingleTickerProvid
         );
         // Caller hears ring-back tone while waiting
         _startRingback();
+        _timeoutTimer = Timer(_callTimeout, () {
+          if (!_isConnected && mounted) {
+            _stopRingback();
+            _callService.endCall(widget.myName);
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(content: Text('No answer')),
+            );
+          }
+        });
       } else {
         await _callService.joinCall(
           callId: widget.callId,
@@ -212,19 +224,22 @@ class _CallScreenState extends ConsumerState<CallScreen> with SingleTickerProvid
 
   void _endCall() {
     _stopRingback();
+    _timeoutTimer?.cancel();
     _playDisconnectTone();
     _callService.endCall(widget.myName);
   }
 
   void _popWithDuration() {
     _stopRingback();
+    _timeoutTimer?.cancel();
     _releaseProximityLock();
-    if (mounted) Navigator.pop(context, _callDurationSeconds);
+    if (mounted) Navigator.pop(context, _isConnected ? _callDurationSeconds : 0);
   }
 
   @override
   void dispose() {
     _durationTimer?.cancel();
+    _timeoutTimer?.cancel();
     _stopRingback();
     _releaseProximityLock();
     _localRenderer.dispose();
