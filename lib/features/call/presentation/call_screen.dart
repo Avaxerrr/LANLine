@@ -10,7 +10,7 @@ import '../../../core/network/webrtc_call_service.dart';
 class CallScreen extends ConsumerStatefulWidget {
   final String callId;
   final String myName;
-  final String callType;
+  final String callType; // 'audio' or 'video'
   final bool isInitiator;
   final void Function(String message) sendSignal;
 
@@ -28,7 +28,7 @@ class CallScreen extends ConsumerStatefulWidget {
 }
 
 class _CallScreenState extends ConsumerState<CallScreen> {
-  static const _channel = MethodChannel('com.lanline.lanline/proximity');
+  static const _proximityChannel = MethodChannel('com.lanline.lanline/proximity');
   static const _callTimeout = Duration(seconds: 30);
 
   late final WebRtcCallService _callService;
@@ -36,24 +36,22 @@ class _CallScreenState extends ConsumerState<CallScreen> {
   bool _isSpeakerOn = false;
   bool _isOnHold = false;
   bool _isFrontCamera = true;
-  bool _isVideoEnabled = false;
   final List<String> _participants = [];
   Timer? _durationTimer;
   Timer? _timeoutTimer;
-  Timer? _statsTimer;
   int _callDurationSeconds = 0;
+  Timer? _statsTimer;
   bool _callStarted = false;
-  bool _isConnected = false;
+  bool _isConnected = false; // true when at least one participant joins
   String _networkQuality = '';
 
+  // Video renderers
   final RTCVideoRenderer _localRenderer = RTCVideoRenderer();
   final Map<String, RTCVideoRenderer> _remoteRenderers = {};
-  final Map<String, Completer<void>> _rendererReady = {};
 
   @override
   void initState() {
     super.initState();
-    _isVideoEnabled = widget.callType == 'video';
     _callService = ref.read(webRtcCallServiceProvider);
     _callService.sendSignal = widget.sendSignal;
 
@@ -75,7 +73,7 @@ class _CallScreenState extends ConsumerState<CallScreen> {
             if (!_isConnected) {
               _isConnected = true;
               _stopRingback();
-              _cancelTimeout();
+              _timeoutTimer?.cancel();
               _playConnectTone();
               _startDurationTimer();
               _startStatsMonitor();
@@ -89,91 +87,71 @@ class _CallScreenState extends ConsumerState<CallScreen> {
       }
     };
 
-    // Remote stream callback — always set up renderers since both
-    // audio+video tracks are always present in the stream
     _callService.onRemoteStream = (stream, participantId) {
-      if (!mounted) return;
-      if (!_remoteRenderers.containsKey(participantId)) {
-        final renderer = RTCVideoRenderer();
-        final completer = Completer<void>();
-        _remoteRenderers[participantId] = renderer;
-        _rendererReady[participantId] = completer;
-        renderer.initialize().then((_) {
-          completer.complete();
-          if (mounted) {
-            renderer.srcObject = stream;
-            setState(() {});
+      if (mounted && widget.callType == 'video') {
+        setState(() {
+          if (!_remoteRenderers.containsKey(participantId)) {
+            final renderer = RTCVideoRenderer();
+            renderer.initialize().then((_) {
+              renderer.srcObject = stream;
+              if (mounted) setState(() {});
+            });
+            _remoteRenderers[participantId] = renderer;
+          } else {
+            _remoteRenderers[participantId]!.srcObject = stream;
           }
         });
-      } else {
-        // Wait for initialization before setting srcObject
-        final ready = _rendererReady[participantId];
-        if (ready != null && !ready.isCompleted) {
-          ready.future.then((_) {
-            if (mounted) {
-              _remoteRenderers[participantId]?.srcObject = stream;
-              setState(() {});
-            }
-          });
-        } else {
-          _remoteRenderers[participantId]!.srcObject = stream;
-          if (mounted) setState(() {});
-        }
       }
     };
 
-    _startCallSequence();
-  }
-
-  /// Initialize renderer first, then start the call
-  Future<void> _startCallSequence() async {
-    await _localRenderer.initialize();
+    _initRenderers();
+    _initCall();
     _acquireProximityLock();
-    await _initCall();
   }
 
-  // ─── Platform helpers ────────────────────────────────────────
+  Future<void> _initRenderers() async {
+    if (widget.callType == 'video') {
+      await _localRenderer.initialize();
+    }
+  }
 
   Future<void> _acquireProximityLock() async {
-    if (Platform.isAndroid && !_isVideoEnabled) {
-      try { await _channel.invokeMethod('acquire'); } catch (_) {}
+    if (Platform.isAndroid && widget.callType == 'audio') {
+      try { await _proximityChannel.invokeMethod('acquire'); } catch (_) {}
     }
   }
 
   Future<void> _releaseProximityLock() async {
     if (Platform.isAndroid) {
-      try { await _channel.invokeMethod('release'); } catch (_) {}
+      try { await _proximityChannel.invokeMethod('release'); } catch (_) {}
     }
   }
 
   Future<void> _startRingback() async {
     if (Platform.isAndroid) {
-      try { await _channel.invokeMethod('startRingback'); } catch (_) {}
+      try { await _proximityChannel.invokeMethod('startRingback'); } catch (_) {}
     }
   }
 
   Future<void> _stopRingback() async {
     if (Platform.isAndroid) {
-      try { await _channel.invokeMethod('stopRingback'); } catch (_) {}
+      try { await _proximityChannel.invokeMethod('stopRingback'); } catch (_) {}
     }
   }
 
   Future<void> _playConnectTone() async {
     if (Platform.isAndroid) {
-      try { await _channel.invokeMethod('playConnectTone'); } catch (_) {}
+      try { await _proximityChannel.invokeMethod('playConnectTone'); } catch (_) {}
     }
   }
 
   Future<void> _playDisconnectTone() async {
     if (Platform.isAndroid) {
-      try { await _channel.invokeMethod('playDisconnectTone'); } catch (_) {}
+      try { await _proximityChannel.invokeMethod('playDisconnectTone'); } catch (_) {}
     }
   }
 
-  // ─── Call lifecycle ──────────────────────────────────────────
-
   Future<void> _initCall() async {
-    debugPrint('[SCREEN] _initCall started, isInitiator=${widget.isInitiator}, type=${widget.callType}');
     try {
       if (widget.isInitiator) {
         await _callService.startCall(
@@ -181,7 +159,7 @@ class _CallScreenState extends ConsumerState<CallScreen> {
           myName: widget.myName,
           type: widget.callType,
         );
-        debugPrint('[SCREEN] startCall done, localStream=${_callService.localStream != null}');
+        // Caller hears ring-back tone while waiting
         _startRingback();
         _timeoutTimer = Timer(_callTimeout, () {
           if (!_isConnected && mounted) {
@@ -198,25 +176,22 @@ class _CallScreenState extends ConsumerState<CallScreen> {
           myName: widget.myName,
           type: widget.callType,
         );
-        debugPrint('[SCREEN] joinCall done, localStream=${_callService.localStream != null}');
         _isConnected = true;
+      }
+
+      // Assign local stream to renderer for video
+      if (widget.callType == 'video' && _callService.localStream != null) {
+        _localRenderer.srcObject = _callService.localStream;
+      }
+
+      setState(() => _callStarted = true);
+      // For callee, start timer + stats immediately (already connected)
+      if (!widget.isInitiator) {
         _playConnectTone();
         _startDurationTimer();
         _startStatsMonitor();
       }
-
-      // Always assign local stream to renderer (tracks are always there)
-      if (_callService.localStream != null) {
-        _localRenderer.srcObject = _callService.localStream;
-        debugPrint('[SCREEN] localRenderer.srcObject assigned, video tracks: ${_callService.localStream!.getVideoTracks().length}');
-      } else {
-        debugPrint('[SCREEN] WARNING: localStream is null!');
-      }
-
-      setState(() => _callStarted = true);
-      debugPrint('[SCREEN] _callStarted=true, _isVideoEnabled=$_isVideoEnabled');
     } catch (e) {
-      debugPrint('[SCREEN] _initCall EXCEPTION: $e');
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('Failed to start call: $e')),
@@ -226,14 +201,7 @@ class _CallScreenState extends ConsumerState<CallScreen> {
     }
   }
 
-  void _cancelTimeout() {
-    _timeoutTimer?.cancel();
-    _timeoutTimer = null;
-  }
-
   void _startDurationTimer() {
-    _durationTimer?.cancel();
-    _callDurationSeconds = 0;
     _durationTimer = Timer.periodic(const Duration(seconds: 1), (_) {
       if (mounted) setState(() => _callDurationSeconds++);
     });
@@ -284,8 +252,6 @@ class _CallScreenState extends ConsumerState<CallScreen> {
     return '$m:$s';
   }
 
-  // ─── Controls ────────────────────────────────────────────────
-
   void _toggleMute() {
     _callService.toggleMute();
     setState(() => _isMuted = _callService.isMuted);
@@ -294,6 +260,16 @@ class _CallScreenState extends ConsumerState<CallScreen> {
   void _toggleSpeaker() {
     _callService.toggleSpeaker();
     setState(() => _isSpeakerOn = _callService.isSpeakerOn);
+  }
+
+  void _flipCamera() {
+    if (widget.callType == 'video' && _callService.localStream != null) {
+      final videoTracks = _callService.localStream!.getVideoTracks();
+      if (videoTracks.isNotEmpty) {
+        Helper.switchCamera(videoTracks[0]);
+        setState(() => _isFrontCamera = !_isFrontCamera);
+      }
+    }
   }
 
   void _toggleHold() {
@@ -312,49 +288,16 @@ class _CallScreenState extends ConsumerState<CallScreen> {
     }));
   }
 
-  void _flipCamera() {
-    if (_callService.localStream != null) {
-      final videoTracks = _callService.localStream!.getVideoTracks();
-      if (videoTracks.isNotEmpty) {
-        Helper.switchCamera(videoTracks[0]);
-        setState(() => _isFrontCamera = !_isFrontCamera);
-      }
-    }
-  }
-
-  /// Simple toggle: just flip track.enabled. Synchronous, no renegotiation.
-  void _toggleVideo() {
-    final nowEnabled = _callService.toggleVideo();
-    setState(() => _isVideoEnabled = nowEnabled);
-
-    // Notify peers about the video state change
-    _callService.sendSignal?.call(jsonEncode({
-      'type': 'call_video_toggle',
-      'callId': widget.callId,
-      'sender': widget.myName,
-      'videoEnabled': nowEnabled,
-    }));
-
-    // Toggle proximity lock: on for audio, off for video
-    if (Platform.isAndroid) {
-      if (nowEnabled) {
-        _releaseProximityLock();
-      } else {
-        _acquireProximityLock();
-      }
-    }
-  }
-
   void _endCall() {
     _stopRingback();
-    _cancelTimeout();
+    _timeoutTimer?.cancel();
     _playDisconnectTone();
     _callService.endCall(widget.myName);
   }
 
   void _popWithDuration() {
     _stopRingback();
-    _cancelTimeout();
+    _timeoutTimer?.cancel();
     _releaseProximityLock();
     if (mounted) Navigator.pop(context, _isConnected ? _callDurationSeconds : 0);
   }
@@ -371,18 +314,18 @@ class _CallScreenState extends ConsumerState<CallScreen> {
     super.dispose();
   }
 
-  // ─── Build ───────────────────────────────────────────────────
-
   @override
   Widget build(BuildContext context) {
+    final isVideo = widget.callType == 'video';
+
     return PopScope(
       canPop: false,
       onPopInvokedWithResult: (didPop, _) {
         if (!didPop) _endCall();
       },
       child: Scaffold(
-        backgroundColor: const Color(0xFF1A1A2E),
-        body: _isVideoEnabled ? _buildVideoLayout() : _buildAudioLayout(),
+        backgroundColor: const Color(0xFF0D0D0D),
+        body: isVideo ? _buildVideoLayout() : _buildAudioLayout(),
       ),
     );
   }
@@ -490,15 +433,10 @@ class _CallScreenState extends ConsumerState<CallScreen> {
   // ─── Video Call Layout ───────────────────────────────────────
 
   Widget _buildVideoLayout() {
-    final hasRemote = _remoteRenderers.isNotEmpty &&
-        _remoteRenderers.values.first.srcObject != null;
-    final isDesktop = !Platform.isAndroid && !Platform.isIOS;
-
     return Stack(
       children: [
-        // Background: remote video fullscreen OR waiting placeholder
-        // Skip RTCVideoView on desktop (Windows) — texture threading crashes silently
-        if (hasRemote && !isDesktop)
+        // Remote video (full screen) or waiting state
+        if (_remoteRenderers.isNotEmpty)
           Positioned.fill(
             child: RTCVideoView(
               _remoteRenderers.values.first,
@@ -508,7 +446,7 @@ class _CallScreenState extends ConsumerState<CallScreen> {
         else
           Positioned.fill(
             child: Container(
-              color: const Color(0xFF1A1A2E),
+              color: const Color(0xFF0D0D0D),
               child: Center(
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
@@ -519,31 +457,26 @@ class _CallScreenState extends ConsumerState<CallScreen> {
                         shape: BoxShape.circle,
                         gradient: LinearGradient(
                           begin: Alignment.topLeft, end: Alignment.bottomRight,
-                          colors: [Colors.blueAccent.withValues(alpha: 0.4), Colors.purpleAccent.withValues(alpha: 0.3)],
+                          colors: [Colors.blueAccent.withValues(alpha: 0.3), Colors.purpleAccent.withValues(alpha: 0.2)],
                         ),
                       ),
                       child: const Icon(Icons.videocam, size: 48, color: Colors.white),
                     ),
                     const SizedBox(height: 24),
-                    Text(
-                      isDesktop ? 'Video Call (Desktop Preview)' : 'Video Call',
-                      style: const TextStyle(color: Colors.white, fontSize: 28, fontWeight: FontWeight.w700),
-                    ),
+                    const Text('Video Call', style: TextStyle(color: Colors.white, fontSize: 28, fontWeight: FontWeight.w700)),
                     const SizedBox(height: 8),
                     Text(
                       _callStarted ? (_isConnected ? _formatDuration(_callDurationSeconds) : 'Ringing...') : 'Connecting...',
                       style: TextStyle(color: _isConnected ? Colors.grey.shade400 : Colors.orangeAccent, fontSize: 16),
                     ),
-                    const SizedBox(height: 8),
-                    _buildNetworkBadge(),
                   ],
                 ),
               ),
             ),
           ),
 
-        // Local camera PIP (top-right) — only on mobile
-        if (!isDesktop && _callService.isVideoEnabled && _localRenderer.srcObject != null)
+        // Local video (picture-in-picture style, top right)
+        if (_callService.localStream != null)
           Positioned(
             top: MediaQuery.of(context).padding.top + 16,
             right: 16,
@@ -565,7 +498,7 @@ class _CallScreenState extends ConsumerState<CallScreen> {
             ),
           ),
 
-        // Duration + network (top-left)
+        // Duration + network badge when connected
         if (_isConnected)
           Positioned(
             top: MediaQuery.of(context).padding.top + 16,
@@ -599,7 +532,6 @@ class _CallScreenState extends ConsumerState<CallScreen> {
               children: [
                 _buildControlButton(icon: _isMuted ? Icons.mic_off : Icons.mic, label: _isMuted ? 'Unmute' : 'Mute', active: _isMuted, activeColor: Colors.redAccent, onTap: _toggleMute),
                 _buildControlButton(icon: Icons.cameraswitch, label: 'Flip', active: false, activeColor: Colors.blueAccent, onTap: _flipCamera),
-                _buildControlButton(icon: Icons.call, label: 'Audio', active: false, activeColor: Colors.greenAccent, onTap: _toggleVideo),
                 _buildControlButton(icon: _isOnHold ? Icons.play_arrow : Icons.pause, label: _isOnHold ? 'Resume' : 'Hold', active: _isOnHold, activeColor: Colors.orangeAccent, onTap: _toggleHold),
                 _buildEndCallButton(),
               ],
@@ -641,7 +573,6 @@ class _CallScreenState extends ConsumerState<CallScreen> {
         children: [
           _buildControlButton(icon: _isMuted ? Icons.mic_off : Icons.mic, label: _isMuted ? 'Unmute' : 'Mute', active: _isMuted, activeColor: Colors.redAccent, onTap: _toggleMute),
           _buildControlButton(icon: _isSpeakerOn ? Icons.volume_up : Icons.volume_down, label: 'Speaker', active: _isSpeakerOn, activeColor: Colors.blueAccent, onTap: _toggleSpeaker),
-          _buildControlButton(icon: Icons.videocam, label: 'Video', active: false, activeColor: Colors.greenAccent, onTap: _toggleVideo),
           _buildControlButton(icon: _isOnHold ? Icons.play_arrow : Icons.pause, label: _isOnHold ? 'Resume' : 'Hold', active: _isOnHold, activeColor: Colors.orangeAccent, onTap: _toggleHold),
           _buildEndCallButton(),
         ],
@@ -676,16 +607,16 @@ class _CallScreenState extends ConsumerState<CallScreen> {
         mainAxisSize: MainAxisSize.min,
         children: [
           Container(
-            width: 56, height: 56,
+            width: 60, height: 60,
             decoration: BoxDecoration(
               shape: BoxShape.circle,
               color: active ? activeColor.withValues(alpha: 0.2) : Colors.white.withValues(alpha: 0.1),
               border: Border.all(color: active ? activeColor : Colors.grey.shade700, width: 2),
             ),
-            child: Icon(icon, color: active ? activeColor : Colors.white, size: 24),
+            child: Icon(icon, color: active ? activeColor : Colors.white, size: 28),
           ),
-          const SizedBox(height: 6),
-          Text(label, style: TextStyle(color: active ? activeColor : Colors.grey, fontSize: 11, fontWeight: FontWeight.w500)),
+          const SizedBox(height: 8),
+          Text(label, style: TextStyle(color: active ? activeColor : Colors.grey, fontSize: 12, fontWeight: FontWeight.w500)),
         ],
       ),
     );
@@ -698,12 +629,12 @@ class _CallScreenState extends ConsumerState<CallScreen> {
         mainAxisSize: MainAxisSize.min,
         children: [
           Container(
-            width: 64, height: 64,
+            width: 68, height: 68,
             decoration: const BoxDecoration(shape: BoxShape.circle, color: Colors.redAccent),
-            child: const Icon(Icons.call_end, color: Colors.white, size: 28),
+            child: const Icon(Icons.call_end, color: Colors.white, size: 32),
           ),
-          const SizedBox(height: 6),
-          const Text('End', style: TextStyle(color: Colors.redAccent, fontSize: 11, fontWeight: FontWeight.w500)),
+          const SizedBox(height: 8),
+          const Text('End', style: TextStyle(color: Colors.redAccent, fontSize: 12, fontWeight: FontWeight.w500)),
         ],
       ),
     );

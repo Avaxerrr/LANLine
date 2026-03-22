@@ -55,7 +55,7 @@ class MainActivity : FlutterActivity() {
                 "release" -> {
                     try {
                         if (proximityWakeLock?.isHeld == true) {
-                            proximityWakeLock?.release(PowerManager.RELEASE_FLAG_WAIT_FOR_NO_PROXIMITY)
+                            proximityWakeLock?.release()
                         }
                         proximityWakeLock = null
                         result.success(true)

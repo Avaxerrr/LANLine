@@ -1,6 +1,5 @@
 import 'dart:async';
 import 'dart:convert';
-import 'package:flutter/foundation.dart';
 import 'package:flutter_webrtc/flutter_webrtc.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -21,24 +20,27 @@ class CallSignal {
 
 enum CallState {
   idle,
-  ringing,
-  calling,
-  inCall,
+  ringing,   // incoming call ringing
+  calling,   // outgoing call waiting
+  inCall,    // active call
 }
 
 class WebRtcCallService {
+  // Peer connections: keyed by remote participant name
   final Map<String, RTCPeerConnection> _peerConnections = {};
   MediaStream? _localStream;
 
   CallState state = CallState.idle;
   String? activeCallId;
-  String? callType; // 'audio' or 'video' — indicates current UI mode
+  String? callType; // 'audio' or 'video'
   final Set<String> callParticipants = {};
 
-  // Callbacks
+  // Callbacks for UI updates
   void Function(CallState state)? onCallStateChanged;
   void Function(String participant, bool joined)? onParticipantChanged;
   void Function(MediaStream stream, String participantId)? onRemoteStream;
+
+  // Callback to send signaling messages over WebSocket
   void Function(String message)? sendSignal;
 
   // WebRTC config — no STUN/TURN needed for LAN
@@ -47,10 +49,7 @@ class WebRtcCallService {
     'sdpSemantics': 'unified-plan',
   };
 
-  // ─── Always acquire BOTH audio + video ───────────────────────
-
-  /// Start a new call (caller initiates).
-  /// Always gets both audio+video; video disabled if type is 'audio'.
+  /// Start a new call (caller initiates)
   Future<void> startCall({
     required String callId,
     required String myName,
@@ -61,9 +60,14 @@ class WebRtcCallService {
     state = CallState.calling;
     callParticipants.add(myName);
 
-    _localStream = await _getMediaStream(type);
-    debugPrint('[CALL] startCall: localStream=${_localStream != null}, videoTracks=${_localStream?.getVideoTracks().length}, audioTracks=${_localStream?.getAudioTracks().length}');
+    final constraints = <String, dynamic>{
+      'audio': true,
+      'video': type == 'video',
+    };
 
+    _localStream = await navigator.mediaDevices.getUserMedia(constraints);
+
+    // Broadcast call_start to everyone in the room
     sendSignal?.call(jsonEncode({
       'type': CallSignal.callStart,
       'callId': callId,
@@ -75,8 +79,7 @@ class WebRtcCallService {
     onCallStateChanged?.call(state);
   }
 
-  /// Join an existing call (callee accepts).
-  /// Always gets both audio+video; video disabled if type is 'audio'.
+  /// Join an existing call (callee accepts)
   Future<void> joinCall({
     required String callId,
     required String myName,
@@ -86,9 +89,13 @@ class WebRtcCallService {
     callType = type;
     callParticipants.add(myName);
 
-    _localStream = await _getMediaStream(type);
-    debugPrint('[CALL] joinCall: localStream=${_localStream != null}, videoTracks=${_localStream?.getVideoTracks().length}, audioTracks=${_localStream?.getAudioTracks().length}');
+    final constraints = <String, dynamic>{
+      'audio': true,
+      'video': type == 'video',
+    };
+    _localStream = await navigator.mediaDevices.getUserMedia(constraints);
 
+    // Notify others that we joined
     sendSignal?.call(jsonEncode({
       'type': CallSignal.callJoin,
       'callId': callId,
@@ -99,29 +106,6 @@ class WebRtcCallService {
     onCallStateChanged?.call(state);
   }
 
-  /// Get media stream: try audio+video, fallback to audio-only if camera fails
-  Future<MediaStream> _getMediaStream(String type) async {
-    try {
-      final stream = await navigator.mediaDevices.getUserMedia({
-        'audio': true,
-        'video': true,
-      });
-      // If audio-only mode, disable video track
-      if (type == 'audio') {
-        for (var track in stream.getVideoTracks()) {
-          track.enabled = false;
-        }
-      }
-      return stream;
-    } catch (e) {
-      debugPrint('[CALL] Camera failed ($e), falling back to audio-only');
-      return await navigator.mediaDevices.getUserMedia({
-        'audio': true,
-        'video': false,
-      });
-    }
-  }
-
   /// Create a peer connection to a specific remote participant
   Future<void> setupPeerConnection(String remoteName, String myName, {bool makeOffer = true}) async {
     if (_peerConnections.containsKey(remoteName)) return;
@@ -129,18 +113,21 @@ class WebRtcCallService {
     final pc = await createPeerConnection(_rtcConfig);
     _peerConnections[remoteName] = pc;
 
+    // Add local tracks
     if (_localStream != null) {
       for (var track in _localStream!.getTracks()) {
         pc.addTrack(track, _localStream!);
       }
     }
 
+    // Handle remote stream
     pc.onTrack = (RTCTrackEvent event) {
       if (event.streams.isNotEmpty) {
         onRemoteStream?.call(event.streams[0], remoteName);
       }
     };
 
+    // Handle ICE candidates
     pc.onIceCandidate = (RTCIceCandidate candidate) {
       sendSignal?.call(jsonEncode({
         'type': CallSignal.iceCandidate,
@@ -179,14 +166,18 @@ class WebRtcCallService {
     }
   }
 
+  /// Handle an incoming SDP offer
   Future<void> handleOffer(String remoteName, String myName, Map<String, dynamic> sdp) async {
     if (!_peerConnections.containsKey(remoteName)) {
       await setupPeerConnection(remoteName, myName, makeOffer: false);
     }
+
     final pc = _peerConnections[remoteName]!;
     await pc.setRemoteDescription(RTCSessionDescription(sdp['sdp'], sdp['type']));
+
     final answer = await pc.createAnswer();
     await pc.setLocalDescription(answer);
+
     sendSignal?.call(jsonEncode({
       'type': CallSignal.callAnswer,
       'callId': activeCallId,
@@ -199,6 +190,7 @@ class WebRtcCallService {
     }));
   }
 
+  /// Handle an incoming SDP answer
   Future<void> handleAnswer(String remoteName, Map<String, dynamic> sdp) async {
     final pc = _peerConnections[remoteName];
     if (pc != null) {
@@ -206,6 +198,7 @@ class WebRtcCallService {
     }
   }
 
+  /// Handle an incoming ICE candidate
   Future<void> handleIceCandidate(String remoteName, Map<String, dynamic> candidate) async {
     final pc = _peerConnections[remoteName];
     if (pc != null) {
@@ -217,6 +210,7 @@ class WebRtcCallService {
     }
   }
 
+  /// Leave the call
   Future<void> leaveCall(String myName) async {
     sendSignal?.call(jsonEncode({
       'type': CallSignal.callLeave,
@@ -226,6 +220,7 @@ class WebRtcCallService {
     await _cleanup();
   }
 
+  /// End the call for everyone (host)
   Future<void> endCall(String myName) async {
     sendSignal?.call(jsonEncode({
       'type': CallSignal.callEnd,
@@ -242,6 +237,7 @@ class WebRtcCallService {
     onParticipantChanged?.call(remoteName, false);
   }
 
+  /// Handle a participant leaving the call
   void handleParticipantLeft(String remoteName) {
     _removePeer(remoteName);
     if (_peerConnections.isEmpty && state == CallState.inCall) {
@@ -270,8 +266,7 @@ class WebRtcCallService {
     onCallStateChanged?.call(state);
   }
 
-  // ─── Media controls ────────────────────────────────────────
-
+  // Mute / unmute mic
   bool get isMuted {
     final audioTracks = _localStream?.getAudioTracks();
     if (audioTracks != null && audioTracks.isNotEmpty) {
@@ -287,33 +282,15 @@ class WebRtcCallService {
     }
   }
 
+  // Speaker toggle (only works on mobile)
   bool isSpeakerOn = false;
   void toggleSpeaker() {
     isSpeakerOn = !isSpeakerOn;
     Helper.setSpeakerphoneOn(isSpeakerOn);
   }
 
-  /// Toggle video on/off — just enables/disables the existing video track.
-  /// No getUserMedia, no track add/remove, no renegotiation.
-  /// Returns true if video is now enabled.
-  bool toggleVideo() {
-    if (_localStream == null) return false;
-    final videoTracks = _localStream!.getVideoTracks();
-    if (videoTracks.isEmpty) return false;
-
-    final nowEnabled = !videoTracks[0].enabled;
-    videoTracks[0].enabled = nowEnabled;
-    callType = nowEnabled ? 'video' : 'audio';
-    return nowEnabled;
-  }
-
-  /// Whether the local video track is currently enabled
-  bool get isVideoEnabled {
-    final videoTracks = _localStream?.getVideoTracks();
-    return videoTracks != null && videoTracks.isNotEmpty && videoTracks[0].enabled;
-  }
-
   bool get isVideoCall => callType == 'video';
+
   MediaStream? get localStream => _localStream;
   Map<String, RTCPeerConnection> get peerConnections => _peerConnections;
 

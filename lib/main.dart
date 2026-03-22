@@ -1,6 +1,7 @@
 import 'dart:io' show Platform;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:package_info_plus/package_info_plus.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:window_manager/window_manager.dart';
 import 'core/theme/app_theme.dart';
@@ -9,6 +10,8 @@ import 'core/services/notification_service.dart';
 import 'features/room/presentation/room_list_screen.dart';
 import 'features/connection/presentation/client_scanner_screen.dart';
 import 'features/downloads/presentation/download_history_screen.dart';
+
+final appVersionProvider = Provider<String>((ref) => '');
 
 class WindowSaver with WindowListener {
   final SharedPreferences prefs;
@@ -65,9 +68,14 @@ void main() async {
     WindowSaver(prefs);
   }
 
+  final packageInfo = await PackageInfo.fromPlatform();
+
   runApp(
     ProviderScope(
-      overrides: [sharedPreferencesProvider.overrideWithValue(prefs)],
+      overrides: [
+        sharedPreferencesProvider.overrideWithValue(prefs),
+        appVersionProvider.overrideWithValue(packageInfo.version),
+      ],
       child: const LANLineApp(),
     ),
   );
@@ -109,17 +117,18 @@ class _MainMenuScreenState extends ConsumerState<MainMenuScreen> {
   @override
   Widget build(BuildContext context) {
     final currentName = ref.watch(usernameProvider);
+    final version = ref.watch(appVersionProvider);
 
     return Scaffold(
       backgroundColor: const Color(0xFF121212),
       appBar: AppBar(
-        title: const Row(
+        title: Row(
           children: [
-            Text(
+            const Text(
               'LANLine ',
               style: TextStyle(fontWeight: FontWeight.w800, letterSpacing: 1.2),
             ),
-            Text('v0.3.0', style: TextStyle(fontSize: 12, color: Colors.grey)),
+            Text('v$version', style: const TextStyle(fontSize: 12, color: Colors.grey)),
           ],
         ),
         elevation: 0,
