@@ -548,54 +548,6 @@ class _ChatScreenState extends ConsumerState<ChatScreen> with WidgetsBindingObse
     }
   }
 
-  void _showCallTypeDialog() {
-    final name = ref.read(usernameProvider);
-    final callId = 'call_${DateTime.now().millisecondsSinceEpoch}';
-
-    showModalBottomSheet(
-      context: context,
-      backgroundColor: const Color(0xFF1E1E1E),
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-      ),
-      builder: (ctx) => SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 8),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Center(
-                child: Container(
-                  width: 40, height: 4,
-                  margin: const EdgeInsets.only(bottom: 16),
-                  decoration: BoxDecoration(color: Colors.grey.shade600, borderRadius: BorderRadius.circular(2)),
-                ),
-              ),
-              ListTile(
-                leading: const Icon(Icons.call, color: Colors.greenAccent),
-                title: const Text('Audio Call', style: TextStyle(color: Colors.white, fontSize: 16)),
-                subtitle: const Text('Voice only', style: TextStyle(color: Colors.grey, fontSize: 12)),
-                onTap: () {
-                  Navigator.pop(ctx);
-                  _openCallScreen(callId: callId, myName: name, callType: 'audio', isInitiator: true);
-                },
-              ),
-              ListTile(
-                leading: const Icon(Icons.videocam, color: Colors.blueAccent),
-                title: const Text('Video Call', style: TextStyle(color: Colors.white, fontSize: 16)),
-                subtitle: const Text('Camera + voice', style: TextStyle(color: Colors.grey, fontSize: 12)),
-                onTap: () {
-                  Navigator.pop(ctx);
-                  _openCallScreen(callId: callId, myName: name, callType: 'video', isInitiator: true);
-                },
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
   void _openCallScreen({
     required String callId,
     required String myName,
@@ -1273,11 +1225,29 @@ class _ChatScreenState extends ConsumerState<ChatScreen> with WidgetsBindingObse
           backgroundColor: const Color(0xFF252525),
           elevation: 4,
           actions: [
-            // Call button
+            // Audio call button
             IconButton(
               icon: const Icon(Icons.call, color: Colors.greenAccent),
-              tooltip: 'Start Call',
-              onPressed: _hasParticipants ? _showCallTypeDialog : () => _showTopSnackBar('No one else is in the room'),
+              tooltip: 'Audio Call',
+              onPressed: _hasParticipants
+                  ? () {
+                      final name = ref.read(usernameProvider);
+                      final callId = 'call_${DateTime.now().millisecondsSinceEpoch}';
+                      _openCallScreen(callId: callId, myName: name, callType: 'audio', isInitiator: true);
+                    }
+                  : () => _showTopSnackBar('No one else is in the room'),
+            ),
+            // Video call button
+            IconButton(
+              icon: const Icon(Icons.videocam, color: Colors.blueAccent),
+              tooltip: 'Video Call',
+              onPressed: _hasParticipants
+                  ? () {
+                      final name = ref.read(usernameProvider);
+                      final callId = 'call_${DateTime.now().millisecondsSinceEpoch}';
+                      _openCallScreen(callId: callId, myName: name, callType: 'video', isInitiator: true);
+                    }
+                  : () => _showTopSnackBar('No one else is in the room'),
             ),
             IconButton(
               icon: const Icon(Icons.info_outline, color: Colors.white70),

@@ -119,7 +119,7 @@ class _MainMenuScreenState extends ConsumerState<MainMenuScreen> {
               'LANLine ',
               style: TextStyle(fontWeight: FontWeight.w800, letterSpacing: 1.2),
             ),
-            Text('v0.2.0', style: TextStyle(fontSize: 12, color: Colors.grey)),
+            Text('v0.3.0', style: TextStyle(fontSize: 12, color: Colors.grey)),
           ],
         ),
         elevation: 0,
