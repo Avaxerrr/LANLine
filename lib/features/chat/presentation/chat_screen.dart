@@ -237,6 +237,12 @@ class _ChatScreenState extends ConsumerState<ChatScreen> with WidgetsBindingObse
         _handleIceCandidate(data);
       } else if (data['type'] == 'call_leave' || data['type'] == 'call_end') {
         _handleCallEnd(data);
+      } else if (data['type'] == 'call_decline') {
+        final sender = data['sender'] as String;
+        final myName = ref.read(usernameProvider);
+        if (sender != myName) {
+          _showTopSnackBar('$sender declined the call');
+        }
       } else if (data['type'] == 'error') {
         setState(() {
           _messages.add(ChatMessage(sender: "System", text: data['text'], isMe: false));
@@ -542,10 +548,52 @@ class _ChatScreenState extends ConsumerState<ChatScreen> with WidgetsBindingObse
     }
   }
 
-  void _startAudioCall() {
+  void _showCallTypeDialog() {
     final name = ref.read(usernameProvider);
     final callId = 'call_${DateTime.now().millisecondsSinceEpoch}';
-    _openCallScreen(callId: callId, myName: name, callType: 'audio', isInitiator: true);
+
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: const Color(0xFF1E1E1E),
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (ctx) => SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 8),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Center(
+                child: Container(
+                  width: 40, height: 4,
+                  margin: const EdgeInsets.only(bottom: 16),
+                  decoration: BoxDecoration(color: Colors.grey.shade600, borderRadius: BorderRadius.circular(2)),
+                ),
+              ),
+              ListTile(
+                leading: const Icon(Icons.call, color: Colors.greenAccent),
+                title: const Text('Audio Call', style: TextStyle(color: Colors.white, fontSize: 16)),
+                subtitle: const Text('Voice only', style: TextStyle(color: Colors.grey, fontSize: 12)),
+                onTap: () {
+                  Navigator.pop(ctx);
+                  _openCallScreen(callId: callId, myName: name, callType: 'audio', isInitiator: true);
+                },
+              ),
+              ListTile(
+                leading: const Icon(Icons.videocam, color: Colors.blueAccent),
+                title: const Text('Video Call', style: TextStyle(color: Colors.white, fontSize: 16)),
+                subtitle: const Text('Camera + voice', style: TextStyle(color: Colors.grey, fontSize: 12)),
+                onTap: () {
+                  Navigator.pop(ctx);
+                  _openCallScreen(callId: callId, myName: name, callType: 'video', isInitiator: true);
+                },
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
   }
 
   void _openCallScreen({
@@ -584,6 +632,8 @@ class _ChatScreenState extends ConsumerState<ChatScreen> with WidgetsBindingObse
     }
   }
 
+  static const _proximityChannel = MethodChannel('com.lanline.lanline/proximity');
+
   void _handleIncomingCall(Map<String, dynamic> data) {
     final sender = data['sender'] as String;
     final callId = data['callId'] as String;
@@ -592,6 +642,11 @@ class _ChatScreenState extends ConsumerState<ChatScreen> with WidgetsBindingObse
 
     // Don't show incoming call to the person who started it
     if (sender == myName) return;
+
+    // Start ringtone + vibration on Android
+    if (Platform.isAndroid) {
+      try { _proximityChannel.invokeMethod('startRingtone'); } catch (_) {}
+    }
 
     showDialog(
       context: context,
@@ -613,7 +668,10 @@ class _ChatScreenState extends ConsumerState<ChatScreen> with WidgetsBindingObse
               ),
             ),
             const SizedBox(height: 16),
-            const Text('Incoming Call', style: TextStyle(color: Colors.white, fontSize: 20)),
+            Text(
+              callType == 'video' ? 'Incoming Video Call' : 'Incoming Call',
+              style: const TextStyle(color: Colors.white, fontSize: 20),
+            ),
           ],
         ),
         content: Text(
@@ -625,23 +683,51 @@ class _ChatScreenState extends ConsumerState<ChatScreen> with WidgetsBindingObse
         actions: [
           // Decline
           GestureDetector(
-            onTap: () => Navigator.pop(ctx),
-            child: Container(
-              width: 56, height: 56,
-              decoration: const BoxDecoration(shape: BoxShape.circle, color: Colors.redAccent),
-              child: const Icon(Icons.call_end, color: Colors.white, size: 28),
+            onTap: () {
+              if (Platform.isAndroid) {
+                try { _proximityChannel.invokeMethod('stopRingtone'); } catch (_) {}
+              }
+              // Send decline signal to caller
+              _sendCallSignal(jsonEncode({
+                'type': 'call_decline',
+                'callId': callId,
+                'sender': myName,
+              }));
+              Navigator.pop(ctx);
+            },
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Container(
+                  width: 56, height: 56,
+                  decoration: const BoxDecoration(shape: BoxShape.circle, color: Colors.redAccent),
+                  child: const Icon(Icons.call_end, color: Colors.white, size: 28),
+                ),
+                const SizedBox(height: 6),
+                const Text('Decline', style: TextStyle(color: Colors.redAccent, fontSize: 11)),
+              ],
             ),
           ),
           // Accept
           GestureDetector(
             onTap: () {
+              if (Platform.isAndroid) {
+                try { _proximityChannel.invokeMethod('stopRingtone'); } catch (_) {}
+              }
               Navigator.pop(ctx);
               _openCallScreen(callId: callId, myName: myName, callType: callType, isInitiator: false);
             },
-            child: Container(
-              width: 56, height: 56,
-              decoration: const BoxDecoration(shape: BoxShape.circle, color: Colors.greenAccent),
-              child: const Icon(Icons.call, color: Colors.white, size: 28),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Container(
+                  width: 56, height: 56,
+                  decoration: const BoxDecoration(shape: BoxShape.circle, color: Colors.greenAccent),
+                  child: Icon(callType == 'video' ? Icons.videocam : Icons.call, color: Colors.white, size: 28),
+                ),
+                const SizedBox(height: 6),
+                const Text('Accept', style: TextStyle(color: Colors.greenAccent, fontSize: 11)),
+              ],
             ),
           ),
         ],
@@ -1187,11 +1273,11 @@ class _ChatScreenState extends ConsumerState<ChatScreen> with WidgetsBindingObse
           backgroundColor: const Color(0xFF252525),
           elevation: 4,
           actions: [
-            // Audio call button
+            // Call button
             IconButton(
               icon: const Icon(Icons.call, color: Colors.greenAccent),
-              tooltip: 'Audio Call',
-              onPressed: _hasParticipants ? _startAudioCall : () => _showTopSnackBar('No one else is in the room'),
+              tooltip: 'Start Call',
+              onPressed: _hasParticipants ? _showCallTypeDialog : () => _showTopSnackBar('No one else is in the room'),
             ),
             IconButton(
               icon: const Icon(Icons.info_outline, color: Colors.white70),

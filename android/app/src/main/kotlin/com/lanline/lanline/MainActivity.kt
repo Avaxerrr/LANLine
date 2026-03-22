@@ -2,10 +2,17 @@ package com.lanline.lanline
 
 import android.content.ContentValues
 import android.content.Context
+import android.media.AudioManager
+import android.media.Ringtone
+import android.media.RingtoneManager
+import android.media.ToneGenerator
 import android.net.Uri
 import android.os.Build
 import android.os.Environment
 import android.os.PowerManager
+import android.os.VibrationEffect
+import android.os.Vibrator
+import android.os.VibratorManager
 import android.provider.MediaStore
 import androidx.annotation.NonNull
 import io.flutter.embedding.android.FlutterActivity
@@ -17,11 +24,15 @@ class MainActivity : FlutterActivity() {
     private val CHANNEL = "com.lanline.lanline/mediastore"
     private val PROXIMITY_CHANNEL = "com.lanline.lanline/proximity"
     private var proximityWakeLock: PowerManager.WakeLock? = null
+    private var ringtone: Ringtone? = null
+    private var vibrator: Vibrator? = null
+    private var toneGenerator: ToneGenerator? = null
+    private var ringbackThread: Thread? = null
 
     override fun configureFlutterEngine(@NonNull flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
 
-        // Proximity wake lock channel
+        // Proximity / call audio channel
         MethodChannel(flutterEngine.dartExecutor.binaryMessenger, PROXIMITY_CHANNEL).setMethodCallHandler { call, result ->
             when (call.method) {
                 "acquire" -> {
@@ -50,6 +61,77 @@ class MainActivity : FlutterActivity() {
                         result.success(true)
                     } catch (e: Exception) {
                         result.error("PROXIMITY_ERROR", e.message, null)
+                    }
+                }
+                "startRingtone" -> {
+                    try {
+                        // Play system ringtone
+                        val uri = RingtoneManager.getDefaultUri(RingtoneManager.TYPE_RINGTONE)
+                        ringtone = RingtoneManager.getRingtone(applicationContext, uri)
+                        ringtone?.isLooping = true
+                        ringtone?.play()
+
+                        // Vibrate with call pattern
+                        vibrator = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                            val vm = getSystemService(Context.VIBRATOR_MANAGER_SERVICE) as VibratorManager
+                            vm.defaultVibrator
+                        } else {
+                            @Suppress("DEPRECATION")
+                            getSystemService(Context.VIBRATOR_SERVICE) as Vibrator
+                        }
+                        val pattern = longArrayOf(0, 1000, 1000) // vibrate 1s, pause 1s, repeat
+                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                            vibrator?.vibrate(VibrationEffect.createWaveform(pattern, 0))
+                        } else {
+                            @Suppress("DEPRECATION")
+                            vibrator?.vibrate(pattern, 0)
+                        }
+
+                        result.success(true)
+                    } catch (e: Exception) {
+                        result.error("RINGTONE_ERROR", e.message, null)
+                    }
+                }
+                "stopRingtone" -> {
+                    try {
+                        ringtone?.stop()
+                        ringtone = null
+                        vibrator?.cancel()
+                        vibrator = null
+                        result.success(true)
+                    } catch (e: Exception) {
+                        result.error("RINGTONE_ERROR", e.message, null)
+                    }
+                }
+                "startRingback" -> {
+                    try {
+                        // Ring-back tone: the "rrrring... rrrring..." the caller hears
+                        ringbackThread = Thread {
+                            try {
+                                toneGenerator = ToneGenerator(AudioManager.STREAM_VOICE_CALL, 80)
+                                while (!Thread.currentThread().isInterrupted) {
+                                    toneGenerator?.startTone(ToneGenerator.TONE_SUP_RINGTONE, 1000)
+                                    Thread.sleep(3000) // ring for 1s, pause for 2s
+                                }
+                            } catch (_: InterruptedException) {
+                                // Thread interrupted — clean exit
+                            } catch (_: Exception) {}
+                        }
+                        ringbackThread?.start()
+                        result.success(true)
+                    } catch (e: Exception) {
+                        result.error("RINGBACK_ERROR", e.message, null)
+                    }
+                }
+                "stopRingback" -> {
+                    try {
+                        ringbackThread?.interrupt()
+                        ringbackThread = null
+                        toneGenerator?.release()
+                        toneGenerator = null
+                        result.success(true)
+                    } catch (e: Exception) {
+                        result.error("RINGBACK_ERROR", e.message, null)
                     }
                 }
                 else -> result.notImplemented()
