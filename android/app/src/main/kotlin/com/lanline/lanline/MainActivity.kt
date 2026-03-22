@@ -65,13 +65,7 @@ class MainActivity : FlutterActivity() {
                 }
                 "startRingtone" -> {
                     try {
-                        // Play system ringtone
-                        val uri = RingtoneManager.getDefaultUri(RingtoneManager.TYPE_RINGTONE)
-                        ringtone = RingtoneManager.getRingtone(applicationContext, uri)
-                        ringtone?.isLooping = true
-                        ringtone?.play()
-
-                        // Vibrate with call pattern
+                        // Vibrate with call pattern (ringtone handled in Dart)
                         vibrator = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
                             val vm = getSystemService(Context.VIBRATOR_MANAGER_SERVICE) as VibratorManager
                             vm.defaultVibrator
@@ -94,8 +88,6 @@ class MainActivity : FlutterActivity() {
                 }
                 "stopRingtone" -> {
                     try {
-                        ringtone?.stop()
-                        ringtone = null
                         vibrator?.cancel()
                         vibrator = null
                         result.success(true)
