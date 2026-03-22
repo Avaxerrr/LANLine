@@ -289,6 +289,24 @@ class WebRtcCallService {
     Helper.setSpeakerphoneOn(isSpeakerOn);
   }
 
+  /// Toggle video on/off — enables/disables existing video track.
+  /// Returns true if video is now enabled.
+  bool toggleVideo() {
+    if (_localStream == null) return false;
+    final videoTracks = _localStream!.getVideoTracks();
+    if (videoTracks.isEmpty) return false;
+
+    final nowEnabled = !videoTracks[0].enabled;
+    videoTracks[0].enabled = nowEnabled;
+    callType = nowEnabled ? 'video' : 'audio';
+    return nowEnabled;
+  }
+
+  bool get isVideoEnabled {
+    final videoTracks = _localStream?.getVideoTracks();
+    return videoTracks != null && videoTracks.isNotEmpty && videoTracks[0].enabled;
+  }
+
   bool get isVideoCall => callType == 'video';
 
   MediaStream? get localStream => _localStream;

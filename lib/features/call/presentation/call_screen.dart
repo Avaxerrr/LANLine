@@ -36,6 +36,7 @@ class _CallScreenState extends ConsumerState<CallScreen> with SingleTickerProvid
   bool _isSpeakerOn = false;
   bool _isOnHold = false;
   bool _isFrontCamera = true;
+  bool _isVideoEnabled = false;
   final List<String> _participants = [];
   Timer? _durationTimer;
   Timer? _timeoutTimer;
@@ -52,6 +53,7 @@ class _CallScreenState extends ConsumerState<CallScreen> with SingleTickerProvid
   @override
   void initState() {
     super.initState();
+    _isVideoEnabled = widget.callType == 'video';
     _callService = ref.read(webRtcCallServiceProvider);
     _callService.sendSignal = widget.sendSignal;
 
@@ -270,6 +272,26 @@ class _CallScreenState extends ConsumerState<CallScreen> with SingleTickerProvid
     }
   }
 
+  void _toggleVideo() {
+    final nowEnabled = _callService.toggleVideo();
+    setState(() => _isVideoEnabled = nowEnabled);
+
+    _callService.sendSignal?.call(jsonEncode({
+      'type': 'call_video_toggle',
+      'callId': widget.callId,
+      'sender': widget.myName,
+      'videoEnabled': nowEnabled,
+    }));
+
+    if (Platform.isAndroid) {
+      if (nowEnabled) {
+        _releaseProximityLock();
+      } else {
+        _acquireProximityLock();
+      }
+    }
+  }
+
   void _toggleHold() {
     setState(() => _isOnHold = !_isOnHold);
     final stream = _callService.localStream;
@@ -314,8 +336,6 @@ class _CallScreenState extends ConsumerState<CallScreen> with SingleTickerProvid
 
   @override
   Widget build(BuildContext context) {
-    final isVideo = widget.callType == 'video';
-
     return PopScope(
       canPop: false,
       onPopInvokedWithResult: (didPop, _) {
@@ -323,7 +343,7 @@ class _CallScreenState extends ConsumerState<CallScreen> with SingleTickerProvid
       },
       child: Scaffold(
         backgroundColor: const Color(0xFF0D0D0D),
-        body: isVideo ? _buildVideoLayout() : _buildAudioLayout(),
+        body: _isVideoEnabled ? _buildVideoLayout() : _buildAudioLayout(),
       ),
     );
   }
@@ -534,6 +554,7 @@ class _CallScreenState extends ConsumerState<CallScreen> with SingleTickerProvid
               children: [
                 _buildControlButton(icon: _isMuted ? Icons.mic_off : Icons.mic, label: _isMuted ? 'Unmute' : 'Mute', active: _isMuted, activeColor: Colors.redAccent, onTap: _toggleMute),
                 _buildControlButton(icon: Icons.cameraswitch, label: 'Flip', active: false, activeColor: Colors.blueAccent, onTap: _flipCamera),
+                _buildControlButton(icon: Icons.call, label: 'Audio', active: false, activeColor: Colors.greenAccent, onTap: _toggleVideo),
                 _buildControlButton(icon: _isOnHold ? Icons.play_arrow : Icons.pause, label: _isOnHold ? 'Resume' : 'Hold', active: _isOnHold, activeColor: Colors.orangeAccent, onTap: _toggleHold),
                 _buildEndCallButton(),
               ],
@@ -575,6 +596,7 @@ class _CallScreenState extends ConsumerState<CallScreen> with SingleTickerProvid
         children: [
           _buildControlButton(icon: _isMuted ? Icons.mic_off : Icons.mic, label: _isMuted ? 'Unmute' : 'Mute', active: _isMuted, activeColor: Colors.redAccent, onTap: _toggleMute),
           _buildControlButton(icon: _isSpeakerOn ? Icons.volume_up : Icons.volume_down, label: 'Speaker', active: _isSpeakerOn, activeColor: Colors.blueAccent, onTap: _toggleSpeaker),
+          _buildControlButton(icon: Icons.videocam, label: 'Video', active: false, activeColor: Colors.greenAccent, onTap: _toggleVideo),
           _buildControlButton(icon: _isOnHold ? Icons.play_arrow : Icons.pause, label: _isOnHold ? 'Resume' : 'Hold', active: _isOnHold, activeColor: Colors.orangeAccent, onTap: _toggleHold),
           _buildEndCallButton(),
         ],
