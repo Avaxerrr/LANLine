@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
+import 'package:flutter/foundation.dart';
 import 'package:flutter_webrtc/flutter_webrtc.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -60,19 +61,8 @@ class WebRtcCallService {
     state = CallState.calling;
     callParticipants.add(myName);
 
-    // Always request both audio and video
-    _localStream = await navigator.mediaDevices.getUserMedia({
-      'audio': true,
-      'video': true,
-    });
-
-    // If audio-only mode, disable video track (camera light goes off)
-    if (type == 'audio') {
-      final videoTracks = _localStream!.getVideoTracks();
-      for (var track in videoTracks) {
-        track.enabled = false;
-      }
-    }
+    _localStream = await _getMediaStream(type);
+    debugPrint('[CALL] startCall: localStream=${_localStream != null}, videoTracks=${_localStream?.getVideoTracks().length}, audioTracks=${_localStream?.getAudioTracks().length}');
 
     sendSignal?.call(jsonEncode({
       'type': CallSignal.callStart,
@@ -96,17 +86,8 @@ class WebRtcCallService {
     callType = type;
     callParticipants.add(myName);
 
-    _localStream = await navigator.mediaDevices.getUserMedia({
-      'audio': true,
-      'video': true,
-    });
-
-    if (type == 'audio') {
-      final videoTracks = _localStream!.getVideoTracks();
-      for (var track in videoTracks) {
-        track.enabled = false;
-      }
-    }
+    _localStream = await _getMediaStream(type);
+    debugPrint('[CALL] joinCall: localStream=${_localStream != null}, videoTracks=${_localStream?.getVideoTracks().length}, audioTracks=${_localStream?.getAudioTracks().length}');
 
     sendSignal?.call(jsonEncode({
       'type': CallSignal.callJoin,
@@ -116,6 +97,29 @@ class WebRtcCallService {
 
     state = CallState.inCall;
     onCallStateChanged?.call(state);
+  }
+
+  /// Get media stream: try audio+video, fallback to audio-only if camera fails
+  Future<MediaStream> _getMediaStream(String type) async {
+    try {
+      final stream = await navigator.mediaDevices.getUserMedia({
+        'audio': true,
+        'video': true,
+      });
+      // If audio-only mode, disable video track
+      if (type == 'audio') {
+        for (var track in stream.getVideoTracks()) {
+          track.enabled = false;
+        }
+      }
+      return stream;
+    } catch (e) {
+      debugPrint('[CALL] Camera failed ($e), falling back to audio-only');
+      return await navigator.mediaDevices.getUserMedia({
+        'audio': true,
+        'video': false,
+      });
+    }
   }
 
   /// Create a peer connection to a specific remote participant

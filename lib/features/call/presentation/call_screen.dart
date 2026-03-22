@@ -173,6 +173,7 @@ class _CallScreenState extends ConsumerState<CallScreen> {
   // ─── Call lifecycle ──────────────────────────────────────────
 
   Future<void> _initCall() async {
+    debugPrint('[SCREEN] _initCall started, isInitiator=${widget.isInitiator}, type=${widget.callType}');
     try {
       if (widget.isInitiator) {
         await _callService.startCall(
@@ -180,6 +181,7 @@ class _CallScreenState extends ConsumerState<CallScreen> {
           myName: widget.myName,
           type: widget.callType,
         );
+        debugPrint('[SCREEN] startCall done, localStream=${_callService.localStream != null}');
         _startRingback();
         _timeoutTimer = Timer(_callTimeout, () {
           if (!_isConnected && mounted) {
@@ -196,6 +198,7 @@ class _CallScreenState extends ConsumerState<CallScreen> {
           myName: widget.myName,
           type: widget.callType,
         );
+        debugPrint('[SCREEN] joinCall done, localStream=${_callService.localStream != null}');
         _isConnected = true;
         _playConnectTone();
         _startDurationTimer();
@@ -205,10 +208,15 @@ class _CallScreenState extends ConsumerState<CallScreen> {
       // Always assign local stream to renderer (tracks are always there)
       if (_callService.localStream != null) {
         _localRenderer.srcObject = _callService.localStream;
+        debugPrint('[SCREEN] localRenderer.srcObject assigned, video tracks: ${_callService.localStream!.getVideoTracks().length}');
+      } else {
+        debugPrint('[SCREEN] WARNING: localStream is null!');
       }
 
       setState(() => _callStarted = true);
+      debugPrint('[SCREEN] _callStarted=true, _isVideoEnabled=$_isVideoEnabled');
     } catch (e) {
+      debugPrint('[SCREEN] _initCall EXCEPTION: $e');
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('Failed to start call: $e')),
@@ -484,11 +492,13 @@ class _CallScreenState extends ConsumerState<CallScreen> {
   Widget _buildVideoLayout() {
     final hasRemote = _remoteRenderers.isNotEmpty &&
         _remoteRenderers.values.first.srcObject != null;
+    final isDesktop = !Platform.isAndroid && !Platform.isIOS;
 
     return Stack(
       children: [
-        // Remote video fullscreen or waiting placeholder
-        if (hasRemote)
+        // Background: remote video fullscreen OR waiting placeholder
+        // Skip RTCVideoView on desktop (Windows) — texture threading crashes silently
+        if (hasRemote && !isDesktop)
           Positioned.fill(
             child: RTCVideoView(
               _remoteRenderers.values.first,
@@ -515,7 +525,10 @@ class _CallScreenState extends ConsumerState<CallScreen> {
                       child: const Icon(Icons.videocam, size: 48, color: Colors.white),
                     ),
                     const SizedBox(height: 24),
-                    const Text('Video Call', style: TextStyle(color: Colors.white, fontSize: 28, fontWeight: FontWeight.w700)),
+                    Text(
+                      isDesktop ? 'Video Call (Desktop Preview)' : 'Video Call',
+                      style: const TextStyle(color: Colors.white, fontSize: 28, fontWeight: FontWeight.w700),
+                    ),
                     const SizedBox(height: 8),
                     Text(
                       _callStarted ? (_isConnected ? _formatDuration(_callDurationSeconds) : 'Ringing...') : 'Connecting...',
@@ -529,8 +542,8 @@ class _CallScreenState extends ConsumerState<CallScreen> {
             ),
           ),
 
-        // Local camera PIP (top-right)
-        if (_callService.isVideoEnabled && _localRenderer.srcObject != null)
+        // Local camera PIP (top-right) — only on mobile
+        if (!isDesktop && _callService.isVideoEnabled && _localRenderer.srcObject != null)
           Positioned(
             top: MediaQuery.of(context).padding.top + 16,
             right: 16,
