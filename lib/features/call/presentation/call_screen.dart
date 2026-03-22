@@ -384,18 +384,23 @@ class _CallScreenState extends ConsumerState<CallScreen> with SingleTickerProvid
   // ─── Hold overlay ────────────────────────────────────────────
 
   Widget _buildHoldOverlay() {
-    if (!_isOnHold) return const SizedBox.shrink();
     return Positioned.fill(
-      child: Container(
-        color: Colors.black.withValues(alpha: 0.6),
-        child: const Center(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Icon(Icons.pause_circle_outline, color: Colors.orangeAccent, size: 64),
-              SizedBox(height: 12),
-              Text('On Hold', style: TextStyle(color: Colors.orangeAccent, fontSize: 22, fontWeight: FontWeight.w700)),
-            ],
+      child: IgnorePointer(
+        child: AnimatedOpacity(
+          opacity: _isOnHold ? 1.0 : 0.0,
+          duration: const Duration(milliseconds: 200),
+          child: Container(
+            color: Colors.black.withValues(alpha: 0.6),
+            child: const Center(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(Icons.pause_circle_outline, color: Colors.orangeAccent, size: 64),
+                  SizedBox(height: 12),
+                  Text('On Hold', style: TextStyle(color: Colors.orangeAccent, fontSize: 22, fontWeight: FontWeight.w700)),
+                ],
+              ),
+            ),
           ),
         ),
       ),
