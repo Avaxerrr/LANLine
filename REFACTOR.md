@@ -114,11 +114,35 @@ Extract business logic from `chat_screen.dart` (~1600 lines) into testable, reus
 
 ## Progress Log
 
-(Updated after each phase completion)
+### Phase 0+1 - 2026-03-22
+Status: Complete (commit 88d1b68)
+- Added mocktail, created test helpers with async container builder
+- Extracted ChatMessage model + isEmojiOnly + isImageFile to core/models/chat_message.dart
+- 16 unit tests for model/helpers
+- Gotcha: mocktail requires `thenAnswer` (not `thenReturn`) for Stream getters
 
-### [Phase] - [Date]
-Status: Not started
-Notes: -
+### Phase 2a - 2026-03-22
+Status: Complete (commit a79c488, fix commit 6c7a175)
+- Created ChatNotifier with ChatState in core/providers/chat_provider.dart
+- Moved sendMessage, sendClipboard, sendTypingStatus to notifier
+- Replaced ALL broadcast/send patterns in chat_screen.dart with chatProvider.notifier.broadcast()
+- Bridge pattern: widget still keeps local _messages list for display; notifier also maintains its own list. Will unify in Phase 2b.
+- Added 25 unit tests for ChatNotifier
+- Gotcha: SharedPreferences must be overridden in the ProviderContainer (not just setMockInitialValues) for usernameProvider to resolve
+- Gotcha: chatProvider.notifier.init() in initState crashes Android (red screen) — must wrap in Future.microtask() to defer state modification after build. Windows was silently ignoring this.
+- Total tests: 42, all passing
+- Manually verified on both Android and Windows — working
+
+### NEXT: Phase 2b
+What to do:
+- Move `_handleIncomingMessage()` from chat_screen.dart into ChatNotifier
+- Handle types: message, ack, typing, participant_list, room_closed, error, clipboard
+- Call/file types stay delegated to widget via a callback/stream mechanism
+- CRITICAL: Unify message list — remove local `_messages` field from widget, have widget read from `ref.watch(chatProvider).messages` instead
+- The `_handleIncomingMessage` method is at ~line 154 in chat_screen.dart, ~250 lines long, giant if/else on `data['type']`
+- Widget currently has stream subscription in initState (lines 99-107) that calls `_handleIncomingMessage` — this needs to route to notifier
+- For call/file types that need UI interaction (showing dialogs, file I/O), use callbacks registered on the notifier
+- Write tests for: receive message, ack, typing timeout, participant list update, room closed, clipboard receive, invalid JSON fallback
 
 ---
 
