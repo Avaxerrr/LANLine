@@ -133,16 +133,34 @@ Status: Complete (commit a79c488, fix commit 6c7a175)
 - Total tests: 42, all passing
 - Manually verified on both Android and Windows — working
 
-### NEXT: Phase 2b
-What to do:
-- Move `_handleIncomingMessage()` from chat_screen.dart into ChatNotifier
-- Handle types: message, ack, typing, participant_list, room_closed, error, clipboard
-- Call/file types stay delegated to widget via a callback/stream mechanism
-- CRITICAL: Unify message list — remove local `_messages` field from widget, have widget read from `ref.watch(chatProvider).messages` instead
-- The `_handleIncomingMessage` method is at ~line 154 in chat_screen.dart, ~250 lines long, giant if/else on `data['type']`
-- Widget currently has stream subscription in initState (lines 99-107) that calls `_handleIncomingMessage` — this needs to route to notifier
-- For call/file types that need UI interaction (showing dialogs, file I/O), use callbacks registered on the notifier
-- Write tests for: receive message, ack, typing timeout, participant list update, room closed, clipboard receive, invalid JSON fallback
+### Phase 2b - 2026-03-22
+Status: Complete
+- Moved `handleIncomingMessage()` into ChatNotifier (handles message, ack, typing, participant_list, room_closed, error, call_summary, clipboard; returns null for call/file types)
+- Widget's `_handleIncomingMessage` now routes through notifier first, then handles call/file types locally
+- Replaced local `_messages` field with bridge getter reading from `ref.read(chatProvider).messages`
+- Replaced local `_participantCount`, `_participantNames`, `_roomClosed` fields with bridge getters
+- Removed `_typingUsers` bridge getter (only used in build, replaced with `chatState.typingUsers`)
+- Added `ref.watch(chatProvider)` in build() for reactive rebuilds — widget no longer needs setState for message/participant/typing changes
+- All `_messages.add()` / `_messages[i] = ...` mutations replaced with notifier methods (addMessage, updateMessageAt, updateMessageByOfferId)
+- Participant tracking in initState updated to go through notifier
+- Removed local `_participantCount = 1` init for clients (handled by notifier.init)
+- 17 new tests for handleIncomingMessage (message, ack, typing, participant_list, room_closed, error, clipboard, call_summary, call/file type delegation, invalid JSON)
+- Total tests: 58, all passing
+- Gotcha: `ref.watch` in build + `ref.read` in event handlers is the correct Riverpod pattern. Bridge getters use `ref.read` for non-build contexts.
+
+### Phase 2c - 2026-03-22
+Status: Complete
+- Moved participant count stream subscription (host) into ChatNotifier.init()
+- Moved client disconnect handler into ChatNotifier.init() — triggers markRoomClosed + onRoomClosed callback
+- Added ChatNotifier.dispose() to cancel subscription and clear handlers
+- Widget no longer owns _participantSubscription — removed field entirely
+- Widget registers onRoomClosed callback for UI (showing dialog)
+- MockWebSocketClient now stores onDisconnected field for testability
+- 8 new tests: host subscription, reactive updates, client disconnect, idempotent close, dispose cleanup
+- Total tests: 66, all passing
+- Gotcha: mocktail Mock doesn't store field values by default. Override onDisconnected as a real field in the mock class.
+
+### NEXT: Phase 3a (extract message bubble widget)
 
 ---
 

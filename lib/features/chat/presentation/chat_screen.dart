@@ -41,9 +41,11 @@ class ChatScreen extends ConsumerStatefulWidget {
 class _ChatScreenState extends ConsumerState<ChatScreen> with WidgetsBindingObserver {
   final TextEditingController _textController = TextEditingController();
   final ScrollController _scrollController = ScrollController();
-  final List<ChatMessage> _messages = [];
 
-  final Set<String> _typingUsers = {};
+  /// Bridge: reads messages from the notifier. All mutation goes through
+  /// chatProvider.notifier methods. Local _messages references throughout
+  /// the file now read from here.
+  List<ChatMessage> get _messages => ref.read(chatProvider).messages;
   bool _isDragging = false;
   final _audioRecorder = AudioRecorder();
   final _audioPlayer = AudioPlayer();
@@ -51,14 +53,16 @@ class _ChatScreenState extends ConsumerState<ChatScreen> with WidgetsBindingObse
   final _notificationPlayer = AudioPlayer();
   bool _isRecording = false;
   String? _localIp;
-  int _participantCount = 0;
-  List<String> _participantNames = [];
   final FocusNode _textFocusNode = FocusNode();
   final Set<int> _expandedTimestamps = {};
-  bool _roomClosed = false;
+
+  // Bridge getters — read from ChatNotifier state
+  int get _participantCount => ref.read(chatProvider).participantCount;
+  List<String> get _participantNames => ref.read(chatProvider).participantNames;
+  bool get _roomClosed => ref.read(chatProvider).roomClosed;
+
 
   StreamSubscription? _messageSubscription;
-  StreamSubscription? _participantSubscription;
 
   // File threshold: 10 MB
   static const int _autoDownloadThreshold = 10 * 1024 * 1024;
@@ -89,15 +93,15 @@ class _ChatScreenState extends ConsumerState<ChatScreen> with WidgetsBindingObse
     // Initialize the chat notifier after the first frame to avoid
     // modifying provider state during a widget lifecycle method.
     Future.microtask(() {
-      ref.read(chatProvider.notifier).init(
+      final notifier = ref.read(chatProvider.notifier);
+      notifier.init(
         ChatConfig(isHost: widget.isHost, roomName: widget.room.name),
       );
+      // Register callback for room closed (needs BuildContext for dialog)
+      notifier.onRoomClosed = () {
+        if (mounted) _handleRoomClosed();
+      };
     });
-
-    // Client always has at least the host as a participant
-    if (!widget.isHost) {
-      _participantCount = 1;
-    }
 
     final stream = widget.isHost
         ? ref.read(webSocketServerProvider).onMessageReceived
@@ -108,25 +112,6 @@ class _ChatScreenState extends ConsumerState<ChatScreen> with WidgetsBindingObse
         _handleIncomingMessage(message);
       }
     });
-
-    // Host tracks participant count from the server directly
-    if (widget.isHost) {
-      _participantSubscription = ref.read(webSocketServerProvider).onParticipantCountChanged.listen((count) {
-        if (mounted) {
-          setState(() {
-            _participantCount = count;
-            _participantNames = ref.read(webSocketServerProvider).participantNames;
-          });
-        }
-      });
-    } else {
-      // Client: listen for host disconnect
-      ref.read(webSocketClientProvider).onDisconnected = () {
-        if (mounted && !_roomClosed) {
-          _handleRoomClosed();
-        }
-      };
-    }
   }
 
   @override
@@ -155,101 +140,72 @@ class _ChatScreenState extends ConsumerState<ChatScreen> with WidgetsBindingObse
   }
 
   void _handleIncomingMessage(String rawMessage) async {
+    // Route through notifier first — it handles message, ack, typing,
+    // participant_list, room_closed, error, call_summary, clipboard.
+    final handledType = ref.read(chatProvider.notifier).handleIncomingMessage(rawMessage);
+
+    if (handledType != null) {
+      // Notifier handled it. Perform UI side-effects based on type.
+      switch (handledType) {
+        case 'message':
+          final data = jsonDecode(rawMessage);
+          final sender = data['sender'] as String;
+          final text = data['text'] as String;
+          _scrollToBottom();
+          _notificationPlayer.play(AssetSource('audio/notification.mp3'));
+          NotificationService().showMessageNotification(
+            sender: sender,
+            message: text,
+            roomName: widget.room.name,
+          );
+          break;
+        case 'room_closed':
+          _handleRoomClosed();
+          break;
+        case 'clipboard':
+          final data = jsonDecode(rawMessage);
+          final text = data['text'] as String;
+          await Clipboard.setData(ClipboardData(text: text));
+          _scrollToBottom();
+          break;
+        case 'error':
+        case 'call_summary':
+          _scrollToBottom();
+          break;
+      }
+      return;
+    }
+
+    // Notifier returned null — handle call/file types in the widget.
     try {
       final data = jsonDecode(rawMessage);
-      if (data['type'] == 'typing') {
-        final sender = data['sender'];
-        final changed = _typingUsers.add(sender);
-        if (changed) setState(() {});
-        Future.delayed(const Duration(seconds: 3), () {
-          if (mounted && _typingUsers.remove(sender)) {
-            setState(() {});
-          }
-        });
-      } else if (data['type'] == 'ack') {
-        final id = data['id'];
-        setState(() {
-          for (var msg in _messages) {
-            if (msg.id == id && msg.isMe) {
-              msg.isAcked = true;
-              break;
-            }
-          }
-        });
-      } else if (data['type'] == 'participant_list') {
-        if (!widget.isHost) {
-          final count = data['count'] as int;
-          final names = (data['names'] as List<dynamic>?)?.cast<String>() ?? [];
-          setState(() {
-            _participantCount = count - 1;
-            _participantNames = names;
-          });
-        }
-      } else if (data['type'] == 'room_closed') {
-        if (!widget.isHost && !_roomClosed) {
-          _handleRoomClosed();
-        }
-      } else if (data['type'] == 'call_start') {
+      final type = data['type'] as String?;
+
+      if (type == 'call_start') {
         _handleIncomingCall(data);
-      } else if (data['type'] == 'call_join') {
+      } else if (type == 'call_join') {
         _handleCallJoin(data);
-      } else if (data['type'] == 'call_offer') {
+      } else if (type == 'call_offer') {
         _handleCallOffer(data);
-      } else if (data['type'] == 'call_answer') {
+      } else if (type == 'call_answer') {
         _handleCallAnswer(data);
-      } else if (data['type'] == 'ice_candidate') {
+      } else if (type == 'ice_candidate') {
         _handleIceCandidate(data);
-      } else if (data['type'] == 'call_leave' || data['type'] == 'call_end') {
+      } else if (type == 'call_leave' || type == 'call_end') {
         _handleCallEnd(data);
-      } else if (data['type'] == 'call_decline') {
+      } else if (type == 'call_decline') {
         final sender = data['sender'] as String;
         final myName = ref.read(usernameProvider);
         if (sender != myName) {
           _showTopSnackBar('$sender declined the call');
         }
-      } else if (data['type'] == 'call_busy') {
+      } else if (type == 'call_busy') {
         final sender = data['sender'] as String;
         final myName = ref.read(usernameProvider);
         if (sender != myName) {
           _showTopSnackBar('$sender is on another call');
         }
-      } else if (data['type'] == 'call_summary') {
-        final sender = data['sender'] as String;
-        final text = data['text'] as String;
-        final myName = ref.read(usernameProvider);
-        if (sender != myName) {
-          setState(() {
-            _messages.add(ChatMessage(sender: sender, text: text, isMe: false));
-          });
-          _scrollToBottom();
-        }
-      } else if (data['type'] == 'error') {
-        setState(() {
-          _messages.add(ChatMessage(sender: "System", text: data['text'], isMe: false));
-        });
-        _scrollToBottom();
-      } else if (data['type'] == 'message') {
-        final sender = data['sender'];
-        final text = data['text'];
-        final msgId = data['id'] ?? DateTime.now().millisecondsSinceEpoch.toString();
-
-        setState(() {
-          _typingUsers.remove(sender);
-          _messages.add(ChatMessage(id: msgId, sender: sender, text: text, isMe: false));
-        });
-        _scrollToBottom();
-
-        // Play notification sound + send notification
-        _notificationPlayer.play(AssetSource('audio/notification.mp3'));
-        NotificationService().showMessageNotification(
-          sender: sender,
-          message: text,
-          roomName: widget.room.name,
-        );
-
-        final ackPayload = jsonEncode({'type': 'ack', 'id': msgId});
-        ref.read(chatProvider.notifier).broadcast(ackPayload);
-      } else if (data['type'] == 'file_chunk') {
+      } else if (type == 'file_chunk') {
         final offerId = data['offer_id'] as String?;
 
         // Skip chunks for cancelled offers
@@ -285,27 +241,26 @@ class _ChatScreenState extends ConsumerState<ChatScreen> with WidgetsBindingObse
           // Log to download history
           _logDownload(filename, completeFile.path, sender);
 
-          setState(() {
-            if (offerId != null) {
-              final idx = _messages.indexWhere((m) => m.offerId == offerId && !m.isMe);
-              if (idx != -1) {
-                _messages[idx] = ChatMessage(
-                  sender: sender, text: '', isMe: false,
-                  filePath: completeFile.path, fileName: filename, offerId: offerId,
-                );
-              } else {
-                _messages.add(ChatMessage(
-                  sender: sender, text: '', isMe: false,
-                  filePath: completeFile.path, fileName: filename,
-                ));
-              }
+          final notifier = ref.read(chatProvider.notifier);
+          if (offerId != null) {
+            final idx = notifier.findMessageIndex(offerId, isMe: false);
+            if (idx != -1) {
+              notifier.updateMessageAt(idx, ChatMessage(
+                sender: sender, text: '', isMe: false,
+                filePath: completeFile.path, fileName: filename, offerId: offerId,
+              ));
             } else {
-              _messages.add(ChatMessage(
+              notifier.addMessage(ChatMessage(
                 sender: sender, text: '', isMe: false,
                 filePath: completeFile.path, fileName: filename,
               ));
             }
-          });
+          } else {
+            notifier.addMessage(ChatMessage(
+              sender: sender, text: '', isMe: false,
+              filePath: completeFile.path, fileName: filename,
+            ));
+          }
           _scrollToBottom();
 
           // Send file_downloaded ack back to everyone
@@ -321,24 +276,22 @@ class _ChatScreenState extends ConsumerState<ChatScreen> with WidgetsBindingObse
           _notificationPlayer.play(AssetSource('audio/notification.mp3'));
           NotificationService().showFileNotification(sender: sender, fileName: filename);
         }
-      } else if (data['type'] == 'file_offer') {
+      } else if (type == 'file_offer') {
         final sender = data['sender'] as String;
         final filename = data['filename'] as String;
         final fileSize = data['size'] as int;
         final offerId = data['offer_id'] as String;
-        setState(() {
-          _messages.add(ChatMessage(
-            sender: sender, text: '', isMe: false,
-            fileName: filename, fileSize: fileSize, offerId: offerId,
-          ));
-        });
+        ref.read(chatProvider.notifier).addMessage(ChatMessage(
+          sender: sender, text: '', isMe: false,
+          fileName: filename, fileSize: fileSize, offerId: offerId,
+        ));
         _scrollToBottom();
 
         _notificationPlayer.play(AssetSource('audio/notification.mp3'));
         NotificationService().showFileNotification(
           sender: sender, fileName: '$filename (${_formatFileSize(fileSize)})', isOffer: true,
         );
-      } else if (data['type'] == 'accept_file') {
+      } else if (type == 'accept_file') {
         final offerId = data['offer_id'] as String;
         final filePath = _pendingFileOffers[offerId]; // Don't remove yet — might be multi-user
         if (filePath != null) {
@@ -352,55 +305,33 @@ class _ChatScreenState extends ConsumerState<ChatScreen> with WidgetsBindingObse
             }
           }
         }
-      } else if (data['type'] == 'file_downloaded') {
+      } else if (type == 'file_downloaded') {
         // Someone finished downloading our file — update sender state
         final offerId = data['offer_id'] as String?;
         final downloader = data['downloader'] as String? ?? 'Someone';
         if (offerId != null) {
-          setState(() {
-            final idx = _messages.indexWhere((m) => m.offerId == offerId && m.isMe);
-            if (idx != -1) {
-              final old = _messages[idx];
-              _messages[idx] = ChatMessage(
-                sender: old.sender, text: '', isMe: true,
-                fileName: old.fileName, fileSize: old.fileSize, offerId: offerId,
-                filePath: old.filePath ?? _pendingFileOffers[offerId],
-              );
-            }
-          });
+          ref.read(chatProvider.notifier).updateMessageByOfferId(offerId, (old) => ChatMessage(
+            sender: old.sender, text: '', isMe: true,
+            fileName: old.fileName, fileSize: old.fileSize, offerId: offerId,
+            filePath: old.filePath ?? _pendingFileOffers[offerId],
+          ), senderOnly: true);
           _showTopSnackBar('✅ $downloader downloaded the file');
         }
-      } else if (data['type'] == 'cancel_file') {
+      } else if (type == 'cancel_file') {
         final offerId = data['offer_id'] as String;
         _cancelledOffers.add(offerId);
         _pendingFileOffers.remove(offerId);
         _downloadProgress.remove(offerId);
-        setState(() {
-          for (int i = 0; i < _messages.length; i++) {
-            if (_messages[i].offerId == offerId) {
-              final old = _messages[i];
-              _messages[i] = ChatMessage(
-                sender: old.sender, text: '', isMe: old.isMe,
-                fileName: old.fileName, fileSize: old.fileSize, offerId: offerId,
-                isCancelled: true,
-              );
-            }
-          }
-        });
-      } else if (data['type'] == 'clipboard') {
-        final sender = data['sender'] as String;
-        final text = data['text'] as String;
-        await Clipboard.setData(ClipboardData(text: text));
-        setState(() {
-          _messages.add(ChatMessage(sender: sender, text: "📋 Automatically Copied to Clipboard:\n$text", isMe: false));
-        });
-        _scrollToBottom();
+        ref.read(chatProvider.notifier).updateMessageByOfferId(offerId, (old) => ChatMessage(
+          sender: old.sender, text: '', isMe: old.isMe,
+          fileName: old.fileName, fileSize: old.fileSize, offerId: offerId,
+          isCancelled: true,
+        ));
       }
     } catch (e) {
-      setState(() {
-        _messages.add(ChatMessage(sender: "Peer", text: rawMessage, isMe: false));
-      });
-      _scrollToBottom();
+      // JSON parse error for call/file types — notifier already handled
+      // parse errors for message types, so this is an unexpected case.
+      debugPrint('Error handling call/file message: $e');
     }
   }
 
@@ -437,14 +368,9 @@ class _ChatScreenState extends ConsumerState<ChatScreen> with WidgetsBindingObse
       return;
     }
 
-    // Notifier handles payload construction and WebSocket send
+    // Notifier handles payload construction, WebSocket send, and state update
     final sent = ref.read(chatProvider.notifier).sendMessage(text);
     if (sent) {
-      // Sync to local display list (will be removed when display reads from notifier)
-      final lastMsg = ref.read(chatProvider).messages.last;
-      setState(() {
-        _messages.add(lastMsg);
-      });
       _textController.clear();
       _scrollToBottom();
     }
@@ -454,7 +380,6 @@ class _ChatScreenState extends ConsumerState<ChatScreen> with WidgetsBindingObse
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
     _messageSubscription?.cancel();
-    _participantSubscription?.cancel();
     _progressThrottleTimer?.cancel();
     _audioRecorder.dispose();
     _audioPlayer.dispose();
@@ -464,11 +389,12 @@ class _ChatScreenState extends ConsumerState<ChatScreen> with WidgetsBindingObse
     _scrollController.dispose();
     _textFocusNode.dispose();
 
+    ref.read(chatProvider.notifier).dispose();
+
     if (widget.isHost) {
       ref.read(discoveryServiceProvider).stop();
       ref.read(webSocketServerProvider).stopServer();
     } else {
-      ref.read(webSocketClientProvider).onDisconnected = null;
       ref.read(webSocketClientProvider).disconnect();
     }
     super.dispose();
@@ -476,9 +402,9 @@ class _ChatScreenState extends ConsumerState<ChatScreen> with WidgetsBindingObse
 
   void _handleRoomClosed() {
     if (_roomClosed) return;
-    _roomClosed = true;
-
-    ref.read(webSocketClientProvider).onDisconnected = null;
+    // markRoomClosed is called by the notifier before invoking this callback,
+    // but also called here for the room_closed message path from handleIncomingMessage.
+    ref.read(chatProvider.notifier).markRoomClosed();
 
     showDialog(
       context: context,
@@ -540,13 +466,11 @@ class _ChatScreenState extends ConsumerState<ChatScreen> with WidgetsBindingObse
       final label = callType == 'video' ? 'Video call' : 'Voice call';
       final summaryText = '$icon $label • $m:$s';
 
-      setState(() {
-        _messages.add(ChatMessage(
-          sender: myName,
-          text: summaryText,
-          isMe: true,
-        ));
-      });
+      ref.read(chatProvider.notifier).addMessage(ChatMessage(
+        sender: myName,
+        text: summaryText,
+        isMe: true,
+      ));
       _scrollToBottom();
 
       // Broadcast call summary so receiver(s) also see the bubble
@@ -767,23 +691,19 @@ class _ChatScreenState extends ConsumerState<ChatScreen> with WidgetsBindingObse
 
       ref.read(chatProvider.notifier).broadcast(offerPayload);
 
-      setState(() {
-        _messages.add(ChatMessage(
-          sender: senderName, text: '', isMe: true,
-          fileName: '📤 $filename (${_formatFileSize(fileSize)})',
-          fileSize: fileSize, offerId: offerId,
-        ));
-      });
+      ref.read(chatProvider.notifier).addMessage(ChatMessage(
+        sender: senderName, text: '', isMe: true,
+        fileName: '📤 $filename (${_formatFileSize(fileSize)})',
+        fileSize: fileSize, offerId: offerId,
+      ));
       _scrollToBottom();
     } else {
       // Small file: auto-send immediately
-      setState(() {
-        _messages.add(ChatMessage(
-          sender: senderName, text: '', isMe: true,
-          filePath: file.path,
-          fileName: '📤 $filename (${_formatFileSize(fileSize)})',
-        ));
-      });
+      ref.read(chatProvider.notifier).addMessage(ChatMessage(
+        sender: senderName, text: '', isMe: true,
+        filePath: file.path,
+        fileName: '📤 $filename (${_formatFileSize(fileSize)})',
+      ));
       _scrollToBottom();
 
       final manager = ref.read(fileTransferProvider);
@@ -805,17 +725,16 @@ class _ChatScreenState extends ConsumerState<ChatScreen> with WidgetsBindingObse
 
     ref.read(chatProvider.notifier).broadcast(acceptPayload);
 
-    setState(() {
-      final idx = _messages.indexWhere((m) => m.offerId == offerId && !m.isMe);
-      if (idx != -1) {
-        final old = _messages[idx];
-        _messages[idx] = ChatMessage(
-          sender: old.sender, text: '', isMe: false,
-          fileName: old.fileName, fileSize: old.fileSize,
-          offerId: offerId, isDownloading: true,
-        );
-      }
-    });
+    final notifier = ref.read(chatProvider.notifier);
+    final idx = notifier.findMessageIndex(offerId, isMe: false);
+    if (idx != -1) {
+      final old = _messages[idx];
+      notifier.updateMessageAt(idx, ChatMessage(
+        sender: old.sender, text: '', isMe: false,
+        fileName: old.fileName, fileSize: old.fileSize,
+        offerId: offerId, isDownloading: true,
+      ));
+    }
   }
 
   void _cancelFileOffer(String offerId) {
@@ -830,18 +749,11 @@ class _ChatScreenState extends ConsumerState<ChatScreen> with WidgetsBindingObse
 
     ref.read(chatProvider.notifier).broadcast(cancelPayload);
 
-    setState(() {
-      for (int i = 0; i < _messages.length; i++) {
-        if (_messages[i].offerId == offerId) {
-          final old = _messages[i];
-          _messages[i] = ChatMessage(
-            sender: old.sender, text: '', isMe: old.isMe,
-            fileName: old.fileName, fileSize: old.fileSize,
-            offerId: offerId, isCancelled: true,
-          );
-        }
-      }
-    });
+    ref.read(chatProvider.notifier).updateMessageByOfferId(offerId, (old) => ChatMessage(
+      sender: old.sender, text: '', isMe: old.isMe,
+      fileName: old.fileName, fileSize: old.fileSize,
+      offerId: offerId, isCancelled: true,
+    ));
   }
 
   Future<void> _syncClipboard() async {
@@ -853,9 +765,6 @@ class _ChatScreenState extends ConsumerState<ChatScreen> with WidgetsBindingObse
     if (data?.text != null && data!.text!.isNotEmpty) {
       final result = ref.read(chatProvider.notifier).sendClipboard(data.text!);
       if (result != null) {
-        setState(() {
-          _messages.add(ref.read(chatProvider).messages.last);
-        });
         _scrollToBottom();
       }
     }
@@ -1144,6 +1053,8 @@ class _ChatScreenState extends ConsumerState<ChatScreen> with WidgetsBindingObse
 
   @override
   Widget build(BuildContext context) {
+    // Watch chat state so widget rebuilds on message/participant/typing changes
+    final chatState = ref.watch(chatProvider);
     return DropTarget(
       onDragDone: (detail) {
         final files = detail.files.map((e) => File(e.path)).toList();
@@ -1166,12 +1077,12 @@ class _ChatScreenState extends ConsumerState<ChatScreen> with WidgetsBindingObse
                       child: Icon(Icons.lock, size: 11, color: Colors.greenAccent),
                     ),
                   Text(
-                    _hasParticipants
-                        ? '${_participantCount + 1} participants'
+                    chatState.hasParticipants
+                        ? '${chatState.participantCount + 1} participants'
                         : 'Waiting for participants...',
                     style: TextStyle(
                       fontSize: 12,
-                      color: _hasParticipants ? Colors.greenAccent : Colors.orangeAccent,
+                      color: chatState.hasParticipants ? Colors.greenAccent : Colors.orangeAccent,
                     ),
                   ),
                 ],
@@ -1220,19 +1131,19 @@ class _ChatScreenState extends ConsumerState<ChatScreen> with WidgetsBindingObse
                   child: ListView.builder(
                     controller: _scrollController,
                     padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 24),
-                    itemCount: _messages.length,
+                    itemCount: chatState.messages.length,
                     itemBuilder: (context, index) {
-                      return _buildMessageBubble(_messages[index], index);
+                      return _buildMessageBubble(chatState.messages[index], index);
                     },
                   ),
                 ),
-                if (_typingUsers.isNotEmpty)
+                if (chatState.typingUsers.isNotEmpty)
                   Padding(
                     padding: const EdgeInsets.only(left: 24.0, bottom: 8),
                     child: Align(
                       alignment: Alignment.centerLeft,
                       child: Text(
-                        '${_typingUsers.join(", ")} ${_typingUsers.length > 1 ? "are" : "is"} typing...',
+                        '${chatState.typingUsers.join(", ")} ${chatState.typingUsers.length > 1 ? "are" : "is"} typing...',
                         style: const TextStyle(color: Colors.grey, fontStyle: FontStyle.italic, fontSize: 13),
                       ),
                     ),

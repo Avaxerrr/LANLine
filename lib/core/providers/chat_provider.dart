@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../models/chat_message.dart';
@@ -54,6 +55,11 @@ class ChatState {
 /// once in initState with the appropriate [ChatConfig].
 class ChatNotifier extends Notifier<ChatState> {
   ChatConfig? _config;
+  StreamSubscription? _participantSubscription;
+
+  /// Called when the room is closed (host disconnected). The widget
+  /// registers this to show a dialog — it needs BuildContext.
+  void Function()? onRoomClosed;
 
   @override
   ChatState build() => const ChatState();
@@ -65,9 +71,42 @@ class ChatNotifier extends Notifier<ChatState> {
     if (!config.isHost) {
       state = state.copyWith(participantCount: 1);
     }
+    _subscribeToParticipants();
+  }
+
+  /// Clean up subscriptions. Called from widget dispose.
+  void dispose() {
+    _participantSubscription?.cancel();
+    _participantSubscription = null;
+    if (_config != null && !_config!.isHost) {
+      ref.read(webSocketClientProvider).onDisconnected = null;
+    }
+    onRoomClosed = null;
   }
 
   bool get isHost => _config?.isHost ?? false;
+
+  // ── Connection subscriptions ──────────────────────────────────
+
+  void _subscribeToParticipants() {
+    if (_config == null) return;
+
+    if (_config!.isHost) {
+      final server = ref.read(webSocketServerProvider);
+      _participantSubscription = server.onParticipantCountChanged.listen((count) {
+        final names = server.participantNames;
+        updateParticipants(count: count, names: names);
+      });
+    } else {
+      // Client: detect host disconnect
+      ref.read(webSocketClientProvider).onDisconnected = () {
+        if (!state.roomClosed) {
+          markRoomClosed();
+          onRoomClosed?.call();
+        }
+      };
+    }
+  }
 
   // ── Sending ──────────────────────────────────────────────────
 
@@ -199,6 +238,103 @@ class ChatNotifier extends Notifier<ChatState> {
 
   void markRoomClosed() {
     state = state.copyWith(roomClosed: true);
+  }
+
+  // ── Incoming message routing ──────────────────────────────────
+
+  /// Handles an incoming raw JSON message. Returns the message type
+  /// if handled, or null if the widget should handle it (call/file types).
+  String? handleIncomingMessage(String rawMessage) {
+    try {
+      final data = jsonDecode(rawMessage);
+      final type = data['type'] as String?;
+
+      switch (type) {
+        case 'typing':
+          final sender = data['sender'] as String;
+          addTypingUser(sender);
+          // Auto-remove after 3 seconds (caller must handle timer if needed)
+          Future.delayed(const Duration(seconds: 3), () {
+            removeTypingUser(sender);
+          });
+          return type;
+
+        case 'ack':
+          ackMessage(data['id'] as String);
+          return type;
+
+        case 'participant_list':
+          if (!isHost) {
+            final count = data['count'] as int;
+            final names = (data['names'] as List<dynamic>?)?.cast<String>() ?? [];
+            updateParticipants(count: count - 1, names: names);
+          }
+          return type;
+
+        case 'room_closed':
+          if (!isHost && !state.roomClosed) {
+            markRoomClosed();
+          }
+          return type;
+
+        case 'message':
+          final sender = data['sender'] as String;
+          final text = data['text'] as String;
+          final msgId = data['id'] as String? ?? DateTime.now().millisecondsSinceEpoch.toString();
+          removeTypingUser(sender);
+          addMessage(ChatMessage(id: msgId, sender: sender, text: text, isMe: false));
+          // Send ack back
+          broadcast(jsonEncode({'type': 'ack', 'id': msgId}));
+          return type;
+
+        case 'error':
+          addMessage(ChatMessage(sender: 'System', text: data['text'] as String, isMe: false));
+          return type;
+
+        case 'call_summary':
+          final sender = data['sender'] as String;
+          final text = data['text'] as String;
+          final myName = ref.read(usernameProvider);
+          if (sender != myName) {
+            addMessage(ChatMessage(sender: sender, text: text, isMe: false));
+          }
+          return type;
+
+        case 'clipboard':
+          final sender = data['sender'] as String;
+          final text = data['text'] as String;
+          addMessage(ChatMessage(
+            sender: sender,
+            text: '📋 Automatically Copied to Clipboard:\n$text',
+            isMe: false,
+          ));
+          return type;
+
+        // Call and file types — not handled here, delegate to widget
+        case 'call_start':
+        case 'call_join':
+        case 'call_offer':
+        case 'call_answer':
+        case 'ice_candidate':
+        case 'call_leave':
+        case 'call_end':
+        case 'call_decline':
+        case 'call_busy':
+        case 'file_chunk':
+        case 'file_offer':
+        case 'accept_file':
+        case 'file_downloaded':
+        case 'cancel_file':
+          return null; // Widget handles these
+
+        default:
+          return null;
+      }
+    } catch (e) {
+      // Invalid JSON — add as raw text
+      addMessage(ChatMessage(sender: 'Peer', text: rawMessage, isMe: false));
+      return 'parse_error';
+    }
   }
 
   // ── Send helper ──────────────────────────────────────────────

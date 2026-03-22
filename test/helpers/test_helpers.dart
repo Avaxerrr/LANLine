@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -11,7 +12,11 @@ import 'package:lanline/core/providers/username_provider.dart';
 
 class MockWebSocketServer extends Mock implements WebSocketServerService {}
 
-class MockWebSocketClient extends Mock implements WebSocketClientService {}
+/// Mock client that stores the onDisconnected callback so tests can invoke it.
+class MockWebSocketClient extends Mock implements WebSocketClientService {
+  @override
+  void Function()? onDisconnected;
+}
 
 class MockFileTransferManager extends Mock implements FileTransferManager {}
 
