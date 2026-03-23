@@ -55,7 +55,16 @@ class _RoomSetupScreenState extends ConsumerState<RoomSetupScreen> {
         }
       }
     }
-    if (mounted) setState(() => _interfaces = result);
+    if (mounted) {
+      setState(() {
+        _interfaces = result;
+        // Reset bind address if the saved IP is no longer available
+        if (_selectedBindAddress != null &&
+            !result.any((iface) => iface.ip == _selectedBindAddress)) {
+          _selectedBindAddress = null;
+        }
+      });
+    }
   }
 
   @override
