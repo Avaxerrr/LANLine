@@ -4,9 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/providers/app_metadata_provider.dart';
 import '../../../core/providers/username_provider.dart';
 import '../../../core/providers/v2_identity_provider.dart';
-import '../../connection/presentation/client_scanner_screen.dart';
 import '../../downloads/presentation/download_history_screen.dart';
-import '../../room/presentation/room_list_screen.dart';
 
 class SettingsScreen extends ConsumerStatefulWidget {
   const SettingsScreen({super.key});
@@ -117,39 +115,21 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
             ),
             const SizedBox(height: 28),
             Text(
-              'Legacy LAN Rooms',
+              'History',
               style: Theme.of(
                 context,
               ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w800),
             ),
             const SizedBox(height: 6),
             const Text(
-              'Temporary access to the old room-based flow while V2 is being migrated.',
+              'Open the download history for received files.',
               style: TextStyle(color: Colors.grey),
             ),
             const SizedBox(height: 14),
-            _LegacyActionCard(
-              icon: Icons.hub_outlined,
-              title: 'My Rooms',
-              subtitle: 'Open the old room host list',
-              onTap: () => Navigator.push(
-                context,
-                MaterialPageRoute(builder: (_) => const RoomListScreen()),
-              ),
-            ),
-            _LegacyActionCard(
-              icon: Icons.login_rounded,
-              title: 'Join Room',
-              subtitle: 'Use the old scanner and manual room join flow',
-              onTap: () => Navigator.push(
-                context,
-                MaterialPageRoute(builder: (_) => const ClientScannerScreen()),
-              ),
-            ),
-            _LegacyActionCard(
+            _SettingsActionCard(
               icon: Icons.download_rounded,
               title: 'Downloads',
-              subtitle: 'Open the existing download history screen',
+              subtitle: 'Browse files you already received',
               onTap: () => Navigator.push(
                 context,
                 MaterialPageRoute(
@@ -201,13 +181,13 @@ class _InfoRow extends StatelessWidget {
   }
 }
 
-class _LegacyActionCard extends StatelessWidget {
+class _SettingsActionCard extends StatelessWidget {
   final IconData icon;
   final String title;
   final String subtitle;
   final VoidCallback onTap;
 
-  const _LegacyActionCard({
+  const _SettingsActionCard({
     required this.icon,
     required this.title,
     required this.subtitle,

@@ -38,7 +38,7 @@ Transform LANLine from a room-hosted ephemeral LAN chat app into a local-first m
 - LAN and Tailscale reachability
 - conversation list UI instead of room list UI
 - file transfer and calls attached to conversations
-- optional group chat later
+- group chat as a conversation type
 
 ## 3. Current Position
 
@@ -46,7 +46,7 @@ Current product shape:
 
 - app now opens into a new V2 shell
 - `Chats`, `People`, `Requests`, and `Settings` screens exist
-- legacy room flow remains temporarily accessible from Settings
+- legacy room flow is no longer exposed in the active Settings UX
 - V2 peer presence now starts from the shell and updates the local DB
 - `People` is now contacts-only and `Requests` owns discovery/request actions
 - remote request delivery and status sync now work between devices
@@ -68,7 +68,7 @@ These are the current approved high-level decisions.
 - discovery must not automatically grant messaging permission
 - persistent local history will be added
 - rooms will not remain the main app concept
-- group chat is likely a later phase, not the first V2 milestone
+- group chat now lives as a V2 conversation type instead of a room-first mode
 
 ## 5. Scope Overview
 
@@ -227,7 +227,7 @@ Exit criteria:
 - V2 group conversations work from chats, requests, and the conversation screen
 
 ### Phase 7: Cleanup And Hardening
-Status: Not started
+Status: In progress
 
 Goals:
 
@@ -249,10 +249,10 @@ Exit criteria:
 
 The next implementation slice should start Phase 7:
 
-- remove or quarantine obsolete room-first code that V2 no longer needs
+- continue removing or quarantining obsolete room-first code that V2 no longer needs
 - harden group/direct protocols and reduce temporary migration shims
 - decide whether direct-only media limits in groups stay temporary or become a planned follow-up
-- keep legacy room access only if it still serves a migration/debug purpose
+- keep deeper legacy room code only if it still serves a migration/debug purpose
 
 ## 8. Status Board
 
@@ -268,6 +268,7 @@ Use this section as the live session-by-session tracker.
 - Phase 4 direct messaging MVP: Implemented
 - Phase 5 calls and file transfer migration: Implemented
 - Phase 6 group conversations: Implemented
+- Phase 7 cleanup and hardening: In progress
 - Implementation: In progress
 - Current focus: Phase 7 cleanup and hardening
 
@@ -320,10 +321,12 @@ Use this section as the live session-by-session tracker.
 
 - V2 overhaul implementation
 - planning Phase 7 cleanup and hardening
+- removing active UX access to the legacy room flow
 
 ### Pending
 
 - Phase 7 cleanup and hardening
+- deeper legacy room code removal/quarantine
 
 ## 9. Decision Log
 
@@ -345,6 +348,7 @@ Add every major approved change here.
 - decided group creation should only use accepted contacts
 - decided invited members must explicitly accept before joining a group
 - decided group metadata changes should be admin-only for now
+- decided the legacy room flow should no longer remain visible in the active Settings UX
 
 ## 10. Change Log
 
@@ -379,6 +383,7 @@ Use this as the project history for the overhaul itself.
 - implemented Phase 6 V2 group protocol and group conversation repository behavior
 - added group creation UI and pending group invite handling
 - updated the conversation UI and chat list for group chat presentation
+- removed legacy room entry points from Settings and kept downloads as the remaining history entry
 
 ## 11. Open Questions
 
