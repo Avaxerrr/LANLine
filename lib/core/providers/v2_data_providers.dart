@@ -63,6 +63,13 @@ final pendingGroupInvitesProvider = StreamProvider<List<ConversationRow>>((
   );
 });
 
+final conversationStreamProvider =
+    StreamProvider.family<ConversationRow?, String>((ref, conversationId) {
+      return ref
+          .read(conversationsRepositoryProvider)
+          .watchConversationById(conversationId);
+    });
+
 final conversationDetailsProvider =
     FutureProvider.family<ConversationRow?, String>((ref, conversationId) {
       return ref
@@ -234,6 +241,20 @@ class ConversationActions {
 
   Future<void> deleteMessage(String messageId) {
     return _messagesRepository.deleteMessage(messageId);
+  }
+
+  Future<void> pinMessage({
+    required String conversationId,
+    required String messageId,
+  }) {
+    return _conversationsRepository.pinMessage(
+      conversationId: conversationId,
+      messageId: messageId,
+    );
+  }
+
+  Future<void> clearPinnedMessage(String conversationId) {
+    return _conversationsRepository.clearPinnedMessage(conversationId);
   }
 }
 

@@ -2301,6 +2301,17 @@ class $ConversationsTableTable extends ConversationsTable
     type: DriftSqlType.string,
     requiredDuringInsert: false,
   );
+  static const VerificationMeta _pinnedMessageIdMeta = const VerificationMeta(
+    'pinnedMessageId',
+  );
+  @override
+  late final GeneratedColumn<String> pinnedMessageId = GeneratedColumn<String>(
+    'pinned_message_id',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
   static const VerificationMeta _lastMessagePreviewMeta =
       const VerificationMeta('lastMessagePreview');
   @override
@@ -2392,6 +2403,7 @@ class $ConversationsTableTable extends ConversationsTable
     id,
     type,
     title,
+    pinnedMessageId,
     lastMessagePreview,
     lastMessageAt,
     unreadCount,
@@ -2429,6 +2441,15 @@ class $ConversationsTableTable extends ConversationsTable
       context.handle(
         _titleMeta,
         title.isAcceptableOrUnknown(data['title']!, _titleMeta),
+      );
+    }
+    if (data.containsKey('pinned_message_id')) {
+      context.handle(
+        _pinnedMessageIdMeta,
+        pinnedMessageId.isAcceptableOrUnknown(
+          data['pinned_message_id']!,
+          _pinnedMessageIdMeta,
+        ),
       );
     }
     if (data.containsKey('last_message_preview')) {
@@ -2507,6 +2528,10 @@ class $ConversationsTableTable extends ConversationsTable
         DriftSqlType.string,
         data['${effectivePrefix}title'],
       ),
+      pinnedMessageId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}pinned_message_id'],
+      ),
       lastMessagePreview: attachedDatabase.typeMapping.read(
         DriftSqlType.string,
         data['${effectivePrefix}last_message_preview'],
@@ -2548,6 +2573,7 @@ class ConversationRow extends DataClass implements Insertable<ConversationRow> {
   final String id;
   final String type;
   final String? title;
+  final String? pinnedMessageId;
   final String? lastMessagePreview;
   final int? lastMessageAt;
   final int unreadCount;
@@ -2559,6 +2585,7 @@ class ConversationRow extends DataClass implements Insertable<ConversationRow> {
     required this.id,
     required this.type,
     this.title,
+    this.pinnedMessageId,
     this.lastMessagePreview,
     this.lastMessageAt,
     required this.unreadCount,
@@ -2574,6 +2601,9 @@ class ConversationRow extends DataClass implements Insertable<ConversationRow> {
     map['type'] = Variable<String>(type);
     if (!nullToAbsent || title != null) {
       map['title'] = Variable<String>(title);
+    }
+    if (!nullToAbsent || pinnedMessageId != null) {
+      map['pinned_message_id'] = Variable<String>(pinnedMessageId);
     }
     if (!nullToAbsent || lastMessagePreview != null) {
       map['last_message_preview'] = Variable<String>(lastMessagePreview);
@@ -2596,6 +2626,9 @@ class ConversationRow extends DataClass implements Insertable<ConversationRow> {
       title: title == null && nullToAbsent
           ? const Value.absent()
           : Value(title),
+      pinnedMessageId: pinnedMessageId == null && nullToAbsent
+          ? const Value.absent()
+          : Value(pinnedMessageId),
       lastMessagePreview: lastMessagePreview == null && nullToAbsent
           ? const Value.absent()
           : Value(lastMessagePreview),
@@ -2619,6 +2652,7 @@ class ConversationRow extends DataClass implements Insertable<ConversationRow> {
       id: serializer.fromJson<String>(json['id']),
       type: serializer.fromJson<String>(json['type']),
       title: serializer.fromJson<String?>(json['title']),
+      pinnedMessageId: serializer.fromJson<String?>(json['pinnedMessageId']),
       lastMessagePreview: serializer.fromJson<String?>(
         json['lastMessagePreview'],
       ),
@@ -2637,6 +2671,7 @@ class ConversationRow extends DataClass implements Insertable<ConversationRow> {
       'id': serializer.toJson<String>(id),
       'type': serializer.toJson<String>(type),
       'title': serializer.toJson<String?>(title),
+      'pinnedMessageId': serializer.toJson<String?>(pinnedMessageId),
       'lastMessagePreview': serializer.toJson<String?>(lastMessagePreview),
       'lastMessageAt': serializer.toJson<int?>(lastMessageAt),
       'unreadCount': serializer.toJson<int>(unreadCount),
@@ -2651,6 +2686,7 @@ class ConversationRow extends DataClass implements Insertable<ConversationRow> {
     String? id,
     String? type,
     Value<String?> title = const Value.absent(),
+    Value<String?> pinnedMessageId = const Value.absent(),
     Value<String?> lastMessagePreview = const Value.absent(),
     Value<int?> lastMessageAt = const Value.absent(),
     int? unreadCount,
@@ -2662,6 +2698,9 @@ class ConversationRow extends DataClass implements Insertable<ConversationRow> {
     id: id ?? this.id,
     type: type ?? this.type,
     title: title.present ? title.value : this.title,
+    pinnedMessageId: pinnedMessageId.present
+        ? pinnedMessageId.value
+        : this.pinnedMessageId,
     lastMessagePreview: lastMessagePreview.present
         ? lastMessagePreview.value
         : this.lastMessagePreview,
@@ -2679,6 +2718,9 @@ class ConversationRow extends DataClass implements Insertable<ConversationRow> {
       id: data.id.present ? data.id.value : this.id,
       type: data.type.present ? data.type.value : this.type,
       title: data.title.present ? data.title.value : this.title,
+      pinnedMessageId: data.pinnedMessageId.present
+          ? data.pinnedMessageId.value
+          : this.pinnedMessageId,
       lastMessagePreview: data.lastMessagePreview.present
           ? data.lastMessagePreview.value
           : this.lastMessagePreview,
@@ -2703,6 +2745,7 @@ class ConversationRow extends DataClass implements Insertable<ConversationRow> {
           ..write('id: $id, ')
           ..write('type: $type, ')
           ..write('title: $title, ')
+          ..write('pinnedMessageId: $pinnedMessageId, ')
           ..write('lastMessagePreview: $lastMessagePreview, ')
           ..write('lastMessageAt: $lastMessageAt, ')
           ..write('unreadCount: $unreadCount, ')
@@ -2719,6 +2762,7 @@ class ConversationRow extends DataClass implements Insertable<ConversationRow> {
     id,
     type,
     title,
+    pinnedMessageId,
     lastMessagePreview,
     lastMessageAt,
     unreadCount,
@@ -2734,6 +2778,7 @@ class ConversationRow extends DataClass implements Insertable<ConversationRow> {
           other.id == this.id &&
           other.type == this.type &&
           other.title == this.title &&
+          other.pinnedMessageId == this.pinnedMessageId &&
           other.lastMessagePreview == this.lastMessagePreview &&
           other.lastMessageAt == this.lastMessageAt &&
           other.unreadCount == this.unreadCount &&
@@ -2747,6 +2792,7 @@ class ConversationsTableCompanion extends UpdateCompanion<ConversationRow> {
   final Value<String> id;
   final Value<String> type;
   final Value<String?> title;
+  final Value<String?> pinnedMessageId;
   final Value<String?> lastMessagePreview;
   final Value<int?> lastMessageAt;
   final Value<int> unreadCount;
@@ -2759,6 +2805,7 @@ class ConversationsTableCompanion extends UpdateCompanion<ConversationRow> {
     this.id = const Value.absent(),
     this.type = const Value.absent(),
     this.title = const Value.absent(),
+    this.pinnedMessageId = const Value.absent(),
     this.lastMessagePreview = const Value.absent(),
     this.lastMessageAt = const Value.absent(),
     this.unreadCount = const Value.absent(),
@@ -2772,6 +2819,7 @@ class ConversationsTableCompanion extends UpdateCompanion<ConversationRow> {
     required String id,
     required String type,
     this.title = const Value.absent(),
+    this.pinnedMessageId = const Value.absent(),
     this.lastMessagePreview = const Value.absent(),
     this.lastMessageAt = const Value.absent(),
     this.unreadCount = const Value.absent(),
@@ -2788,6 +2836,7 @@ class ConversationsTableCompanion extends UpdateCompanion<ConversationRow> {
     Expression<String>? id,
     Expression<String>? type,
     Expression<String>? title,
+    Expression<String>? pinnedMessageId,
     Expression<String>? lastMessagePreview,
     Expression<int>? lastMessageAt,
     Expression<int>? unreadCount,
@@ -2801,6 +2850,7 @@ class ConversationsTableCompanion extends UpdateCompanion<ConversationRow> {
       if (id != null) 'id': id,
       if (type != null) 'type': type,
       if (title != null) 'title': title,
+      if (pinnedMessageId != null) 'pinned_message_id': pinnedMessageId,
       if (lastMessagePreview != null)
         'last_message_preview': lastMessagePreview,
       if (lastMessageAt != null) 'last_message_at': lastMessageAt,
@@ -2817,6 +2867,7 @@ class ConversationsTableCompanion extends UpdateCompanion<ConversationRow> {
     Value<String>? id,
     Value<String>? type,
     Value<String?>? title,
+    Value<String?>? pinnedMessageId,
     Value<String?>? lastMessagePreview,
     Value<int?>? lastMessageAt,
     Value<int>? unreadCount,
@@ -2830,6 +2881,7 @@ class ConversationsTableCompanion extends UpdateCompanion<ConversationRow> {
       id: id ?? this.id,
       type: type ?? this.type,
       title: title ?? this.title,
+      pinnedMessageId: pinnedMessageId ?? this.pinnedMessageId,
       lastMessagePreview: lastMessagePreview ?? this.lastMessagePreview,
       lastMessageAt: lastMessageAt ?? this.lastMessageAt,
       unreadCount: unreadCount ?? this.unreadCount,
@@ -2852,6 +2904,9 @@ class ConversationsTableCompanion extends UpdateCompanion<ConversationRow> {
     }
     if (title.present) {
       map['title'] = Variable<String>(title.value);
+    }
+    if (pinnedMessageId.present) {
+      map['pinned_message_id'] = Variable<String>(pinnedMessageId.value);
     }
     if (lastMessagePreview.present) {
       map['last_message_preview'] = Variable<String>(lastMessagePreview.value);
@@ -2886,6 +2941,7 @@ class ConversationsTableCompanion extends UpdateCompanion<ConversationRow> {
           ..write('id: $id, ')
           ..write('type: $type, ')
           ..write('title: $title, ')
+          ..write('pinnedMessageId: $pinnedMessageId, ')
           ..write('lastMessagePreview: $lastMessagePreview, ')
           ..write('lastMessageAt: $lastMessageAt, ')
           ..write('unreadCount: $unreadCount, ')
@@ -6608,6 +6664,7 @@ typedef $$ConversationsTableTableCreateCompanionBuilder =
       required String id,
       required String type,
       Value<String?> title,
+      Value<String?> pinnedMessageId,
       Value<String?> lastMessagePreview,
       Value<int?> lastMessageAt,
       Value<int> unreadCount,
@@ -6622,6 +6679,7 @@ typedef $$ConversationsTableTableUpdateCompanionBuilder =
       Value<String> id,
       Value<String> type,
       Value<String?> title,
+      Value<String?> pinnedMessageId,
       Value<String?> lastMessagePreview,
       Value<int?> lastMessageAt,
       Value<int> unreadCount,
@@ -6653,6 +6711,11 @@ class $$ConversationsTableTableFilterComposer
 
   ColumnFilters<String> get title => $composableBuilder(
     column: $table.title,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get pinnedMessageId => $composableBuilder(
+    column: $table.pinnedMessageId,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -6716,6 +6779,11 @@ class $$ConversationsTableTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
+  ColumnOrderings<String> get pinnedMessageId => $composableBuilder(
+    column: $table.pinnedMessageId,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   ColumnOrderings<String> get lastMessagePreview => $composableBuilder(
     column: $table.lastMessagePreview,
     builder: (column) => ColumnOrderings(column),
@@ -6769,6 +6837,11 @@ class $$ConversationsTableTableAnnotationComposer
 
   GeneratedColumn<String> get title =>
       $composableBuilder(column: $table.title, builder: (column) => column);
+
+  GeneratedColumn<String> get pinnedMessageId => $composableBuilder(
+    column: $table.pinnedMessageId,
+    builder: (column) => column,
+  );
 
   GeneratedColumn<String> get lastMessagePreview => $composableBuilder(
     column: $table.lastMessagePreview,
@@ -6843,6 +6916,7 @@ class $$ConversationsTableTableTableManager
                 Value<String> id = const Value.absent(),
                 Value<String> type = const Value.absent(),
                 Value<String?> title = const Value.absent(),
+                Value<String?> pinnedMessageId = const Value.absent(),
                 Value<String?> lastMessagePreview = const Value.absent(),
                 Value<int?> lastMessageAt = const Value.absent(),
                 Value<int> unreadCount = const Value.absent(),
@@ -6855,6 +6929,7 @@ class $$ConversationsTableTableTableManager
                 id: id,
                 type: type,
                 title: title,
+                pinnedMessageId: pinnedMessageId,
                 lastMessagePreview: lastMessagePreview,
                 lastMessageAt: lastMessageAt,
                 unreadCount: unreadCount,
@@ -6869,6 +6944,7 @@ class $$ConversationsTableTableTableManager
                 required String id,
                 required String type,
                 Value<String?> title = const Value.absent(),
+                Value<String?> pinnedMessageId = const Value.absent(),
                 Value<String?> lastMessagePreview = const Value.absent(),
                 Value<int?> lastMessageAt = const Value.absent(),
                 Value<int> unreadCount = const Value.absent(),
@@ -6881,6 +6957,7 @@ class $$ConversationsTableTableTableManager
                 id: id,
                 type: type,
                 title: title,
+                pinnedMessageId: pinnedMessageId,
                 lastMessagePreview: lastMessagePreview,
                 lastMessageAt: lastMessageAt,
                 unreadCount: unreadCount,

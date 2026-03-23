@@ -114,3 +114,67 @@ class GroupConversationNotice extends StatelessWidget {
     );
   }
 }
+
+class PinnedMessageBanner extends StatelessWidget {
+  final String preview;
+  final VoidCallback onUnpin;
+
+  const PinnedMessageBanner({
+    super.key,
+    required this.preview,
+    required this.onUnpin,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 0, 16, 10),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+        decoration: BoxDecoration(
+          color: const Color(0xFF1B1B1B),
+          borderRadius: BorderRadius.circular(18),
+          border: Border(
+            left: BorderSide(
+              color: Colors.amber.withValues(alpha: 0.85),
+              width: 4,
+            ),
+          ),
+        ),
+        child: Row(
+          children: [
+            const Icon(Icons.push_pin_outlined, color: Colors.amber, size: 18),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    'Pinned message',
+                    style: TextStyle(
+                      color: Colors.amber,
+                      fontSize: 12,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    preview,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(color: Colors.grey),
+                  ),
+                ],
+              ),
+            ),
+            IconButton(
+              onPressed: onUnpin,
+              icon: const Icon(Icons.close, color: Colors.grey),
+              tooltip: 'Unpin',
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}

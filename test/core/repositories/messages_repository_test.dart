@@ -76,6 +76,36 @@ void main() {
   );
 
   test(
+    'deleteMessage clears the pin when deleting the pinned message',
+    () async {
+      final conversation = await conversationsRepository
+          .findOrCreateDirectConversation(
+            localPeerId: 'local-peer',
+            peerId: 'remote-peer',
+            title: 'Remote',
+          );
+
+      final message = await messagesRepository.insertMessage(
+        conversationId: conversation.id,
+        senderPeerId: 'local-peer',
+        type: 'text',
+        textBody: 'pinned message',
+        status: 'delivered',
+      );
+
+      await conversationsRepository.pinMessage(
+        conversationId: conversation.id,
+        messageId: message.id,
+      );
+      await messagesRepository.deleteMessage(message.id);
+
+      final updatedConversation = await conversationsRepository
+          .getConversationById(conversation.id);
+      expect(updatedConversation?.pinnedMessageId, isNull);
+    },
+  );
+
+  test(
     'deleteMessage clears conversation preview when last message is removed',
     () async {
       final conversation = await conversationsRepository

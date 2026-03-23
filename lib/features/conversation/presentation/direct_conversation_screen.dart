@@ -277,6 +277,52 @@ class _DirectConversationScreenState
     }
   }
 
+  Future<void> _togglePin(MessageRow message) async {
+    try {
+      final conversation = await ref.read(
+        conversationStreamProvider(widget.conversationId).future,
+      );
+      if (conversation == null) {
+        throw StateError('Conversation was not found.');
+      }
+
+      if (conversation.pinnedMessageId == message.id) {
+        await ref
+            .read(conversationActionsProvider)
+            .clearPinnedMessage(widget.conversationId);
+      } else {
+        await ref
+            .read(conversationActionsProvider)
+            .pinMessage(
+              conversationId: widget.conversationId,
+              messageId: message.id,
+            );
+      }
+    } catch (error) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Failed to update pin: $error')));
+    }
+  }
+
+  String _messagePreviewText(MessageRow message) {
+    final text = message.textBody?.trim();
+    if (text != null && text.isNotEmpty) {
+      return text;
+    }
+    switch (message.type) {
+      case 'file':
+        return 'Attachment';
+      case 'call_summary':
+        return 'Call summary';
+      case 'system':
+        return 'System message';
+      default:
+        return message.type;
+    }
+  }
+
   String _replyPreviewText(MessageRow message) {
     final text = message.textBody?.trim();
     if (text != null && text.isNotEmpty) {
@@ -298,6 +344,9 @@ class _DirectConversationScreenState
   Widget build(BuildContext context) {
     final messagesAsync = ref.watch(
       conversationMessagesProvider(widget.conversationId),
+    );
+    final conversationAsync = ref.watch(
+      conversationStreamProvider(widget.conversationId),
     );
     final localIdentityAsync = ref.watch(localIdentityProvider);
     final mediaState = ref.watch(v2MediaProtocolProvider);
@@ -336,6 +385,36 @@ class _DirectConversationScreenState
       body: Column(
         children: [
           if (_isGroup) const GroupConversationNotice(),
+          conversationAsync.when(
+            data: (conversation) {
+              if (conversation?.pinnedMessageId == null) {
+                return const SizedBox.shrink();
+              }
+              return messagesAsync.maybeWhen(
+                data: (messages) {
+                  MessageRow? pinned;
+                  for (final message in messages) {
+                    if (message.id == conversation!.pinnedMessageId) {
+                      pinned = message;
+                      break;
+                    }
+                  }
+                  if (pinned == null) {
+                    return const SizedBox.shrink();
+                  }
+                  return PinnedMessageBanner(
+                    preview: _messagePreviewText(pinned),
+                    onUnpin: () => ref
+                        .read(conversationActionsProvider)
+                        .clearPinnedMessage(widget.conversationId),
+                  );
+                },
+                orElse: () => const SizedBox.shrink(),
+              );
+            },
+            loading: () => const SizedBox.shrink(),
+            error: (error, stackTrace) => const SizedBox.shrink(),
+          ),
           Expanded(
             child: localIdentityAsync.when(
               data: (localIdentity) => messagesAsync.when(
@@ -391,6 +470,12 @@ class _DirectConversationScreenState
                             onReply: _setReply,
                             onDelete: _deleteMessage,
                             onForward: _forwardMessage,
+                            onTogglePin: _togglePin,
+                            isPinned: conversationAsync.maybeWhen(
+                              data: (conversation) =>
+                                  conversation?.pinnedMessageId == message.id,
+                              orElse: () => false,
+                            ),
                           );
                         },
                       );

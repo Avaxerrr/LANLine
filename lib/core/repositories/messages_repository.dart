@@ -121,8 +121,16 @@ class MessagesRepository {
   Future<void> deleteMessage(String messageId) async {
     final message = await getMessageById(messageId);
     if (message == null) return;
+    final conversation = await _conversationsRepository.getConversationById(
+      message.conversationId,
+    );
 
     await _database.transaction(() async {
+      if (conversation?.pinnedMessageId == messageId) {
+        await _conversationsRepository.clearPinnedMessage(
+          message.conversationId,
+        );
+      }
       await _attachmentsRepository.deleteAttachmentsForMessage(messageId);
       await (_database.delete(
         _database.messagesTable,

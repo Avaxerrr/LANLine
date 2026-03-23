@@ -40,6 +40,8 @@ class ConversationMessageBubble extends ConsumerWidget {
   final ValueChanged<MessageRow>? onReply;
   final ValueChanged<MessageRow>? onDelete;
   final ValueChanged<MessageRow>? onForward;
+  final ValueChanged<MessageRow>? onTogglePin;
+  final bool isPinned;
 
   const ConversationMessageBubble({
     super.key,
@@ -54,6 +56,8 @@ class ConversationMessageBubble extends ConsumerWidget {
     this.onReply,
     this.onDelete,
     this.onForward,
+    this.onTogglePin,
+    this.isPinned = false,
   });
 
   @override
@@ -274,6 +278,20 @@ class ConversationMessageBubble extends ConsumerWidget {
                     );
                   },
                 ),
+              ListTile(
+                leading: Icon(
+                  isPinned ? Icons.push_pin : Icons.push_pin_outlined,
+                  color: Colors.amber,
+                ),
+                title: Text(
+                  isPinned ? 'Unpin' : 'Pin',
+                  style: const TextStyle(color: Colors.white),
+                ),
+                onTap: () {
+                  Navigator.pop(sheetContext);
+                  onTogglePin?.call(message);
+                },
+              ),
               ListTile(
                 leading: const Icon(
                   Icons.delete_outline,

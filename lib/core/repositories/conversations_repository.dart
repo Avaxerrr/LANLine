@@ -13,14 +13,13 @@ class ConversationsRepository {
   Stream<List<ConversationRow>> watchConversationList({
     required String localPeerId,
   }) {
-    final visibleConversationIds = _database.selectOnly(
-      _database.conversationMembersTable,
-    )
-      ..addColumns([_database.conversationMembersTable.conversationId])
-      ..where(
-        _database.conversationMembersTable.peerId.equals(localPeerId) &
-            _database.conversationMembersTable.role.isNotValue('invited'),
-      );
+    final visibleConversationIds =
+        _database.selectOnly(_database.conversationMembersTable)
+          ..addColumns([_database.conversationMembersTable.conversationId])
+          ..where(
+            _database.conversationMembersTable.peerId.equals(localPeerId) &
+                _database.conversationMembersTable.role.isNotValue('invited'),
+          );
 
     return (_database.select(_database.conversationsTable)
           ..where((tbl) => tbl.id.isInQuery(visibleConversationIds))
@@ -29,6 +28,12 @@ class ConversationsRepository {
             (tbl) => drift.OrderingTerm.desc(tbl.updatedAt),
           ]))
         .watch();
+  }
+
+  Stream<ConversationRow?> watchConversationById(String conversationId) {
+    return (_database.select(
+      _database.conversationsTable,
+    )..where((tbl) => tbl.id.equals(conversationId))).watchSingleOrNull();
   }
 
   Stream<List<ConversationRow>> watchPendingGroupInvites({
@@ -71,12 +76,11 @@ class ConversationsRepository {
     required String conversationId,
     required String peerId,
   }) {
-    return (_database.select(_database.conversationMembersTable)
-          ..where(
-            (tbl) =>
-                tbl.conversationId.equals(conversationId) &
-                tbl.peerId.equals(peerId),
-          ))
+    return (_database.select(_database.conversationMembersTable)..where(
+          (tbl) =>
+              tbl.conversationId.equals(conversationId) &
+              tbl.peerId.equals(peerId),
+        ))
         .getSingleOrNull();
   }
 
@@ -96,14 +100,14 @@ class ConversationsRepository {
     required String conversationId,
     required String localPeerId,
   }) async {
-    final members = await (_database.select(_database.conversationMembersTable)
-          ..where(
-            (tbl) =>
-                tbl.conversationId.equals(conversationId) &
-                tbl.peerId.isNotValue(localPeerId) &
-                tbl.role.isIn(['admin', 'member']),
-          ))
-        .get();
+    final members =
+        await (_database.select(_database.conversationMembersTable)..where(
+              (tbl) =>
+                  tbl.conversationId.equals(conversationId) &
+                  tbl.peerId.isNotValue(localPeerId) &
+                  tbl.role.isIn(['admin', 'member']),
+            ))
+            .get();
     return members.map((member) => member.peerId).toList();
   }
 
@@ -149,35 +153,41 @@ class ConversationsRepository {
     final conversationId = _uuid.v4();
 
     await _database.transaction(() async {
-      await _database.into(_database.conversationsTable).insert(
-        ConversationsTableCompanion.insert(
-          id: conversationId,
-          type: 'direct',
-          title: drift.Value(title),
-          createdAt: now,
-          updatedAt: now,
-        ),
-      );
+      await _database
+          .into(_database.conversationsTable)
+          .insert(
+            ConversationsTableCompanion.insert(
+              id: conversationId,
+              type: 'direct',
+              title: drift.Value(title),
+              createdAt: now,
+              updatedAt: now,
+            ),
+          );
 
-      await _database.into(_database.conversationMembersTable).insert(
-        ConversationMembersTableCompanion.insert(
-          id: _uuid.v4(),
-          conversationId: conversationId,
-          peerId: localPeerId,
-          role: 'member',
-          joinedAt: now,
-        ),
-      );
+      await _database
+          .into(_database.conversationMembersTable)
+          .insert(
+            ConversationMembersTableCompanion.insert(
+              id: _uuid.v4(),
+              conversationId: conversationId,
+              peerId: localPeerId,
+              role: 'member',
+              joinedAt: now,
+            ),
+          );
 
-      await _database.into(_database.conversationMembersTable).insert(
-        ConversationMembersTableCompanion.insert(
-          id: _uuid.v4(),
-          conversationId: conversationId,
-          peerId: peerId,
-          role: 'member',
-          joinedAt: now,
-        ),
-      );
+      await _database
+          .into(_database.conversationMembersTable)
+          .insert(
+            ConversationMembersTableCompanion.insert(
+              id: _uuid.v4(),
+              conversationId: conversationId,
+              peerId: peerId,
+              role: 'member',
+              joinedAt: now,
+            ),
+          );
     });
 
     return (await getConversationById(conversationId))!;
@@ -193,15 +203,17 @@ class ConversationsRepository {
     final id = conversationId ?? _uuid.v4();
 
     await _database.transaction(() async {
-      await _database.into(_database.conversationsTable).insertOnConflictUpdate(
-        ConversationsTableCompanion.insert(
-          id: id,
-          type: 'group',
-          title: drift.Value(title),
-          createdAt: now,
-          updatedAt: now,
-        ),
-      );
+      await _database
+          .into(_database.conversationsTable)
+          .insertOnConflictUpdate(
+            ConversationsTableCompanion.insert(
+              id: id,
+              type: 'group',
+              title: drift.Value(title),
+              createdAt: now,
+              updatedAt: now,
+            ),
+          );
 
       await _upsertConversationMember(
         conversationId: id,
@@ -233,15 +245,17 @@ class ConversationsRepository {
     await _database.transaction(() async {
       final existing = await getConversationById(conversationId);
       if (existing == null) {
-        await _database.into(_database.conversationsTable).insert(
-          ConversationsTableCompanion.insert(
-            id: conversationId,
-            type: 'group',
-            title: drift.Value(title),
-            createdAt: now,
-            updatedAt: now,
-          ),
-        );
+        await _database
+            .into(_database.conversationsTable)
+            .insert(
+              ConversationsTableCompanion.insert(
+                id: conversationId,
+                type: 'group',
+                title: drift.Value(title),
+                createdAt: now,
+                updatedAt: now,
+              ),
+            );
       } else if (existing.title != title) {
         await updateConversationTitle(
           conversationId: conversationId,
@@ -268,12 +282,11 @@ class ConversationsRepository {
     required String role,
   }) async {
     final now = DateTime.now().millisecondsSinceEpoch;
-    await (_database.update(_database.conversationMembersTable)
-          ..where(
-            (tbl) =>
-                tbl.conversationId.equals(conversationId) &
-                tbl.peerId.equals(peerId),
-          ))
+    await (_database.update(_database.conversationMembersTable)..where(
+          (tbl) =>
+              tbl.conversationId.equals(conversationId) &
+              tbl.peerId.equals(peerId),
+        ))
         .write(
           ConversationMembersTableCompanion(
             role: drift.Value(role),
@@ -291,12 +304,11 @@ class ConversationsRepository {
     required String peerId,
   }) async {
     final now = DateTime.now().millisecondsSinceEpoch;
-    await (_database.delete(_database.conversationMembersTable)
-          ..where(
-            (tbl) =>
-                tbl.conversationId.equals(conversationId) &
-                tbl.peerId.equals(peerId),
-          ))
+    await (_database.delete(_database.conversationMembersTable)..where(
+          (tbl) =>
+              tbl.conversationId.equals(conversationId) &
+              tbl.peerId.equals(peerId),
+        ))
         .go();
 
     await (_database.update(_database.conversationsTable)
@@ -314,16 +326,17 @@ class ConversationsRepository {
                   _database.messagesTable.conversationId.equals(conversationId),
                 ),
             );
-          })).go();
-      await (_database.delete(_database.messagesTable)
-            ..where((tbl) => tbl.conversationId.equals(conversationId)))
+          }))
           .go();
-      await (_database.delete(_database.conversationMembersTable)
-            ..where((tbl) => tbl.conversationId.equals(conversationId)))
-          .go();
-      await (_database.delete(_database.conversationsTable)
-            ..where((tbl) => tbl.id.equals(conversationId)))
-          .go();
+      await (_database.delete(
+        _database.messagesTable,
+      )..where((tbl) => tbl.conversationId.equals(conversationId))).go();
+      await (_database.delete(
+        _database.conversationMembersTable,
+      )..where((tbl) => tbl.conversationId.equals(conversationId))).go();
+      await (_database.delete(
+        _database.conversationsTable,
+      )..where((tbl) => tbl.id.equals(conversationId))).go();
     });
   }
 
@@ -332,14 +345,14 @@ class ConversationsRepository {
     required String title,
   }) async {
     final now = DateTime.now().millisecondsSinceEpoch;
-    await (_database.update(_database.conversationsTable)
-          ..where((tbl) => tbl.id.equals(conversationId)))
-        .write(
-          ConversationsTableCompanion(
-            title: drift.Value(title),
-            updatedAt: drift.Value(now),
-          ),
-        );
+    await (_database.update(
+      _database.conversationsTable,
+    )..where((tbl) => tbl.id.equals(conversationId))).write(
+      ConversationsTableCompanion(
+        title: drift.Value(title),
+        updatedAt: drift.Value(now),
+      ),
+    );
   }
 
   Future<void> updateConversationPreview({
@@ -348,15 +361,34 @@ class ConversationsRepository {
     required int messageTimestamp,
   }) async {
     final now = DateTime.now().millisecondsSinceEpoch;
-    await (_database.update(_database.conversationsTable)
-          ..where((tbl) => tbl.id.equals(conversationId)))
-        .write(
-          ConversationsTableCompanion(
-            lastMessagePreview: drift.Value(preview),
-            lastMessageAt: drift.Value(messageTimestamp),
-            updatedAt: drift.Value(now),
-          ),
-        );
+    await (_database.update(
+      _database.conversationsTable,
+    )..where((tbl) => tbl.id.equals(conversationId))).write(
+      ConversationsTableCompanion(
+        lastMessagePreview: drift.Value(preview),
+        lastMessageAt: drift.Value(messageTimestamp),
+        updatedAt: drift.Value(now),
+      ),
+    );
+  }
+
+  Future<void> pinMessage({
+    required String conversationId,
+    required String messageId,
+  }) async {
+    await (_database.update(
+      _database.conversationsTable,
+    )..where((tbl) => tbl.id.equals(conversationId))).write(
+      ConversationsTableCompanion(pinnedMessageId: drift.Value(messageId)),
+    );
+  }
+
+  Future<void> clearPinnedMessage(String conversationId) async {
+    await (_database.update(
+      _database.conversationsTable,
+    )..where((tbl) => tbl.id.equals(conversationId))).write(
+      const ConversationsTableCompanion(pinnedMessageId: drift.Value(null)),
+    );
   }
 
   Future<void> incrementUnreadCount(String conversationId) async {
@@ -364,39 +396,39 @@ class ConversationsRepository {
     if (conversation == null) return;
 
     final now = DateTime.now().millisecondsSinceEpoch;
-    await (_database.update(_database.conversationsTable)
-          ..where((tbl) => tbl.id.equals(conversationId)))
-        .write(
-          ConversationsTableCompanion(
-            unreadCount: drift.Value(conversation.unreadCount + 1),
-            updatedAt: drift.Value(now),
-          ),
-        );
+    await (_database.update(
+      _database.conversationsTable,
+    )..where((tbl) => tbl.id.equals(conversationId))).write(
+      ConversationsTableCompanion(
+        unreadCount: drift.Value(conversation.unreadCount + 1),
+        updatedAt: drift.Value(now),
+      ),
+    );
   }
 
   Future<void> markConversationRead(String conversationId) async {
     final now = DateTime.now().millisecondsSinceEpoch;
-    await (_database.update(_database.conversationsTable)
-          ..where((tbl) => tbl.id.equals(conversationId)))
-        .write(
-          ConversationsTableCompanion(
-            unreadCount: const drift.Value(0),
-            updatedAt: drift.Value(now),
-          ),
-        );
+    await (_database.update(
+      _database.conversationsTable,
+    )..where((tbl) => tbl.id.equals(conversationId))).write(
+      ConversationsTableCompanion(
+        unreadCount: const drift.Value(0),
+        updatedAt: drift.Value(now),
+      ),
+    );
   }
 
   Future<PeerRow?> getDirectPeerForConversation({
     required String conversationId,
     required String localPeerId,
   }) async {
-    final member = await (_database.select(_database.conversationMembersTable)
-          ..where(
-            (tbl) =>
-                tbl.conversationId.equals(conversationId) &
-                tbl.peerId.isNotValue(localPeerId),
-          ))
-        .getSingleOrNull();
+    final member =
+        await (_database.select(_database.conversationMembersTable)..where(
+              (tbl) =>
+                  tbl.conversationId.equals(conversationId) &
+                  tbl.peerId.isNotValue(localPeerId),
+            ))
+            .getSingleOrNull();
 
     if (member == null) return null;
 
@@ -427,26 +459,28 @@ class ConversationsRepository {
     );
 
     if (existing == null) {
-      await _database.into(_database.conversationMembersTable).insert(
-        ConversationMembersTableCompanion.insert(
-          id: _uuid.v4(),
-          conversationId: conversationId,
-          peerId: peerId,
-          role: role,
-          joinedAt: joinedAt,
-        ),
-      );
+      await _database
+          .into(_database.conversationMembersTable)
+          .insert(
+            ConversationMembersTableCompanion.insert(
+              id: _uuid.v4(),
+              conversationId: conversationId,
+              peerId: peerId,
+              role: role,
+              joinedAt: joinedAt,
+            ),
+          );
       return;
     }
 
-    await (_database.update(_database.conversationMembersTable)
-          ..where((tbl) => tbl.id.equals(existing.id)))
-        .write(
-          ConversationMembersTableCompanion(
-            role: drift.Value(role),
-            joinedAt: drift.Value(joinedAt),
-          ),
-        );
+    await (_database.update(
+      _database.conversationMembersTable,
+    )..where((tbl) => tbl.id.equals(existing.id))).write(
+      ConversationMembersTableCompanion(
+        role: drift.Value(role),
+        joinedAt: drift.Value(joinedAt),
+      ),
+    );
   }
 }
 

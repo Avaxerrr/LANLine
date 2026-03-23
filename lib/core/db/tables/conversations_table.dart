@@ -5,6 +5,8 @@ class ConversationsTable extends Table {
   TextColumn get id => text()();
   TextColumn get type => text()();
   TextColumn get title => text().nullable()();
+  TextColumn get pinnedMessageId =>
+      text().named('pinned_message_id').nullable()();
   TextColumn get lastMessagePreview =>
       text().named('last_message_preview').nullable()();
   IntColumn get lastMessageAt =>
