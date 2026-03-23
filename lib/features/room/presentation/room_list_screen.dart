@@ -30,6 +30,7 @@ class RoomListScreen extends ConsumerWidget {
       roomName: room.name,
       e2eeEnabled: room.e2eeEnabled,
       port: room.port,
+      bindAddress: room.bindAddress,
     );
 
     if (context.mounted) {

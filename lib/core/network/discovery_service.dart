@@ -106,8 +106,10 @@ class DiscoveryService {
     required String roomName,
     required bool e2eeEnabled,
     int port = 55556,
+    String? bindAddress,
   }) async {
-    final ip = await getLocalIpAddress();
+    // Use the explicit bind address if set, otherwise auto-detect
+    final ip = bindAddress ?? await getLocalIpAddress();
     _broadcastSocket ??= await RawDatagramSocket.bind(InternetAddress.anyIPv4, 0);
     _broadcastSocket?.broadcastEnabled = true;
 

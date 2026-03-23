@@ -235,14 +235,7 @@ void main() {
         final tempFile = File('${tempDir.path}/doc.pdf');
         await tempFile.writeAsString('pdf content');
 
-        // Register the pending offer in state
         final notifier = container.read(fileTransferNotifierProvider.notifier);
-        // Simulate having sent an offer by directly setting state
-        final currentState = container.read(fileTransferNotifierProvider);
-        // We need to add to pendingFileOffers — do this by using sendFile or direct state manipulation
-        // Since we can't easily call sendFile for a large file, let's test through state:
-        // Actually, the notifier updates state.pendingFileOffers in sendFile.
-        // For test purposes, let's just verify the accept_file handling works.
 
         when(() => fileTransfer.splitFileIntoChunks(any(), any(), offerId: any(named: 'offerId')))
             .thenAnswer((_) async => ['{"type":"file_chunk","data":"abc"}']);
