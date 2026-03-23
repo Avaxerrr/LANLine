@@ -4,14 +4,15 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:window_manager/window_manager.dart';
+import 'app/app_shell.dart';
+import 'core/db/app_database.dart';
+import 'core/identity/identity_service.dart';
+import 'core/providers/app_metadata_provider.dart';
+import 'core/providers/v2_database_provider.dart';
+import 'core/repositories/identity_repository.dart';
 import 'core/theme/app_theme.dart';
 import 'core/providers/username_provider.dart';
 import 'core/services/notification_service.dart';
-import 'features/room/presentation/room_list_screen.dart';
-import 'features/connection/presentation/client_scanner_screen.dart';
-import 'features/downloads/presentation/download_history_screen.dart';
-
-final appVersionProvider = Provider<String>((ref) => '');
 
 class WindowSaver with WindowListener {
   final SharedPreferences prefs;
@@ -69,11 +70,17 @@ void main() async {
   }
 
   final packageInfo = await PackageInfo.fromPlatform();
+  final database = AppDatabase();
+  await IdentityService(
+    repository: IdentityRepository(database),
+    prefs: prefs,
+  ).bootstrap();
 
   runApp(
     ProviderScope(
       overrides: [
         sharedPreferencesProvider.overrideWithValue(prefs),
+        appDatabaseProvider.overrideWithValue(database),
         appVersionProvider.overrideWithValue(packageInfo.version),
       ],
       child: const LANLineApp(),
@@ -91,227 +98,8 @@ class LANLineApp extends StatelessWidget {
       theme: AppTheme.lightTheme,
       darkTheme: AppTheme.darkTheme,
       themeMode: ThemeMode.dark, // Enforcing dark mode for a sleeker look
-      home: const MainMenuScreen(),
+      home: const AppShell(),
       debugShowCheckedModeBanner: false,
-    );
-  }
-}
-
-class MainMenuScreen extends ConsumerStatefulWidget {
-  const MainMenuScreen({super.key});
-
-  @override
-  ConsumerState<MainMenuScreen> createState() => _MainMenuScreenState();
-}
-
-class _MainMenuScreenState extends ConsumerState<MainMenuScreen> {
-  final TextEditingController _nameController = TextEditingController();
-
-  void _saveName() {
-    final name = _nameController.text.trim();
-    if (name.isNotEmpty) {
-      ref.read(usernameProvider.notifier).setName(name);
-    }
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final currentName = ref.watch(usernameProvider);
-    final version = ref.watch(appVersionProvider);
-
-    return Scaffold(
-      backgroundColor: const Color(0xFF121212),
-      appBar: AppBar(
-        title: Row(
-          children: [
-            const Text(
-              'LANLine ',
-              style: TextStyle(fontWeight: FontWeight.w800, letterSpacing: 1.2),
-            ),
-            Text('v$version', style: const TextStyle(fontSize: 12, color: Colors.grey)),
-          ],
-        ),
-        elevation: 0,
-        backgroundColor: Colors.transparent,
-      ),
-      body: currentName.isEmpty
-          ? Center(child: _buildNamePrompt())
-          : Align(
-              alignment: Alignment.topCenter,
-              child: _buildActionMenu(currentName),
-            ),
-    );
-  }
-
-  Widget _buildNamePrompt() {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 40.0),
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Container(
-            padding: const EdgeInsets.all(20),
-            decoration: BoxDecoration(
-              color: Colors.blueAccent.withValues(alpha: 0.1),
-              shape: BoxShape.circle,
-            ),
-            child: const Icon(
-              Icons.person_pin,
-              size: 80,
-              color: Colors.blueAccent,
-            ),
-          ),
-          const SizedBox(height: 32),
-          const Text(
-            'Who are you?',
-            style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
-          ),
-          const SizedBox(height: 8),
-          const Text(
-            'Choose a display name for the local network.',
-            textAlign: TextAlign.center,
-            style: TextStyle(color: Colors.grey),
-          ),
-          const SizedBox(height: 32),
-          TextField(
-            controller: _nameController,
-            style: const TextStyle(fontSize: 18),
-            decoration: InputDecoration(
-              hintText: 'e.g. Maverick',
-              contentPadding: const EdgeInsets.symmetric(
-                horizontal: 24,
-                vertical: 20,
-              ),
-              border: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(30),
-              ),
-              focusedBorder: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(30),
-                borderSide: const BorderSide(
-                  color: Colors.blueAccent,
-                  width: 2,
-                ),
-              ),
-            ),
-            onSubmitted: (_) => _saveName(),
-          ),
-          const SizedBox(height: 24),
-          SizedBox(
-            width: double.infinity,
-            height: 55,
-            child: ElevatedButton(
-              style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.blueAccent,
-                foregroundColor: Colors.white,
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(30),
-                ),
-              ),
-              onPressed: _saveName,
-              child: const Text(
-                'Continue',
-                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildActionMenu(String name) {
-    return Padding(
-      padding: const EdgeInsets.only(top: 120),
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.start,
-        children: [
-          CircleAvatar(
-            radius: 40,
-            backgroundColor: Colors.blueAccent,
-            child: Text(
-              name[0].toUpperCase(),
-              style: const TextStyle(
-                fontSize: 32,
-                fontWeight: FontWeight.bold,
-                color: Colors.white,
-              ),
-            ),
-          ),
-          const SizedBox(height: 16),
-          Text(
-            'Welcome, $name!',
-            style: const TextStyle(fontSize: 28, fontWeight: FontWeight.w800),
-          ),
-          const SizedBox(height: 48),
-          _buildMenuButton(
-            icon: Icons.hub_rounded,
-            label: 'My Rooms',
-            color: Colors.blueAccent,
-            onTap: () => Navigator.push(
-              context,
-              MaterialPageRoute(builder: (_) => const RoomListScreen()),
-            ),
-          ),
-          const SizedBox(height: 20),
-          _buildMenuButton(
-            icon: Icons.login_rounded,
-            label: 'Join Room',
-            color: Colors.tealAccent.shade400,
-            onTap: () => Navigator.push(
-              context,
-              MaterialPageRoute(builder: (_) => const ClientScannerScreen()),
-            ),
-          ),
-          const SizedBox(height: 20),
-          _buildMenuButton(
-            icon: Icons.download_rounded,
-            label: 'Downloads',
-            color: Colors.deepPurpleAccent,
-            onTap: () => Navigator.push(
-              context,
-              MaterialPageRoute(builder: (_) => const DownloadHistoryScreen()),
-            ),
-          ),
-          const SizedBox(height: 18),
-          TextButton.icon(
-            icon: const Icon(Icons.edit, size: 16, color: Colors.grey),
-            label: const Text(
-              'Change Name',
-              style: TextStyle(color: Colors.grey),
-            ),
-            onPressed: () => ref.read(usernameProvider.notifier).setName(''),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildMenuButton({
-    required IconData icon,
-    required String label,
-    required Color color,
-    required VoidCallback onTap,
-  }) {
-    return SizedBox(
-      width: 280,
-      height: 65,
-      child: ElevatedButton.icon(
-        icon: Icon(icon, size: 28),
-        label: Text(
-          label,
-          style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-        ),
-        style: ElevatedButton.styleFrom(
-          backgroundColor: color,
-          foregroundColor: Colors.white,
-          elevation: 8,
-          shadowColor: color.withValues(alpha: 0.5),
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(16),
-          ),
-        ),
-        onPressed: onTap,
-      ),
     );
   }
 }

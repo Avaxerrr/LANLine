@@ -1,12 +1,28 @@
+import 'package:characters/characters.dart';
 import 'package:path/path.dart' as p;
 
-/// Regex to detect emoji-only messages (1-3 emojis, no other text)
-final _emojiOnlyRegex = RegExp(
-  r'^(\p{Emoji_Presentation}|\p{Emoji}\uFE0F|[\u200D\uFE0F]){1,3}$',
-  unicode: true,
-);
+bool isEmojiOnly(String text) {
+  final trimmed = text.trim();
+  if (trimmed.isEmpty) return false;
 
-bool isEmojiOnly(String text) => _emojiOnlyRegex.hasMatch(text.trim());
+  final clusters = trimmed.characters.toList();
+  if (clusters.length > 3) return false;
+
+  return clusters.every(_looksLikeEmojiCluster);
+}
+
+bool _looksLikeEmojiCluster(String cluster) {
+  final containsEmojiRune = cluster.runes.any(_isEmojiRune);
+  final containsAsciiWordChar = cluster.contains(RegExp(r'[A-Za-z0-9]'));
+  return containsEmojiRune && !containsAsciiWordChar;
+}
+
+bool _isEmojiRune(int rune) {
+  return (rune >= 0x1F300 && rune <= 0x1FAFF) ||
+      (rune >= 0x2600 && rune <= 0x27BF) ||
+      rune == 0x200D ||
+      rune == 0xFE0F;
+}
 
 const imageExtensions = {'.jpg', '.jpeg', '.png', '.gif', '.webp', '.bmp'};
 
@@ -20,7 +36,9 @@ bool isImageFile(String? path) {
 String formatFileSize(int bytes) {
   if (bytes < 1024) return '$bytes B';
   if (bytes < 1024 * 1024) return '${(bytes / 1024).toStringAsFixed(1)} KB';
-  if (bytes < 1024 * 1024 * 1024) return '${(bytes / (1024 * 1024)).toStringAsFixed(1)} MB';
+  if (bytes < 1024 * 1024 * 1024) {
+    return '${(bytes / (1024 * 1024)).toStringAsFixed(1)} MB';
+  }
   return '${(bytes / (1024 * 1024 * 1024)).toStringAsFixed(1)} GB';
 }
 
