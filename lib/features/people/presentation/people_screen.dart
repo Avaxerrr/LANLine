@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../core/db/app_database.dart';
 import '../../../core/providers/v2_data_providers.dart';
 import '../../conversation/presentation/direct_conversation_screen.dart';
 
@@ -35,9 +36,9 @@ class PeopleScreen extends ConsumerWidget {
       children: [
         const _SectionHeader(
           title: 'Contacts',
-          subtitle: 'Only approved contacts appear here.',
+          subtitle: 'Your approved contacts live here.',
         ),
-        const SizedBox(height: 12),
+        const SizedBox(height: 16),
         contactsAsync.when(
           data: (contacts) => contacts.isEmpty
               ? const _SectionPlaceholder(
@@ -47,21 +48,21 @@ class PeopleScreen extends ConsumerWidget {
               : Column(
                   children: [
                     for (final peer in contacts)
-                      _PeerCard(
-                        title: peer.displayName,
-                        subtitle:
-                            peer.deviceLabel ??
-                            peer.fingerprint ??
-                            'Accepted contact',
-                        statusLabel: peer.relationshipState,
-                        accent: Colors.greenAccent,
-                        icon: Icons.verified_user_outlined,
-                        actions: [
-                          _ActionButton(
-                            label: 'Chat',
-                            icon: Icons.chat_bubble_outline,
-                            foreground: Colors.blueAccent,
-                            onPressed: () {
+                      _ContactCard(
+                        peer: peer,
+                        onTap: () {
+                          unawaited(
+                            _openConversation(
+                              context,
+                              conversationActions: conversationActions,
+                              peerId: peer.peerId,
+                              title: peer.displayName,
+                            ),
+                          );
+                        },
+                        onSelected: (action) {
+                          switch (action) {
+                            case _ContactMenuAction.chat:
                               unawaited(
                                 _openConversation(
                                   context,
@@ -70,13 +71,8 @@ class PeopleScreen extends ConsumerWidget {
                                   title: peer.displayName,
                                 ),
                               );
-                            },
-                          ),
-                          _ActionButton(
-                            label: 'Block',
-                            icon: Icons.block_outlined,
-                            foreground: Colors.redAccent,
-                            onPressed: () {
+                              break;
+                            case _ContactMenuAction.block:
                               unawaited(
                                 runPeerAction(
                                   'Blocked ${peer.displayName}',
@@ -85,9 +81,9 @@ class PeopleScreen extends ConsumerWidget {
                                   ),
                                 ),
                               );
-                            },
-                          ),
-                        ],
+                              break;
+                          }
+                        },
                       ),
                   ],
                 ),
@@ -186,125 +182,131 @@ class _SectionLoading extends StatelessWidget {
   }
 }
 
-class _PeerCard extends StatelessWidget {
-  final String title;
-  final String subtitle;
-  final String statusLabel;
-  final Color accent;
-  final IconData icon;
-  final List<Widget> actions;
+enum _ContactMenuAction { chat, block }
 
-  const _PeerCard({
-    required this.title,
-    required this.subtitle,
-    required this.statusLabel,
-    required this.accent,
-    required this.icon,
-    required this.actions,
+class _ContactCard extends StatelessWidget {
+  final PeerRow peer;
+  final VoidCallback onTap;
+  final ValueChanged<_ContactMenuAction> onSelected;
+
+  const _ContactCard({
+    required this.peer,
+    required this.onTap,
+    required this.onSelected,
   });
 
   @override
   Widget build(BuildContext context) {
+    final accent = Colors.greenAccent;
+    final subtitleParts = <String>[
+      if (peer.deviceLabel != null && peer.deviceLabel!.trim().isNotEmpty)
+        peer.deviceLabel!.trim(),
+      if (peer.fingerprint != null && peer.fingerprint!.trim().isNotEmpty)
+        peer.fingerprint!.trim(),
+    ];
+
+    final subtitle = subtitleParts.isEmpty
+        ? 'Tap to open chat'
+        : subtitleParts.join('  •  ');
+
     return Card(
       color: const Color(0xFF1B1B1B),
       margin: const EdgeInsets.only(bottom: 12),
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                CircleAvatar(
-                  backgroundColor: accent.withValues(alpha: 0.16),
-                  child: Icon(icon, color: accent),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(18),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+          child: ListTile(
+            leading: CircleAvatar(
+              radius: 24,
+              backgroundColor: accent.withValues(alpha: 0.16),
+              child: Text(
+                _initialsFor(peer.displayName),
+                style: TextStyle(
+                  color: accent,
+                  fontWeight: FontWeight.w800,
                 ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        title,
-                        style: const TextStyle(fontWeight: FontWeight.w700),
-                      ),
-                      const SizedBox(height: 4),
-                      Text(
-                        subtitle,
-                        style: const TextStyle(color: Colors.grey),
-                      ),
-                    ],
+              ),
+            ),
+            title: Text(
+              peer.displayName,
+              style: const TextStyle(fontWeight: FontWeight.w700),
+            ),
+            subtitle: Padding(
+              padding: const EdgeInsets.only(top: 4),
+              child: Text(
+                subtitle,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(color: Colors.grey),
+              ),
+            ),
+            trailing: PopupMenuButton<_ContactMenuAction>(
+              tooltip: 'Contact options',
+              icon: const Icon(Icons.more_horiz, color: Colors.grey),
+              color: const Color(0xFF252525),
+              onSelected: onSelected,
+              itemBuilder: (context) => const [
+                PopupMenuItem(
+                  value: _ContactMenuAction.chat,
+                  child: _ContactMenuRow(
+                    icon: Icons.chat_bubble_outline,
+                    label: 'Open chat',
                   ),
                 ),
-                _StatusChip(label: statusLabel, accent: accent),
+                PopupMenuItem(
+                  value: _ContactMenuAction.block,
+                  child: _ContactMenuRow(
+                    icon: Icons.block_outlined,
+                    label: 'Block contact',
+                    color: Colors.redAccent,
+                  ),
+                ),
               ],
             ),
-            if (actions.isNotEmpty) ...[
-              const SizedBox(height: 16),
-              Wrap(spacing: 10, runSpacing: 10, children: actions),
-            ],
-          ],
+          ),
         ),
       ),
     );
   }
-}
 
-class _StatusChip extends StatelessWidget {
-  final String label;
-  final Color accent;
-
-  const _StatusChip({required this.label, required this.accent});
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-      decoration: BoxDecoration(
-        color: accent.withValues(alpha: 0.12),
-        borderRadius: BorderRadius.circular(999),
-        border: Border.all(color: accent.withValues(alpha: 0.24)),
-      ),
-      child: Text(
-        label,
-        style: TextStyle(
-          color: accent,
-          fontSize: 12,
-          fontWeight: FontWeight.w700,
-        ),
-      ),
-    );
+  static String _initialsFor(String name) {
+    final parts = name
+        .trim()
+        .split(RegExp(r'\s+'))
+        .where((part) => part.isNotEmpty)
+        .toList();
+    if (parts.isEmpty) return '?';
+    if (parts.length == 1) {
+      return parts.first.characters.first.toUpperCase();
+    }
+    return '${parts.first.characters.first}${parts.last.characters.first}'
+        .toUpperCase();
   }
 }
 
-class _ActionButton extends StatelessWidget {
-  final String label;
+class _ContactMenuRow extends StatelessWidget {
   final IconData icon;
-  final Color foreground;
-  final VoidCallback onPressed;
+  final String label;
+  final Color? color;
 
-  const _ActionButton({
-    required this.label,
+  const _ContactMenuRow({
     required this.icon,
-    required this.foreground,
-    required this.onPressed,
+    required this.label,
+    this.color,
   });
 
   @override
   Widget build(BuildContext context) {
-    final child = Row(
-      mainAxisSize: MainAxisSize.min,
-      children: [Icon(icon, size: 18), const SizedBox(width: 8), Text(label)],
-    );
-
-    return FilledButton(
-      onPressed: onPressed,
-      style: FilledButton.styleFrom(
-        backgroundColor: foreground.withValues(alpha: 0.16),
-        foregroundColor: foreground,
-      ),
-      child: child,
+    final rowColor = color ?? Colors.white;
+    return Row(
+      children: [
+        Icon(icon, size: 18, color: rowColor),
+        const SizedBox(width: 10),
+        Text(label, style: TextStyle(color: rowColor)),
+      ],
     );
   }
 }

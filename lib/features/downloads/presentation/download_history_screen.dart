@@ -1,9 +1,11 @@
 import 'dart:io';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:open_filex/open_filex.dart';
 import 'package:path/path.dart' as p;
 import 'package:share_plus/share_plus.dart';
+
 import '../../../core/providers/download_history_provider.dart';
 
 class DownloadHistoryScreen extends ConsumerWidget {
@@ -12,7 +14,9 @@ class DownloadHistoryScreen extends ConsumerWidget {
   String _formatFileSize(int bytes) {
     if (bytes < 1024) return '$bytes B';
     if (bytes < 1024 * 1024) return '${(bytes / 1024).toStringAsFixed(1)} KB';
-    if (bytes < 1024 * 1024 * 1024) return '${(bytes / (1024 * 1024)).toStringAsFixed(1)} MB';
+    if (bytes < 1024 * 1024 * 1024) {
+      return '${(bytes / (1024 * 1024)).toStringAsFixed(1)} MB';
+    }
     return '${(bytes / (1024 * 1024 * 1024)).toStringAsFixed(1)} GB';
   }
 
@@ -29,39 +33,81 @@ class DownloadHistoryScreen extends ConsumerWidget {
   IconData _getFileIcon(String fileName) {
     final ext = p.extension(fileName).toLowerCase();
     switch (ext) {
-      case '.jpg': case '.jpeg': case '.png': case '.gif': case '.webp': case '.bmp':
-        return Icons.image;
-      case '.mp4': case '.mkv': case '.avi': case '.mov': case '.webm':
-        return Icons.video_file;
-      case '.mp3': case '.m4a': case '.wav': case '.flac': case '.ogg': case '.aac':
-        return Icons.audio_file;
+      case '.jpg':
+      case '.jpeg':
+      case '.png':
+      case '.gif':
+      case '.webp':
+      case '.bmp':
+        return Icons.image_outlined;
+      case '.mp4':
+      case '.mkv':
+      case '.avi':
+      case '.mov':
+      case '.webm':
+        return Icons.video_file_outlined;
+      case '.mp3':
+      case '.m4a':
+      case '.wav':
+      case '.flac':
+      case '.ogg':
+      case '.aac':
+        return Icons.audio_file_outlined;
       case '.pdf':
-        return Icons.picture_as_pdf;
-      case '.doc': case '.docx': case '.txt': case '.csv':
-        return Icons.description;
-      case '.zip': case '.rar': case '.7z': case '.tar': case '.gz':
-        return Icons.folder_zip;
+        return Icons.picture_as_pdf_outlined;
+      case '.doc':
+      case '.docx':
+      case '.txt':
+      case '.csv':
+        return Icons.description_outlined;
+      case '.zip':
+      case '.rar':
+      case '.7z':
+      case '.tar':
+      case '.gz':
+        return Icons.folder_zip_outlined;
       case '.apk':
-        return Icons.android;
+        return Icons.android_outlined;
       default:
-        return Icons.insert_drive_file;
+        return Icons.insert_drive_file_outlined;
     }
   }
 
   Color _getFileColor(String fileName) {
     final ext = p.extension(fileName).toLowerCase();
     switch (ext) {
-      case '.jpg': case '.jpeg': case '.png': case '.gif': case '.webp': case '.bmp':
+      case '.jpg':
+      case '.jpeg':
+      case '.png':
+      case '.gif':
+      case '.webp':
+      case '.bmp':
         return Colors.pinkAccent;
-      case '.mp4': case '.mkv': case '.avi': case '.mov': case '.webm':
+      case '.mp4':
+      case '.mkv':
+      case '.avi':
+      case '.mov':
+      case '.webm':
         return Colors.purpleAccent;
-      case '.mp3': case '.m4a': case '.wav': case '.flac': case '.ogg': case '.aac':
+      case '.mp3':
+      case '.m4a':
+      case '.wav':
+      case '.flac':
+      case '.ogg':
+      case '.aac':
         return Colors.orangeAccent;
       case '.pdf':
         return Colors.redAccent;
-      case '.doc': case '.docx': case '.txt': case '.csv':
+      case '.doc':
+      case '.docx':
+      case '.txt':
+      case '.csv':
         return Colors.blueAccent;
-      case '.zip': case '.rar': case '.7z': case '.tar': case '.gz':
+      case '.zip':
+      case '.rar':
+      case '.7z':
+      case '.tar':
+      case '.gz':
         return Colors.amber;
       default:
         return Colors.grey;
@@ -71,25 +117,40 @@ class DownloadHistoryScreen extends ConsumerWidget {
   void _openFile(String path) {
     final ext = p.extension(path).toLowerCase();
     const mimeMap = {
-      '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.png': 'image/png',
-      '.gif': 'image/gif', '.webp': 'image/webp', '.bmp': 'image/bmp',
-      '.mp4': 'video/mp4', '.mkv': 'video/x-matroska', '.avi': 'video/x-msvideo',
-      '.mov': 'video/quicktime', '.webm': 'video/webm',
-      '.mp3': 'audio/mpeg', '.m4a': 'audio/mp4', '.wav': 'audio/wav',
-      '.ogg': 'audio/ogg', '.flac': 'audio/flac', '.aac': 'audio/aac',
-      '.pdf': 'application/pdf', '.doc': 'application/msword',
-      '.txt': 'text/plain', '.csv': 'text/csv', '.json': 'application/json',
-      '.zip': 'application/zip', '.apk': 'application/vnd.android.package-archive',
+      '.jpg': 'image/jpeg',
+      '.jpeg': 'image/jpeg',
+      '.png': 'image/png',
+      '.gif': 'image/gif',
+      '.webp': 'image/webp',
+      '.bmp': 'image/bmp',
+      '.mp4': 'video/mp4',
+      '.mkv': 'video/x-matroska',
+      '.avi': 'video/x-msvideo',
+      '.mov': 'video/quicktime',
+      '.webm': 'video/webm',
+      '.mp3': 'audio/mpeg',
+      '.m4a': 'audio/mp4',
+      '.wav': 'audio/wav',
+      '.ogg': 'audio/ogg',
+      '.flac': 'audio/flac',
+      '.aac': 'audio/aac',
+      '.pdf': 'application/pdf',
+      '.doc': 'application/msword',
+      '.txt': 'text/plain',
+      '.csv': 'text/csv',
+      '.json': 'application/json',
+      '.zip': 'application/zip',
+      '.apk': 'application/vnd.android.package-archive',
     };
     OpenFilex.open(path, type: mimeMap[ext]);
   }
 
-  void _shareFile(String path) async {
+  Future<void> _shareFile(String path) async {
     final file = XFile(path);
     await SharePlus.instance.share(ShareParams(files: [file]));
   }
 
-  void _openFolder(String path) async {
+  Future<void> _openFolder(String path) async {
     final dir = p.dirname(path);
     if (Platform.isWindows) {
       await Process.run('explorer', [dir]);
@@ -105,166 +166,357 @@ class DownloadHistoryScreen extends ConsumerWidget {
     final history = ref.watch(downloadHistoryProvider);
 
     return Scaffold(
-      backgroundColor: const Color(0xFF1E1E1E),
+      backgroundColor: const Color(0xFF141414),
       appBar: AppBar(
-        title: Row(
-          children: [
-            const Text('Downloads', style: TextStyle(fontWeight: FontWeight.bold)),
-            const SizedBox(width: 8),
-            if (history.isNotEmpty)
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                decoration: BoxDecoration(
-                  color: Colors.blueAccent.withValues(alpha: 0.2),
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: Text('${history.length}', style: const TextStyle(fontSize: 12, color: Colors.blueAccent)),
-              ),
-          ],
+        title: const Text(
+          'Downloads',
+          style: TextStyle(fontWeight: FontWeight.w800),
         ),
-        backgroundColor: const Color(0xFF252525),
-        elevation: 4,
+        backgroundColor: const Color(0xFF141414),
+        elevation: 0,
         actions: [
           if (history.isNotEmpty)
-            PopupMenuButton<String>(
-              icon: const Icon(Icons.more_vert, color: Colors.white70),
-              color: const Color(0xFF333333),
-              onSelected: (value) {
-                if (value == 'clear_all') {
-                  showDialog(
-                    context: context,
-                    builder: (ctx) => AlertDialog(
-                      backgroundColor: const Color(0xFF333333),
-                      title: const Text('Clear All Downloads?', style: TextStyle(color: Colors.white)),
-                      content: const Text(
-                        'This will delete all downloaded files and clear the history.',
-                        style: TextStyle(color: Colors.grey),
-                      ),
-                      actions: [
-                        TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancel')),
-                        TextButton(
-                          onPressed: () {
-                            ref.read(downloadHistoryProvider.notifier).clearAll();
-                            Navigator.pop(ctx);
-                          },
-                          child: const Text('Delete All', style: TextStyle(color: Colors.redAccent)),
-                        ),
-                      ],
-                    ),
-                  );
-                }
-              },
-              itemBuilder: (_) => [
-                const PopupMenuItem(value: 'clear_all', child: Text('Clear All', style: TextStyle(color: Colors.redAccent))),
+            IconButton(
+              tooltip: 'Clear all',
+              onPressed: () => _showClearAllDialog(context, ref),
+              icon: const Icon(Icons.delete_sweep_outlined),
+            ),
+        ],
+      ),
+      body: ListView(
+        padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
+        children: [
+          _SummaryCard(historyCount: history.length),
+          const SizedBox(height: 18),
+          if (history.isEmpty)
+            _EmptyDownloadsCard(platformMessage: _emptyPlatformMessage())
+          else
+            Column(
+              children: [
+                for (var index = 0; index < history.length; index++)
+                  _DownloadHistoryItem(
+                    record: history[index],
+                    fileSizeLabel: _formatFileSize(history[index].fileSize),
+                    timeLabel: _formatDate(history[index].downloadedAt),
+                    icon: _getFileIcon(history[index].fileName),
+                    accent: _getFileColor(history[index].fileName),
+                    onOpen: history[index].fileExists
+                        ? () => _openFile(history[index].filePath)
+                        : null,
+                    onShareOrReveal: history[index].fileExists
+                        ? () => Platform.isAndroid
+                              ? _shareFile(history[index].filePath)
+                              : _openFolder(history[index].filePath)
+                        : null,
+                    onDelete: () => ref
+                        .read(downloadHistoryProvider.notifier)
+                        .deleteRecord(index),
+                  ),
               ],
             ),
         ],
       ),
-      body: history.isEmpty
-          ? Center(
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Icon(Icons.download_done, size: 64, color: Colors.grey.shade700),
-                  const SizedBox(height: 16),
-                  const Text('No downloads yet', style: TextStyle(color: Colors.grey, fontSize: 16)),
-                  const SizedBox(height: 8),
-                  Text(
-                    Platform.isAndroid
-                        ? 'Files you receive will be saved to Downloads/LANLine'
-                        : 'Files you receive in chat will appear here',
-                    style: const TextStyle(color: Colors.grey, fontSize: 13),
-                    textAlign: TextAlign.center,
+    );
+  }
+
+  String _emptyPlatformMessage() {
+    if (Platform.isAndroid) {
+      return 'Files you receive will be saved to Downloads/LANLine.';
+    }
+    return 'Files you receive in chat will appear here.';
+  }
+
+  Future<void> _showClearAllDialog(
+    BuildContext context,
+    WidgetRef ref,
+  ) async {
+    await showDialog<void>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: const Color(0xFF252525),
+        title: const Text(
+          'Clear all downloads?',
+          style: TextStyle(color: Colors.white),
+        ),
+        content: const Text(
+          'This removes downloaded files from the device and clears the history list.',
+          style: TextStyle(color: Colors.grey),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () {
+              ref.read(downloadHistoryProvider.notifier).clearAll();
+              Navigator.pop(ctx);
+            },
+            child: const Text(
+              'Delete all',
+              style: TextStyle(color: Colors.redAccent),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _SummaryCard extends StatelessWidget {
+  final int historyCount;
+
+  const _SummaryCard({required this.historyCount});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: const Color(0xFF1B1B1B),
+        borderRadius: BorderRadius.circular(22),
+      ),
+      child: Row(
+        children: [
+          Container(
+            width: 52,
+            height: 52,
+            decoration: BoxDecoration(
+              color: Colors.blueAccent.withValues(alpha: 0.16),
+              borderRadius: BorderRadius.circular(16),
+            ),
+            child: const Icon(
+              Icons.download_done_outlined,
+              color: Colors.blueAccent,
+            ),
+          ),
+          const SizedBox(width: 14),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  'Download history',
+                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.w800),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  historyCount == 0
+                      ? 'No files received yet'
+                      : '$historyCount saved file${historyCount == 1 ? '' : 's'}',
+                  style: const TextStyle(color: Colors.grey),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _EmptyDownloadsCard extends StatelessWidget {
+  final String platformMessage;
+
+  const _EmptyDownloadsCard({required this.platformMessage});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(24),
+      decoration: BoxDecoration(
+        color: const Color(0xFF1B1B1B),
+        borderRadius: BorderRadius.circular(22),
+      ),
+      child: Column(
+        children: [
+          Icon(Icons.file_download_done_outlined, size: 52, color: Colors.grey.shade700),
+          const SizedBox(height: 14),
+          const Text(
+            'No downloads yet',
+            style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            platformMessage,
+            textAlign: TextAlign.center,
+            style: const TextStyle(color: Colors.grey),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _DownloadHistoryItem extends StatelessWidget {
+  final DownloadRecord record;
+  final String fileSizeLabel;
+  final String timeLabel;
+  final IconData icon;
+  final Color accent;
+  final VoidCallback? onOpen;
+  final VoidCallback? onShareOrReveal;
+  final VoidCallback onDelete;
+
+  const _DownloadHistoryItem({
+    required this.record,
+    required this.fileSizeLabel,
+    required this.timeLabel,
+    required this.icon,
+    required this.accent,
+    required this.onOpen,
+    required this.onShareOrReveal,
+    required this.onDelete,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final exists = record.fileExists;
+    final conversationLabel = record.roomName.trim().isEmpty
+        ? 'Conversation'
+        : record.roomName.trim();
+
+    return Dismissible(
+      key: Key('${record.filePath}-${record.downloadedAt.toIso8601String()}'),
+      direction: DismissDirection.endToStart,
+      background: Container(
+        margin: const EdgeInsets.only(bottom: 12),
+        padding: const EdgeInsets.symmetric(horizontal: 20),
+        alignment: Alignment.centerRight,
+        decoration: BoxDecoration(
+          color: Colors.redAccent,
+          borderRadius: BorderRadius.circular(20),
+        ),
+        child: const Icon(Icons.delete_outline, color: Colors.white),
+      ),
+      onDismissed: (_) => onDelete(),
+      child: Container(
+        margin: const EdgeInsets.only(bottom: 12),
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: const Color(0xFF1B1B1B),
+          borderRadius: BorderRadius.circular(20),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Container(
+                  width: 48,
+                  height: 48,
+                  decoration: BoxDecoration(
+                    color: accent.withValues(alpha: 0.14),
+                    borderRadius: BorderRadius.circular(14),
+                  ),
+                  child: Icon(icon, color: accent),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        record.fileName,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          color: exists ? Colors.white : Colors.grey,
+                          fontWeight: FontWeight.w700,
+                          fontSize: 15,
+                          decoration: exists ? null : TextDecoration.lineThrough,
+                        ),
+                      ),
+                      const SizedBox(height: 6),
+                      Wrap(
+                        spacing: 8,
+                        runSpacing: 8,
+                        children: [
+                          _MetaPill(
+                            icon: Icons.sd_storage_outlined,
+                            label: fileSizeLabel,
+                          ),
+                          _MetaPill(
+                            icon: Icons.person_outline,
+                            label: record.senderName,
+                          ),
+                          _MetaPill(
+                            icon: Icons.chat_bubble_outline,
+                            label: conversationLabel,
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 14),
+            Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    exists ? timeLabel : 'File missing from disk',
+                    style: TextStyle(
+                      color: exists ? Colors.grey : Colors.redAccent,
+                    ),
+                  ),
+                ),
+                if (exists) ...[
+                  IconButton(
+                    tooltip: 'Open',
+                    onPressed: onOpen,
+                    icon: const Icon(Icons.open_in_new, color: Colors.blueAccent),
+                  ),
+                  IconButton(
+                    tooltip: Platform.isAndroid ? 'Share' : 'Open folder',
+                    onPressed: onShareOrReveal,
+                    icon: Icon(
+                      Platform.isAndroid ? Icons.share_outlined : Icons.folder_open,
+                      color: Colors.orangeAccent,
+                    ),
                   ),
                 ],
-              ),
-            )
-          : ListView.builder(
-              padding: const EdgeInsets.only(top: 8, bottom: 24),
-              itemCount: history.length,
-              itemBuilder: (context, index) {
-                final record = history[index];
-                final exists = record.fileExists;
-
-                return Dismissible(
-                  key: Key(record.filePath + record.downloadedAt.toIso8601String()),
-                  direction: DismissDirection.endToStart,
-                  background: Container(
-                    color: Colors.redAccent,
-                    alignment: Alignment.centerRight,
-                    padding: const EdgeInsets.only(right: 20),
-                    child: const Icon(Icons.delete, color: Colors.white),
-                  ),
-                  onDismissed: (_) {
-                    ref.read(downloadHistoryProvider.notifier).deleteRecord(index);
-                  },
-                  child: ListTile(
-                    contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-                    leading: Container(
-                      width: 44,
-                      height: 44,
-                      decoration: BoxDecoration(
-                        color: _getFileColor(record.fileName).withValues(alpha: 0.15),
-                        borderRadius: BorderRadius.circular(10),
-                      ),
-                      child: Icon(
-                        _getFileIcon(record.fileName),
-                        color: _getFileColor(record.fileName),
-                        size: 22,
-                      ),
-                    ),
-                    title: Text(
-                      record.fileName,
-                      style: TextStyle(
-                        color: exists ? Colors.white : Colors.grey,
-                        fontWeight: FontWeight.w600,
-                        fontSize: 14,
-                        decoration: exists ? null : TextDecoration.lineThrough,
-                      ),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                    subtitle: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          '${_formatFileSize(record.fileSize)} • From ${record.senderName}',
-                          style: const TextStyle(color: Colors.grey, fontSize: 12),
-                        ),
-                        Text(
-                          '${record.roomName} • ${_formatDate(record.downloadedAt)}',
-                          style: TextStyle(color: Colors.grey.shade600, fontSize: 11),
-                        ),
-                      ],
-                    ),
-                    trailing: exists
-                        ? Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              IconButton(
-                                icon: const Icon(Icons.open_in_new, color: Colors.blueAccent, size: 20),
-                                tooltip: 'Open',
-                                onPressed: () => _openFile(record.filePath),
-                              ),
-                              if (Platform.isAndroid)
-                                IconButton(
-                                  icon: const Icon(Icons.share, color: Colors.orangeAccent, size: 20),
-                                  tooltip: 'Share',
-                                  onPressed: () => _shareFile(record.filePath),
-                                )
-                              else
-                                IconButton(
-                                  icon: const Icon(Icons.folder_open, color: Colors.orangeAccent, size: 20),
-                                  tooltip: 'Open Folder',
-                                  onPressed: () => _openFolder(record.filePath),
-                                ),
-                            ],
-                          )
-                        : const Icon(Icons.error_outline, color: Colors.redAccent, size: 20),
-                  ),
-                );
-              },
+                IconButton(
+                  tooltip: 'Delete',
+                  onPressed: onDelete,
+                  icon: const Icon(Icons.delete_outline, color: Colors.redAccent),
+                ),
+              ],
             ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _MetaPill extends StatelessWidget {
+  final IconData icon;
+  final String label;
+
+  const _MetaPill({required this.icon, required this.label});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+      decoration: BoxDecoration(
+        color: Colors.white.withValues(alpha: 0.04),
+        borderRadius: BorderRadius.circular(999),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 14, color: Colors.grey),
+          const SizedBox(width: 6),
+          Text(
+            label,
+            style: const TextStyle(color: Colors.grey, fontSize: 12),
+          ),
+        ],
+      ),
     );
   }
 }

@@ -44,13 +44,15 @@ class PeersRepository {
   }
 
   Stream<List<PeerRow>> watchDiscoveredPeers() {
+    final reachablePeerIds = _database.selectOnly(_database.presenceTable)
+      ..addColumns([_database.presenceTable.peerId])
+      ..where(_database.presenceTable.isReachable.equals(true));
+
     return (_database.select(_database.peersTable)
           ..where(
-            (tbl) => tbl.relationshipState.isIn([
-              'discovered',
-              'pending_incoming',
-              'pending_outgoing',
-            ]),
+            (tbl) =>
+                tbl.relationshipState.equals('discovered') &
+                tbl.peerId.isInQuery(reachablePeerIds),
           )
           ..orderBy([(tbl) => drift.OrderingTerm.asc(tbl.displayName)]))
         .watch();

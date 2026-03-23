@@ -1,5 +1,8 @@
+import 'dart:convert';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:qr_flutter/qr_flutter.dart';
 
 import '../../../core/providers/app_metadata_provider.dart';
 import '../../../core/providers/username_provider.dart';
@@ -17,6 +20,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
   final TextEditingController _nameController = TextEditingController();
   final TextEditingController _deviceLabelController = TextEditingController();
   bool _initializedControllers = false;
+  bool _showQr = false;
 
   @override
   void dispose() {
@@ -60,15 +64,20 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
           _initializedControllers = true;
         }
 
+        final qrPayload = identity == null
+            ? null
+            : jsonEncode({
+                'protocol': 'lanline_v2_identity',
+                'peerId': identity.peerId,
+                'displayName': identity.displayName,
+                'deviceLabel': identity.deviceLabel,
+                'fingerprint': identity.fingerprint,
+              });
+
         return ListView(
           padding: const EdgeInsets.fromLTRB(16, 16, 16, 24),
           children: [
-            Container(
-              padding: const EdgeInsets.all(20),
-              decoration: BoxDecoration(
-                color: const Color(0xFF1B1B1B),
-                borderRadius: BorderRadius.circular(22),
-              ),
+            _SurfaceCard(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
@@ -94,7 +103,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                       prefixIcon: Icon(Icons.devices_outlined),
                     ),
                   ),
-                  const SizedBox(height: 16),
+                  const SizedBox(height: 18),
                   _InfoRow(
                     label: 'Fingerprint',
                     value: identity?.fingerprint ?? 'Unavailable',
@@ -113,28 +122,116 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                 ],
               ),
             ),
-            const SizedBox(height: 28),
-            Text(
-              'History',
-              style: Theme.of(
-                context,
-              ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w800),
+            const SizedBox(height: 18),
+            _SurfaceCard(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              'Share Profile',
+                              style: Theme.of(context).textTheme.titleMedium
+                                  ?.copyWith(fontWeight: FontWeight.w800),
+                            ),
+                            const SizedBox(height: 4),
+                            const Text(
+                              'Reveal your QR only when you need to share your LANLine identity.',
+                              style: TextStyle(color: Colors.grey),
+                            ),
+                          ],
+                        ),
+                      ),
+                      TextButton.icon(
+                        onPressed: identity == null
+                            ? null
+                            : () => setState(() => _showQr = !_showQr),
+                        icon: Icon(
+                          _showQr ? Icons.visibility_off : Icons.qr_code_2,
+                        ),
+                        label: Text(_showQr ? 'Hide QR' : 'Show QR'),
+                      ),
+                    ],
+                  ),
+                  AnimatedCrossFade(
+                    firstChild: const SizedBox.shrink(),
+                    secondChild: Padding(
+                      padding: const EdgeInsets.only(top: 18),
+                      child: qrPayload == null
+                          ? const _MutedMessage(
+                              text: 'Identity is unavailable right now.',
+                            )
+                          : Column(
+                              children: [
+                                Container(
+                                  padding: const EdgeInsets.all(16),
+                                  decoration: BoxDecoration(
+                                    color: Colors.white,
+                                    borderRadius: BorderRadius.circular(22),
+                                  ),
+                                  child: QrImageView(
+                                    data: qrPayload,
+                                    version: QrVersions.auto,
+                                    size: 210,
+                                    backgroundColor: Colors.white,
+                                  ),
+                                ),
+                                const SizedBox(height: 14),
+                                Text(
+                                  identity?.displayName ?? '',
+                                  style: const TextStyle(
+                                    fontWeight: FontWeight.w700,
+                                  ),
+                                ),
+                                const SizedBox(height: 4),
+                                Text(
+                                  identity?.fingerprint ?? '',
+                                  style: const TextStyle(color: Colors.grey),
+                                ),
+                              ],
+                            ),
+                    ),
+                    crossFadeState: _showQr
+                        ? CrossFadeState.showSecond
+                        : CrossFadeState.showFirst,
+                    duration: const Duration(milliseconds: 220),
+                  ),
+                ],
+              ),
             ),
-            const SizedBox(height: 6),
-            const Text(
-              'Open the download history for received files.',
-              style: TextStyle(color: Colors.grey),
-            ),
-            const SizedBox(height: 14),
-            _SettingsActionCard(
-              icon: Icons.download_rounded,
-              title: 'Downloads',
-              subtitle: 'Browse files you already received',
-              onTap: () => Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (_) => const DownloadHistoryScreen(),
-                ),
+            const SizedBox(height: 18),
+            _SurfaceCard(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'History',
+                    style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  const Text(
+                    'Open the download history for received files.',
+                    style: TextStyle(color: Colors.grey),
+                  ),
+                  const SizedBox(height: 14),
+                  _SettingsActionCard(
+                    icon: Icons.download_rounded,
+                    title: 'Downloads',
+                    subtitle: 'Browse files you already received',
+                    onTap: () => Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => const DownloadHistoryScreen(),
+                      ),
+                    ),
+                  ),
+                ],
               ),
             ),
           ],
@@ -152,6 +249,35 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
         ),
       ),
     );
+  }
+}
+
+class _SurfaceCard extends StatelessWidget {
+  final Widget child;
+
+  const _SurfaceCard({required this.child});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: const Color(0xFF1B1B1B),
+        borderRadius: BorderRadius.circular(22),
+      ),
+      child: child,
+    );
+  }
+}
+
+class _MutedMessage extends StatelessWidget {
+  final String text;
+
+  const _MutedMessage({required this.text});
+
+  @override
+  Widget build(BuildContext context) {
+    return Text(text, style: const TextStyle(color: Colors.grey));
   }
 }
 
@@ -197,8 +323,8 @@ class _SettingsActionCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Card(
-      color: const Color(0xFF1B1B1B),
-      margin: const EdgeInsets.only(bottom: 12),
+      color: Colors.white.withValues(alpha: 0.03),
+      margin: EdgeInsets.zero,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
       child: ListTile(
         leading: CircleAvatar(
