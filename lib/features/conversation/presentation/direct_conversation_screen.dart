@@ -4,6 +4,7 @@ import 'dart:io';
 
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_linkify/flutter_linkify.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:open_filex/open_filex.dart';
@@ -537,27 +538,30 @@ class _ConversationMessageBubble extends ConsumerWidget {
                     ),
                   ),
                 ),
-              Container(
-                constraints: const BoxConstraints(maxWidth: 320),
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 14,
-                  vertical: 12,
+              GestureDetector(
+                onLongPress: () => _showMessageActions(context, message),
+                child: Container(
+                  constraints: const BoxConstraints(maxWidth: 320),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 14,
+                    vertical: 12,
+                  ),
+                  decoration: BoxDecoration(
+                    color: bubbleColor,
+                    borderRadius: BorderRadius.circular(18),
+                  ),
+                  child: attachment != null
+                      ? _AttachmentMessageContent(
+                          attachment: attachment,
+                          peerId: peerId,
+                          isMe: isMe,
+                          downloadProgress: downloadProgress,
+                        )
+                      : _TextLikeMessageContent(
+                          message: message,
+                          textAlign: textAlign,
+                        ),
                 ),
-                decoration: BoxDecoration(
-                  color: bubbleColor,
-                  borderRadius: BorderRadius.circular(18),
-                ),
-                child: attachment != null
-                    ? _AttachmentMessageContent(
-                        attachment: attachment,
-                        peerId: peerId,
-                        isMe: isMe,
-                        downloadProgress: downloadProgress,
-                      )
-                    : _TextLikeMessageContent(
-                        message: message,
-                        textAlign: textAlign,
-                      ),
               ),
               if (showStatus) ...[
                 const SizedBox(height: 4),
@@ -622,6 +626,58 @@ class _ConversationMessageBubble extends ConsumerWidget {
       default:
         return message.status;
     }
+  }
+
+  Future<void> _showMessageActions(
+    BuildContext context,
+    MessageRow message,
+  ) async {
+    final text = message.textBody?.trim() ?? '';
+    if (text.isEmpty) return;
+
+    await showModalBottomSheet<void>(
+      context: context,
+      backgroundColor: const Color(0xFF1E1E1E),
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (sheetContext) => SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 8),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Center(
+                child: Container(
+                  width: 40,
+                  height: 4,
+                  margin: const EdgeInsets.only(bottom: 12),
+                  decoration: BoxDecoration(
+                    color: Colors.grey.shade600,
+                    borderRadius: BorderRadius.circular(2),
+                  ),
+                ),
+              ),
+              ListTile(
+                leading: const Icon(Icons.copy_all_outlined, color: Colors.blueAccent),
+                title: const Text(
+                  'Copy text',
+                  style: TextStyle(color: Colors.white),
+                ),
+                onTap: () async {
+                  await Clipboard.setData(ClipboardData(text: text));
+                  if (!sheetContext.mounted) return;
+                  Navigator.pop(sheetContext);
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text('Copied to clipboard')),
+                  );
+                },
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
   }
 }
 
