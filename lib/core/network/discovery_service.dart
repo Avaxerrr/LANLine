@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 final discoveryServiceProvider = Provider<DiscoveryService>((ref) {
@@ -134,8 +135,11 @@ class DiscoveryService {
           _peerDiscoveredController.add(signal);
         }
       });
-    } catch (_) {
-      // Port already in use or listener already active.
+    } catch (error) {
+      debugPrint(
+        '[DiscoveryService] Failed to bind UDP listener on port '
+        '$_discoveryPort: $error',
+      );
     }
   }
 
@@ -171,11 +175,7 @@ class DiscoveryService {
         'ip': ip,
         'port': port,
       });
-      _broadcastSocket?.send(
-        payload.codeUnits,
-        InternetAddress('255.255.255.255'),
-        _discoveryPort,
-      );
+      unawaited(_sendPayloadToBroadcastTargets(payload));
     });
   }
 
@@ -215,11 +215,7 @@ class DiscoveryService {
         'port': port,
         'lastHeartbeatAt': DateTime.now().millisecondsSinceEpoch,
       });
-      _broadcastSocket?.send(
-        payload.codeUnits,
-        InternetAddress('255.255.255.255'),
-        _discoveryPort,
-      );
+      unawaited(_sendPayloadToBroadcastTargets(payload));
     });
   }
 
@@ -256,6 +252,44 @@ class DiscoveryService {
     }
 
     return fallbackIp;
+  }
+
+  Future<void> _sendPayloadToBroadcastTargets(String payload) async {
+    if (_broadcastSocket == null) return;
+
+    final bytes = payload.codeUnits;
+    final targets = await _resolveBroadcastTargets();
+
+    for (final target in targets) {
+      try {
+        _broadcastSocket?.send(bytes, target, _discoveryPort);
+      } catch (error) {
+        debugPrint(
+          '[DiscoveryService] Failed to broadcast to ${target.address}: '
+          '$error',
+        );
+      }
+    }
+  }
+
+  Future<List<InternetAddress>> _resolveBroadcastTargets() async {
+    final interfaces = await NetworkInterface.list(
+      type: InternetAddressType.IPv4,
+      includeLinkLocal: true,
+    );
+
+    final interfaceIps = <String>[];
+    for (final interface in interfaces) {
+      for (final address in interface.addresses) {
+        if (address.isLoopback) continue;
+        interfaceIps.add(address.address);
+      }
+    }
+
+    final targets = buildBroadcastTargets(interfaceIps);
+    return [
+      for (final address in targets) InternetAddress(address),
+    ];
   }
 
   /// Full stop - closes everything including the stream controllers.
@@ -332,5 +366,46 @@ class DiscoveryService {
     }
 
     return null;
+  }
+
+  @visibleForTesting
+  static Set<String> buildBroadcastTargets(Iterable<String> interfaceIps) {
+    final targets = <String>{'255.255.255.255'};
+
+    for (final ip in interfaceIps) {
+      final directed = _deriveDirectedBroadcast(ip);
+      if (directed != null) {
+        targets.add(directed);
+      }
+    }
+
+    return targets;
+  }
+
+  static String? _deriveDirectedBroadcast(String ip) {
+    if (!_isLanCandidate(ip)) return null;
+
+    final octets = ip.split('.');
+    if (octets.length != 4) return null;
+
+    return '${octets[0]}.${octets[1]}.${octets[2]}.255';
+  }
+
+  static bool _isLanCandidate(String ip) {
+    if (ip.startsWith('169.254.') || ip.startsWith('127.')) {
+      return false;
+    }
+    if (ip.startsWith('10.') || ip.startsWith('192.168.')) {
+      return true;
+    }
+
+    final octets = ip.split('.');
+    if (octets.length < 2) return false;
+
+    final first = int.tryParse(octets[0]);
+    final second = int.tryParse(octets[1]);
+    if (first == null || second == null) return false;
+
+    return first == 172 && second >= 16 && second <= 31;
   }
 }
