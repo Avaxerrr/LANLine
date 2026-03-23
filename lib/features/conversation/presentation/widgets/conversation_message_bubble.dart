@@ -41,6 +41,8 @@ class ConversationMessageBubble extends ConsumerWidget {
   final ValueChanged<MessageRow>? onDelete;
   final ValueChanged<MessageRow>? onForward;
   final ValueChanged<MessageRow>? onTogglePin;
+  final bool showInlineActions;
+  final VoidCallback? onToggleActions;
   final bool isPinned;
 
   const ConversationMessageBubble({
@@ -57,6 +59,8 @@ class ConversationMessageBubble extends ConsumerWidget {
     this.onDelete,
     this.onForward,
     this.onTogglePin,
+    this.showInlineActions = false,
+    this.onToggleActions,
     this.isPinned = false,
   });
 
@@ -112,7 +116,7 @@ class ConversationMessageBubble extends ConsumerWidget {
                   ),
                 ),
               GestureDetector(
-                onLongPress: () => _showMessageActions(context, message),
+                onTap: onToggleActions,
                 child: Container(
                   constraints: const BoxConstraints(maxWidth: 320),
                   padding: const EdgeInsets.symmetric(
@@ -122,6 +126,11 @@ class ConversationMessageBubble extends ConsumerWidget {
                   decoration: BoxDecoration(
                     color: bubbleColor,
                     borderRadius: BorderRadius.circular(18),
+                    border: showInlineActions
+                        ? Border.all(
+                            color: Colors.white.withValues(alpha: 0.12),
+                          )
+                        : null,
                   ),
                   child: attachment != null
                       ? AttachmentMessageContent(
@@ -138,6 +147,21 @@ class ConversationMessageBubble extends ConsumerWidget {
                         ),
                 ),
               ),
+              if (showInlineActions) ...[
+                const SizedBox(height: 8),
+                _InlineMessageActions(
+                  message: message,
+                  isPinned: isPinned,
+                  showCopy: (message.textBody?.trim().isNotEmpty ?? false),
+                  alignment: isMe
+                      ? MainAxisAlignment.end
+                      : MainAxisAlignment.start,
+                  onReply: onReply,
+                  onForward: onForward,
+                  onTogglePin: onTogglePin,
+                  onDelete: onDelete,
+                ),
+              ],
               if (showStatus) ...[
                 const SizedBox(height: 4),
                 Text(
@@ -200,141 +224,196 @@ class ConversationMessageBubble extends ConsumerWidget {
         return message.status;
     }
   }
+}
 
-  Future<void> _showMessageActions(
-    BuildContext context,
-    MessageRow message,
-  ) async {
+enum _OverflowAction { forward, pin, delete }
+
+class _InlineMessageActions extends StatelessWidget {
+  final MessageRow message;
+  final bool isPinned;
+  final bool showCopy;
+  final MainAxisAlignment alignment;
+  final ValueChanged<MessageRow>? onReply;
+  final ValueChanged<MessageRow>? onForward;
+  final ValueChanged<MessageRow>? onTogglePin;
+  final ValueChanged<MessageRow>? onDelete;
+
+  const _InlineMessageActions({
+    required this.message,
+    required this.isPinned,
+    required this.showCopy,
+    required this.alignment,
+    required this.onReply,
+    required this.onForward,
+    required this.onTogglePin,
+    required this.onDelete,
+  });
+
+  @override
+  Widget build(BuildContext context) {
     final text = message.textBody?.trim() ?? '';
 
-    await showModalBottomSheet<void>(
-      context: context,
-      backgroundColor: const Color(0xFF1E1E1E),
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-      ),
-      builder: (sheetContext) => SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 8),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Center(
-                child: Container(
-                  width: 40,
-                  height: 4,
-                  margin: const EdgeInsets.only(bottom: 12),
-                  decoration: BoxDecoration(
-                    color: Colors.grey.shade600,
-                    borderRadius: BorderRadius.circular(2),
-                  ),
-                ),
-              ),
-              ListTile(
-                leading: const Icon(
-                  Icons.reply_outlined,
-                  color: Colors.greenAccent,
-                ),
-                title: const Text(
-                  'Reply',
-                  style: TextStyle(color: Colors.white),
-                ),
-                onTap: () {
-                  Navigator.pop(sheetContext);
-                  onReply?.call(message);
-                },
-              ),
-              if (text.isNotEmpty)
-                ListTile(
-                  leading: const Icon(
-                    Icons.forward_outlined,
-                    color: Colors.amber,
-                  ),
-                  title: const Text(
-                    'Forward',
-                    style: TextStyle(color: Colors.white),
-                  ),
-                  onTap: () {
-                    Navigator.pop(sheetContext);
-                    onForward?.call(message);
-                  },
-                ),
-              if (text.isNotEmpty)
-                ListTile(
-                  leading: const Icon(
-                    Icons.copy_all_outlined,
-                    color: Colors.blueAccent,
-                  ),
-                  title: const Text(
-                    'Copy text',
-                    style: TextStyle(color: Colors.white),
-                  ),
-                  onTap: () async {
-                    await Clipboard.setData(ClipboardData(text: text));
-                    if (!sheetContext.mounted) return;
-                    Navigator.pop(sheetContext);
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(content: Text('Copied to clipboard')),
-                    );
-                  },
-                ),
-              ListTile(
-                leading: Icon(
-                  isPinned ? Icons.push_pin : Icons.push_pin_outlined,
+    return Row(
+      mainAxisAlignment: alignment,
+      children: [
+        _ActionIconButton(
+          tooltip: 'Reply',
+          icon: Icons.reply_outlined,
+          onPressed: () => onReply?.call(message),
+        ),
+        if (showCopy)
+          _ActionIconButton(
+            tooltip: 'Copy text',
+            icon: Icons.copy_all_outlined,
+            onPressed: () async {
+              await Clipboard.setData(ClipboardData(text: text));
+              if (!context.mounted) return;
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(content: Text('Copied to clipboard')),
+              );
+            },
+          ),
+        PopupMenuButton<_OverflowAction>(
+          tooltip: 'More',
+          color: const Color(0xFF1E1E1E),
+          icon: Container(
+            width: 34,
+            height: 34,
+            decoration: BoxDecoration(
+              color: Colors.white.withValues(alpha: 0.08),
+              borderRadius: BorderRadius.circular(999),
+            ),
+            child: const Icon(Icons.more_horiz, size: 18),
+          ),
+          onSelected: (action) =>
+              _handleOverflowAction(context, action: action, message: message),
+          itemBuilder: (context) => [
+            if (showCopy)
+              const PopupMenuItem<_OverflowAction>(
+                value: _OverflowAction.forward,
+                child: _OverflowMenuLabel(
+                  icon: Icons.forward_outlined,
+                  label: 'Forward',
                   color: Colors.amber,
                 ),
-                title: Text(
-                  isPinned ? 'Unpin' : 'Pin',
-                  style: const TextStyle(color: Colors.white),
-                ),
-                onTap: () {
-                  Navigator.pop(sheetContext);
-                  onTogglePin?.call(message);
-                },
               ),
-              ListTile(
-                leading: const Icon(
-                  Icons.delete_outline,
-                  color: Colors.redAccent,
+            PopupMenuItem<_OverflowAction>(
+              value: _OverflowAction.pin,
+              child: _OverflowMenuLabel(
+                icon: isPinned ? Icons.push_pin : Icons.push_pin_outlined,
+                label: isPinned ? 'Unpin' : 'Pin',
+                color: Colors.amber,
+              ),
+            ),
+            const PopupMenuItem<_OverflowAction>(
+              value: _OverflowAction.delete,
+              child: _OverflowMenuLabel(
+                icon: Icons.delete_outline,
+                label: 'Delete from this device',
+                color: Colors.redAccent,
+              ),
+            ),
+          ],
+        ),
+      ],
+    );
+  }
+
+  Future<void> _handleOverflowAction(
+    BuildContext context, {
+    required _OverflowAction action,
+    required MessageRow message,
+  }) async {
+    switch (action) {
+      case _OverflowAction.forward:
+        onForward?.call(message);
+      case _OverflowAction.pin:
+        onTogglePin?.call(message);
+      case _OverflowAction.delete:
+        final shouldDelete = await showDialog<bool>(
+          context: context,
+          builder: (dialogContext) => AlertDialog(
+            backgroundColor: const Color(0xFF1E1E1E),
+            title: const Text('Delete message'),
+            content: const Text(
+              'This only removes the message from this device.',
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(dialogContext, false),
+                child: const Text('Cancel'),
+              ),
+              FilledButton(
+                onPressed: () => Navigator.pop(dialogContext, true),
+                style: FilledButton.styleFrom(
+                  backgroundColor: Colors.redAccent,
                 ),
-                title: const Text(
-                  'Delete from this device',
-                  style: TextStyle(color: Colors.white),
-                ),
-                onTap: () async {
-                  Navigator.pop(sheetContext);
-                  final shouldDelete = await showDialog<bool>(
-                    context: context,
-                    builder: (dialogContext) => AlertDialog(
-                      backgroundColor: const Color(0xFF1E1E1E),
-                      title: const Text('Delete message'),
-                      content: const Text(
-                        'This only removes the message from this device.',
-                      ),
-                      actions: [
-                        TextButton(
-                          onPressed: () => Navigator.pop(dialogContext, false),
-                          child: const Text('Cancel'),
-                        ),
-                        FilledButton(
-                          onPressed: () => Navigator.pop(dialogContext, true),
-                          style: FilledButton.styleFrom(
-                            backgroundColor: Colors.redAccent,
-                          ),
-                          child: const Text('Delete'),
-                        ),
-                      ],
-                    ),
-                  );
-                  if (shouldDelete == true) {
-                    onDelete?.call(message);
-                  }
-                },
+                child: const Text('Delete'),
               ),
             ],
           ),
+        );
+        if (shouldDelete == true) {
+          onDelete?.call(message);
+        }
+    }
+  }
+}
+
+class _ActionIconButton extends StatelessWidget {
+  final String tooltip;
+  final IconData icon;
+  final VoidCallback onPressed;
+
+  const _ActionIconButton({
+    required this.tooltip,
+    required this.icon,
+    required this.onPressed,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(right: 6),
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: onPressed,
+          borderRadius: BorderRadius.circular(999),
+          child: Container(
+            width: 34,
+            height: 34,
+            decoration: BoxDecoration(
+              color: Colors.white.withValues(alpha: 0.08),
+              borderRadius: BorderRadius.circular(999),
+            ),
+            child: Icon(icon, size: 17, color: Colors.white),
+          ),
         ),
       ),
+    );
+  }
+}
+
+class _OverflowMenuLabel extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final Color color;
+
+  const _OverflowMenuLabel({
+    required this.icon,
+    required this.label,
+    required this.color,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: [
+        Icon(icon, color: color, size: 18),
+        const SizedBox(width: 10),
+        Text(label),
+      ],
     );
   }
 }

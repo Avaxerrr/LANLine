@@ -40,6 +40,7 @@ class _DirectConversationScreenState
   bool _isSending = false;
   bool _isPickingFile = false;
   MessageRow? _replyingToMessage;
+  String? _activeMessageActionsId;
 
   bool get _isGroup => widget.conversationType == 'group';
   bool get _supportsDirectMedia => !_isGroup && widget.peerId != null;
@@ -193,7 +194,10 @@ class _DirectConversationScreenState
   }
 
   void _setReply(MessageRow message) {
-    setState(() => _replyingToMessage = message);
+    setState(() {
+      _replyingToMessage = message;
+      _activeMessageActionsId = null;
+    });
   }
 
   void _clearReply() {
@@ -201,9 +205,26 @@ class _DirectConversationScreenState
     setState(() => _replyingToMessage = null);
   }
 
+  void _toggleMessageActions(String messageId) {
+    setState(() {
+      _activeMessageActionsId = _activeMessageActionsId == messageId
+          ? null
+          : messageId;
+    });
+  }
+
   Future<void> _deleteMessage(MessageRow message) async {
     try {
       await ref.read(conversationActionsProvider).deleteMessage(message.id);
+      if (!mounted) return;
+      setState(() {
+        if (_replyingToMessage?.id == message.id) {
+          _replyingToMessage = null;
+        }
+        if (_activeMessageActionsId == message.id) {
+          _activeMessageActionsId = null;
+        }
+      });
       if (_replyingToMessage?.id == message.id) {
         _clearReply();
       }
@@ -219,6 +240,7 @@ class _DirectConversationScreenState
     final text = message.textBody?.trim();
     if (text == null || text.isEmpty) return;
     if (!mounted) return;
+    setState(() => _activeMessageActionsId = null);
 
     final targetConversation = await showModalBottomSheet<ConversationRow>(
       context: context,
@@ -279,6 +301,7 @@ class _DirectConversationScreenState
 
   Future<void> _togglePin(MessageRow message) async {
     try {
+      setState(() => _activeMessageActionsId = null);
       final conversation = await ref.read(
         conversationStreamProvider(widget.conversationId).future,
       );
@@ -471,6 +494,10 @@ class _DirectConversationScreenState
                             onDelete: _deleteMessage,
                             onForward: _forwardMessage,
                             onTogglePin: _togglePin,
+                            showInlineActions:
+                                _activeMessageActionsId == message.id,
+                            onToggleActions: () =>
+                                _toggleMessageActions(message.id),
                             isPinned: conversationAsync.maybeWhen(
                               data: (conversation) =>
                                   conversation?.pinnedMessageId == message.id,
