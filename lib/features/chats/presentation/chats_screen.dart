@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/providers/v2_data_providers.dart';
+import '../../conversation/presentation/direct_conversation_screen.dart';
 
 class ChatsScreen extends ConsumerWidget {
   final VoidCallback? onGoToRequests;
@@ -30,6 +31,12 @@ class ChatsScreen extends ConsumerWidget {
                 borderRadius: BorderRadius.circular(18),
               ),
               child: ListTile(
+                onTap: () => _openConversation(
+                  context,
+                  ref,
+                  conversationId: conversation.id,
+                  title: conversation.title ?? 'Direct conversation',
+                ),
                 contentPadding: const EdgeInsets.symmetric(
                   horizontal: 16,
                   vertical: 10,
@@ -73,6 +80,28 @@ class ChatsScreen extends ConsumerWidget {
       loading: () => const Center(child: CircularProgressIndicator()),
       error: (error, stackTrace) =>
           _ErrorState(title: 'Could not load chats', message: '$error'),
+    );
+  }
+
+  Future<void> _openConversation(
+    BuildContext context,
+    WidgetRef ref, {
+    required String conversationId,
+    required String title,
+  }) async {
+    final peer = await ref.read(
+      directConversationPeerProvider(conversationId).future,
+    );
+    if (peer == null || !context.mounted) return;
+
+    await Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => DirectConversationScreen(
+          conversationId: conversationId,
+          peerId: peer.peerId,
+          title: peer.displayName,
+        ),
+      ),
     );
   }
 }

@@ -1,6 +1,8 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../db/app_database.dart';
+import 'v2_direct_message_protocol_provider.dart';
+import 'v2_identity_provider.dart';
 import 'v2_presence_discovery_provider.dart';
 import 'v2_request_protocol_provider.dart';
 import 'v2_repository_providers.dart';
@@ -25,6 +27,24 @@ final pendingOutgoingRequestsProvider = StreamProvider((ref) {
 
 final conversationListProvider = StreamProvider((ref) {
   return ref.read(conversationsRepositoryProvider).watchConversationList();
+});
+
+final conversationMessagesProvider = StreamProvider.family<
+  List<MessageRow>,
+  String
+>((ref, conversationId) {
+  return ref.read(messagesRepositoryProvider).watchMessages(conversationId);
+});
+
+final directConversationPeerProvider = FutureProvider.family<PeerRow?, String>((
+  ref,
+  conversationId,
+) async {
+  final localIdentity = await ref.read(identityServiceProvider).bootstrap();
+  return ref.read(conversationsRepositoryProvider).getDirectPeerForConversation(
+    conversationId: conversationId,
+    localPeerId: localIdentity.peerId,
+  );
 });
 
 class RequestActions {
@@ -59,4 +79,40 @@ class RequestActions {
 final requestActionsProvider = Provider<RequestActions>((ref) {
   ref.watch(v2RequestProtocolControllerProvider);
   return RequestActions(ref.read(v2RequestProtocolControllerProvider));
+});
+
+class ConversationActions {
+  final V2DirectMessageProtocolController _controller;
+
+  ConversationActions(this._controller);
+
+  Future<ConversationRow> openDirectConversation({
+    required String peerId,
+    String? title,
+  }) {
+    return _controller.openDirectConversation(peerId: peerId, title: title);
+  }
+
+  Future<MessageRow> sendTextMessage({
+    required String peerId,
+    required String text,
+    String? conversationId,
+    String? conversationTitle,
+  }) {
+    return _controller.sendTextMessage(
+      peerId: peerId,
+      text: text,
+      conversationId: conversationId,
+      conversationTitle: conversationTitle,
+    );
+  }
+
+  Future<void> setActiveConversation(String? conversationId) {
+    return _controller.setActiveConversation(conversationId);
+  }
+}
+
+final conversationActionsProvider = Provider<ConversationActions>((ref) {
+  ref.watch(v2DirectMessageProtocolControllerProvider);
+  return ConversationActions(ref.read(v2DirectMessageProtocolControllerProvider));
 });

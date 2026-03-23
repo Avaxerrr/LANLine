@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/providers/v2_data_providers.dart';
+import '../../conversation/presentation/direct_conversation_screen.dart';
 
 class PeopleScreen extends ConsumerWidget {
   const PeopleScreen({super.key});
@@ -12,6 +13,7 @@ class PeopleScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final contactsAsync = ref.watch(contactsProvider);
     final requestActions = ref.read(requestActionsProvider);
+    final conversationActions = ref.read(conversationActionsProvider);
 
     Future<void> runPeerAction(
       String successMessage,
@@ -56,6 +58,21 @@ class PeopleScreen extends ConsumerWidget {
                         icon: Icons.verified_user_outlined,
                         actions: [
                           _ActionButton(
+                            label: 'Chat',
+                            icon: Icons.chat_bubble_outline,
+                            foreground: Colors.blueAccent,
+                            onPressed: () {
+                              unawaited(
+                                _openConversation(
+                                  context,
+                                  conversationActions: conversationActions,
+                                  peerId: peer.peerId,
+                                  title: peer.displayName,
+                                ),
+                              );
+                            },
+                          ),
+                          _ActionButton(
                             label: 'Block',
                             icon: Icons.block_outlined,
                             foreground: Colors.redAccent,
@@ -79,6 +96,30 @@ class PeopleScreen extends ConsumerWidget {
               _SectionPlaceholder(icon: Icons.error_outline, text: '$error'),
         ),
       ],
+    );
+  }
+
+  Future<void> _openConversation(
+    BuildContext context, {
+    required ConversationActions conversationActions,
+    required String peerId,
+    required String title,
+  }) async {
+    final conversation = await conversationActions.openDirectConversation(
+      peerId: peerId,
+      title: title,
+    );
+
+    if (!context.mounted) return;
+
+    await Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => DirectConversationScreen(
+          conversationId: conversation.id,
+          peerId: peerId,
+          title: title,
+        ),
+      ),
     );
   }
 }

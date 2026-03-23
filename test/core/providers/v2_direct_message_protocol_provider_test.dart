@@ -1,0 +1,174 @@
+import 'dart:async';
+import 'dart:convert';
+
+import 'package:drift/native.dart';
+import 'package:flutter_test/flutter_test.dart';
+import 'package:lanline/core/db/app_database.dart';
+import 'package:lanline/core/identity/identity_service.dart';
+import 'package:lanline/core/network/v2_request_signaling_service.dart';
+import 'package:lanline/core/providers/v2_direct_message_protocol_provider.dart';
+import 'package:lanline/core/repositories/conversations_repository.dart';
+import 'package:lanline/core/repositories/identity_repository.dart';
+import 'package:lanline/core/repositories/messages_repository.dart';
+import 'package:lanline/core/repositories/peers_repository.dart';
+import 'package:mocktail/mocktail.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+
+class MockV2PeerSignalingService extends Mock
+    implements V2RequestSignalingService {}
+
+void main() {
+  group('V2DirectMessageProtocolController', () {
+    late AppDatabase database;
+    late IdentityRepository identityRepository;
+    late IdentityService identityService;
+    late PeersRepository peersRepository;
+    late ConversationsRepository conversationsRepository;
+    late MessagesRepository messagesRepository;
+    late MockV2PeerSignalingService signalingService;
+    late StreamController<String> incomingMessages;
+    late V2DirectMessageProtocolController controller;
+
+    setUp(() async {
+      database = AppDatabase(executor: NativeDatabase.memory());
+      identityRepository = IdentityRepository(database);
+      peersRepository = PeersRepository(database);
+      conversationsRepository = ConversationsRepository(database);
+      messagesRepository = MessagesRepository(
+        database,
+        conversationsRepository: conversationsRepository,
+      );
+      signalingService = MockV2PeerSignalingService();
+      incomingMessages = StreamController<String>.broadcast();
+
+      SharedPreferences.setMockInitialValues({
+        IdentityService.legacyUsernameKey: 'Local User',
+      });
+      final prefs = await SharedPreferences.getInstance();
+      identityService = IdentityService(
+        repository: identityRepository,
+        prefs: prefs,
+      );
+
+      when(() => signalingService.onMessageReceived)
+          .thenAnswer((_) => incomingMessages.stream);
+      when(
+        () => signalingService.startServer(
+          port: any(named: 'port'),
+          bindAddress: any(named: 'bindAddress'),
+        ),
+      ).thenAnswer((_) async {});
+      when(
+        () => signalingService.sendMessage(
+          host: any(named: 'host'),
+          port: any(named: 'port'),
+          payload: any(named: 'payload'),
+        ),
+      ).thenAnswer((_) async {});
+
+      controller = V2DirectMessageProtocolController(
+        signalingService: signalingService,
+        identityService: identityService,
+        peersRepository: peersRepository,
+        conversationsRepository: conversationsRepository,
+        messagesRepository: messagesRepository,
+      );
+    });
+
+    tearDown(() async {
+      await controller.dispose();
+      await incomingMessages.close();
+      await database.close();
+    });
+
+    test('sendTextMessage stores a local outgoing message and marks it sent', () async {
+      await identityService.bootstrap();
+      await peersRepository.upsertPeer(
+        peerId: 'peer-remote',
+        displayName: 'Remote Device',
+        relationshipState: 'accepted',
+      );
+      await peersRepository.upsertPresence(
+        peerId: 'peer-remote',
+        status: 'online',
+        isReachable: true,
+        transportType: 'lan',
+        host: '192.168.1.21',
+        port: V2RequestSignalingService.defaultPort,
+      );
+
+      final message = await controller.sendTextMessage(
+        peerId: 'peer-remote',
+        text: 'Hello there',
+        conversationTitle: 'Remote Device',
+      );
+
+      verify(
+        () => signalingService.sendMessage(
+          host: '192.168.1.21',
+          port: V2RequestSignalingService.defaultPort,
+          payload: any(named: 'payload'),
+        ),
+      ).called(1);
+
+      final conversation = await conversationsRepository
+          .findDirectConversationByPeerId('peer-remote');
+      final messages = await messagesRepository.watchMessages(conversation!.id).first;
+
+      expect(message.status, 'sent');
+      expect(conversation.title, 'Remote Device');
+      expect(conversation.lastMessagePreview, 'Hello there');
+      expect(messages, hasLength(1));
+      expect(messages.single.textBody, 'Hello there');
+      expect(messages.single.senderPeerId, isNot('peer-remote'));
+    });
+
+    test('incoming text message creates a conversation, message, unread count, and ack', () async {
+      await controller.start();
+      await peersRepository.upsertPresence(
+        peerId: 'peer-remote',
+        status: 'online',
+        isReachable: true,
+        transportType: 'lan',
+        host: '192.168.1.21',
+        port: V2RequestSignalingService.defaultPort,
+      );
+
+      incomingMessages.add(
+        jsonEncode({
+          'protocol': 'lanline_v2_message',
+          'action': 'message',
+          'senderPeerId': 'peer-remote',
+          'senderDisplayName': 'Remote Device',
+          'clientGeneratedId': 'msg-123',
+          'type': 'text',
+          'text': 'Hi from remote',
+          'sentAt': 1234567890,
+        }),
+      );
+
+      await Future<void>.delayed(const Duration(milliseconds: 20));
+
+      final peer = await peersRepository.getPeerByPeerId('peer-remote');
+      final conversation = await conversationsRepository
+          .findDirectConversationByPeerId('peer-remote');
+      final messages = await messagesRepository.watchMessages(conversation!.id).first;
+
+      expect(peer, isNotNull);
+      expect(peer!.displayName, 'Remote Device');
+      expect(conversation.title, 'Remote Device');
+      expect(conversation.unreadCount, 1);
+      expect(messages, hasLength(1));
+      expect(messages.single.textBody, 'Hi from remote');
+      expect(messages.single.clientGeneratedId, 'msg-123');
+
+      verify(
+        () => signalingService.sendMessage(
+          host: '192.168.1.21',
+          port: V2RequestSignalingService.defaultPort,
+          payload: any(named: 'payload'),
+        ),
+      ).called(1);
+    });
+  });
+}

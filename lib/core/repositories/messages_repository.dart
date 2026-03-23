@@ -23,12 +23,21 @@ class MessagesRepository {
         .watch();
   }
 
+  Future<MessageRow?> getMessageByClientGeneratedId(String clientGeneratedId) {
+    return (_database.select(
+      _database.messagesTable,
+    )..where((tbl) => tbl.clientGeneratedId.equals(clientGeneratedId)))
+        .getSingleOrNull();
+  }
+
   Future<MessageRow> insertMessage({
     required String conversationId,
     required String senderPeerId,
     required String type,
     String? textBody,
     String status = 'pending',
+    String? id,
+    String? clientGeneratedId,
     String? replyToMessageId,
     String? metadataJson,
     int? sentAt,
@@ -36,18 +45,18 @@ class MessagesRepository {
     int? readAt,
   }) async {
     final now = DateTime.now().millisecondsSinceEpoch;
-    final id = _uuid.v4();
-    final clientGeneratedId = _uuid.v4();
+    final messageId = id ?? _uuid.v4();
+    final messageClientId = clientGeneratedId ?? _uuid.v4();
 
     await _database.transaction(() async {
       await _database
           .into(_database.messagesTable)
           .insert(
             MessagesTableCompanion.insert(
-              id: id,
+              id: messageId,
               conversationId: conversationId,
               senderPeerId: senderPeerId,
-              clientGeneratedId: clientGeneratedId,
+              clientGeneratedId: messageClientId,
               type: type,
               textBody: drift.Value(textBody),
               status: status,
@@ -70,7 +79,7 @@ class MessagesRepository {
 
     return (_database.select(
       _database.messagesTable,
-    )..where((tbl) => tbl.id.equals(id))).getSingle();
+    )..where((tbl) => tbl.id.equals(messageId))).getSingle();
   }
 
   Future<void> updateMessageStatus(String messageId, String status) async {
@@ -78,6 +87,21 @@ class MessagesRepository {
     await (_database.update(
       _database.messagesTable,
     )..where((tbl) => tbl.id.equals(messageId))).write(
+      MessagesTableCompanion(
+        status: drift.Value(status),
+        updatedAt: drift.Value(now),
+      ),
+    );
+  }
+
+  Future<void> updateMessageStatusByClientGeneratedId(
+    String clientGeneratedId,
+    String status,
+  ) async {
+    final now = DateTime.now().millisecondsSinceEpoch;
+    await (_database.update(
+      _database.messagesTable,
+    )..where((tbl) => tbl.clientGeneratedId.equals(clientGeneratedId))).write(
       MessagesTableCompanion(
         status: drift.Value(status),
         updatedAt: drift.Value(now),

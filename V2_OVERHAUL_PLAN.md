@@ -48,15 +48,15 @@ Current product shape:
 - `Chats`, `People`, `Requests`, and `Settings` screens exist
 - legacy room flow remains temporarily accessible from Settings
 - V2 peer presence now starts from the shell and updates the local DB
-- `People` and `Requests` now perform real local request/contact actions
+- `People` is now contacts-only and `Requests` owns discovery/request actions
 - remote request delivery and status sync now work between devices
-- live DM behavior is not implemented yet
+- direct conversations now persist and exchange live text messages
 
 Current project state:
 
 - existing codebase has usable networking and feature foundations
 - architecture direction has been drafted in `V2_ARCHITECTURE.md`
-- Phase 1 through Phase 3 are implemented
+- Phase 1 through Phase 4 are implemented
 
 ## 4. Approved Direction
 
@@ -174,7 +174,7 @@ Exit criteria:
 - users can discover peers and establish approved contact relationships
 
 ### Phase 4: Direct Messaging MVP
-Status: Not started
+Status: Complete
 
 Goals:
 
@@ -245,12 +245,12 @@ Exit criteria:
 
 ## 7. Immediate Next Step
 
-The next implementation slice should start Phase 4:
+The next implementation slice should start Phase 5:
 
-- create direct conversations from accepted contacts
-- persist direct messages and power the chat list with conversation data
-- replace placeholder `Chats` content with real conversation state
-- keep the Phase 3 discovery/request flows feeding the DM entry path
+- rebind calls to direct conversations instead of the legacy room model
+- rebind file transfers and attachments to conversation/message records
+- make media actions available from the V2 conversation screen
+- keep the new DM data model as the source of truth for media events
 
 ## 8. Status Board
 
@@ -263,8 +263,9 @@ Use this section as the live session-by-session tracker.
 - Phase 1 implementation spec: Implemented
 - Phase 2 app shell: Implemented
 - Phase 3 presence and requests: Implemented
+- Phase 4 direct messaging MVP: Implemented
 - Implementation: In progress
-- Current focus: Phase 4 direct messaging MVP
+- Current focus: Phase 5 calls and file transfer migration
 
 ### Completed
 
@@ -292,15 +293,19 @@ Use this section as the live session-by-session tracker.
 - incoming request records now sync across devices
 - accept/decline/cancel/block now sync back to the sender
 - Phase 3 protocol tests added for outbound request send and inbound request/status handling
+- direct conversation screen added for V2 chats
+- V2 direct message protocol added with delivery acknowledgements
+- chat list now opens real V2 conversations backed by the local database
+- message persistence, previews, unread counts, and delivery status are live
+- Phase 4 tests added for outbound send and inbound direct-message handling
 
 ### In Progress
 
 - V2 overhaul implementation
-- planning Phase 4 DM messaging flow
+- planning Phase 5 media migration
 
 ### Pending
 
-- Phase 4 DM messaging flow
 - Phase 5 calls and transfers migration
 
 ## 9. Decision Log
@@ -339,6 +344,9 @@ Use this as the project history for the overhaul itself.
 - improved Windows LAN discovery reliability with directed broadcast targets
 - implemented V2 request delivery and status sync between devices
 - added V2 request protocol tests for outbound send and inbound request/status handling
+- refactored discovery and request actions fully into the `Requests` tab
+- implemented V2 direct-message protocol, conversation screen, and chat list navigation
+- added Phase 4 tests for outgoing send and incoming message persistence/ack
 - implemented Phase 2 app shell
 - replaced the old main menu as the default entry point
 - added temporary legacy access to rooms, join flow, and downloads from Settings
