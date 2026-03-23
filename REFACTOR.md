@@ -60,32 +60,32 @@ Extract business logic from `chat_screen.dart` (~1600 lines) into testable, reus
 ### Phase 3: Extract UI Sub-widgets
 
 #### Phase 3a: Message bubble
-- [ ] Create `lib/features/chat/presentation/widgets/chat_message_bubble.dart`
-- [ ] Move `_buildMessageBubble`, `_buildMessageContent`, `_buildFileBubble`
-- [ ] Move `_formatTimestamp`, `_showMessageOptions`
-- [ ] `flutter analyze` passes
+- [x] Create `lib/features/chat/presentation/widgets/chat_message_bubble.dart`
+- [x] Move `_buildMessageBubble`, `_buildMessageContent`, `_buildFileBubble`
+- [x] Move `_formatTimestamp`, `_showMessageOptions`
+- [x] `flutter analyze` passes
 
 #### Phase 3b: Input bar
-- [ ] Create `lib/features/chat/presentation/widgets/chat_input_bar.dart`
-- [ ] Move `_buildMessageInput`, attachment menu, recording state
-- [ ] `flutter analyze` passes
+- [x] Create `lib/features/chat/presentation/widgets/chat_input_bar.dart`
+- [x] Move `_buildMessageInput`, attachment menu, recording state
+- [x] `flutter analyze` passes
 
 #### Phase 3c: Room info panel
-- [ ] Create `lib/features/chat/presentation/widgets/chat_room_info_panel.dart`
-- [ ] Move `_showRoomInfoPanel`, `_infoTile`, `_participantRow`
-- [ ] `flutter analyze` passes
+- [x] Create `lib/features/chat/presentation/widgets/chat_room_info_panel.dart`
+- [x] Move `_showRoomInfoPanel`, `_infoTile`, `_participantRow`
+- [x] `flutter analyze` passes
 
 #### Phase 3 verification
 - [ ] Manual test: visual check, all UI elements render correctly
 
 ### Phase 4: Extract FileTransferNotifier
-- [ ] Create `lib/core/providers/file_transfer_notifier.dart`
-- [ ] Move offer/accept/cancel state machine
-- [ ] Move `_pendingFileOffers`, `_downloadProgress`, `_cancelledOffers`, `_acceptedOffers`
-- [ ] Move `_sendFile()`, `_acceptFileOffer()`, `_cancelFileOffer()`
-- [ ] Move file-related handlers from incoming message router
-- [ ] Write tests: `test/core/providers/file_transfer_notifier_test.dart`
-- [ ] `flutter analyze` + `flutter test` pass
+- [x] Create `lib/core/providers/file_transfer_notifier.dart`
+- [x] Move offer/accept/cancel state machine
+- [x] Move `_pendingFileOffers`, `_downloadProgress`, `_cancelledOffers`, `_acceptedOffers`
+- [x] Move `_sendFile()`, `_acceptFileOffer()`, `_cancelFileOffer()`
+- [x] Move file-related handlers from incoming message router
+- [x] Write tests: `test/core/providers/file_transfer_notifier_test.dart`
+- [x] `flutter analyze` + `flutter test` pass
 - [ ] Manual test: send small file, send large file (offer), cancel file
 
 ### Phase 5: Extract CallNotifier
@@ -160,7 +160,41 @@ Status: Complete
 - Total tests: 66, all passing
 - Gotcha: mocktail Mock doesn't store field values by default. Override onDisconnected as a real field in the mock class.
 
-### NEXT: Phase 3a (extract message bubble widget)
+### Phase 3 - 2026-03-23
+Status: Complete
+- **Phase 3a**: Extracted message bubble to `widgets/chat_message_bubble.dart` (543 lines)
+  - Moved `_buildMessageBubble`, `_buildMessageContent`, `_buildFileBubble`, `_fileActionButton`, `_showMessageOptions`, `_formatTimestamp`, `_formatFileSize`, `_getMimeType`, `_openFile`, `_openFolder`, `_shareFile`
+  - Exported `formatFileSize()` as public top-level function (still referenced by chat_screen for file offer/send)
+  - Removed unused imports: open_filex, flutter_linkify, url_launcher, share_plus
+- **Phase 3b**: Extracted input bar to `widgets/chat_input_bar.dart` (248 lines)
+  - `ChatInputBar` (StatelessWidget): text field, attachment/clipboard/send buttons
+  - `AttachmentMenu` (StatelessWidget): grid of file/gallery/camera/clipboard/voice options
+  - Moved `_buildMessageInput`, `_showAttachmentMenu`, `_attachmentGridItem`
+- **Phase 3c**: Extracted room info panel to `widgets/chat_room_info_panel.dart` (161 lines)
+  - Top-level `showRoomInfoPanel()` function with modal bottom sheet
+  - Moved `_showRoomInfoPanel`, `_participantRow`, `_infoTile`
+  - Removed unused import: qr_flutter from chat_screen.dart
+- chat_screen.dart reduced from ~1800 → 1029 lines
+- Total tests: 66, all passing
+
+### Phase 4 - 2026-03-23
+Status: Complete
+- Created `FileTransferNotifier` with `FileTransferState` in `core/providers/file_transfer_notifier.dart`
+- Moved all file transfer state: `pendingFileOffers`, `downloadProgress`, `cancelledOffers`, `acceptedOffers`, progress throttle timer
+- Moved `sendFile`, `acceptFileOffer`, `cancelFileOffer` to notifier
+- Moved file message handling: `file_chunk`, `file_offer`, `accept_file`, `file_downloaded`, `cancel_file`
+- Moved `_logDownload` to notifier (uses `downloadHistoryProvider`)
+- Moved `formatFileSize` from `chat_message_bubble.dart` to `core/models/chat_message.dart` (shared by notifier and widget)
+- Removed `_messages` bridge getter (no longer needed)
+- Removed unused imports: `file_transfer_manager.dart`, `download_history_provider.dart` from chat_screen
+- Widget thin wrappers: `_sendFile` → `notifier.sendFile`, `_acceptFileOffer` → `notifier.acceptFileOffer`, `_cancelFileOffer` → `notifier.cancelFileOffer`
+- Widget watches `fileTransferNotifierProvider` for `downloadProgress` in build
+- File message routing: widget calls `notifier.handleFileMessage(rawMessage)`, handles UI side-effects (scroll, notification, snackbar) based on return type
+- chat_screen.dart reduced from 1029 → 836 lines
+- 20 new tests for FileTransferNotifier
+- Total tests: 86, all passing
+
+### NEXT: Phase 5 (extract CallNotifier)
 
 ---
 

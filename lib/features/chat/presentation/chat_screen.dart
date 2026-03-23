@@ -3,7 +3,6 @@ import 'dart:async';
 import 'dart:io';
 import 'package:file_picker/file_picker.dart';
 import 'package:desktop_drop/desktop_drop.dart';
-import 'package:open_filex/open_filex.dart';
 import 'package:path/path.dart' as p;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -11,23 +10,21 @@ import 'package:record/record.dart';
 import 'package:audioplayers/audioplayers.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:qr_flutter/qr_flutter.dart';
 import 'package:image_picker/image_picker.dart';
-import 'package:flutter_linkify/flutter_linkify.dart';
-import 'package:url_launcher/url_launcher.dart';
 import '../../../core/models/chat_message.dart';
 import '../../../core/models/room_model.dart';
 import '../../../core/providers/chat_provider.dart';
+import '../../../core/providers/file_transfer_notifier.dart';
 import '../../../core/network/websocket_server.dart';
 import '../../../core/network/websocket_client.dart';
 import '../../../core/network/discovery_service.dart';
 import '../../../core/network/webrtc_call_service.dart';
 import '../../../core/providers/username_provider.dart';
-import '../../../core/network/file_transfer_manager.dart';
-import '../../../core/providers/download_history_provider.dart';
 import '../../../core/services/notification_service.dart';
 import '../../call/presentation/call_screen.dart';
-import 'package:share_plus/share_plus.dart';
+import 'widgets/chat_message_bubble.dart';
+import 'widgets/chat_input_bar.dart';
+import 'widgets/chat_room_info_panel.dart';
 
 class ChatScreen extends ConsumerStatefulWidget {
   final bool isHost;
@@ -42,10 +39,6 @@ class _ChatScreenState extends ConsumerState<ChatScreen> with WidgetsBindingObse
   final TextEditingController _textController = TextEditingController();
   final ScrollController _scrollController = ScrollController();
 
-  /// Bridge: reads messages from the notifier. All mutation goes through
-  /// chatProvider.notifier methods. Local _messages references throughout
-  /// the file now read from here.
-  List<ChatMessage> get _messages => ref.read(chatProvider).messages;
   bool _isDragging = false;
   final _audioRecorder = AudioRecorder();
   final _audioPlayer = AudioPlayer();
@@ -63,23 +56,6 @@ class _ChatScreenState extends ConsumerState<ChatScreen> with WidgetsBindingObse
 
 
   StreamSubscription? _messageSubscription;
-
-  // File threshold: 10 MB
-  static const int _autoDownloadThreshold = 10 * 1024 * 1024;
-
-  // Sender keeps track of pending file offers (offerId -> filePath)
-  final Map<String, String> _pendingFileOffers = {};
-
-  // Download progress tracking (offerId -> [received, total])
-  final Map<String, List<int>> _downloadProgress = {};
-
-  // Cancelled and accepted offers
-  final Set<String> _cancelledOffers = {};
-  final Set<String> _acceptedOffers = {};
-
-  // Throttle for progress updates to avoid excessive rebuilds
-  Timer? _progressThrottleTimer;
-  bool _progressDirty = false;
 
   bool get _hasParticipants => _participantCount > 0;
 
@@ -101,6 +77,10 @@ class _ChatScreenState extends ConsumerState<ChatScreen> with WidgetsBindingObse
       notifier.onRoomClosed = () {
         if (mounted) _handleRoomClosed();
       };
+
+      ref.read(fileTransferNotifierProvider.notifier).init(
+        FileTransferConfig(roomName: widget.room.name),
+      );
     });
 
     final stream = widget.isHost
@@ -205,146 +185,42 @@ class _ChatScreenState extends ConsumerState<ChatScreen> with WidgetsBindingObse
         if (sender != myName) {
           _showTopSnackBar('$sender is on another call');
         }
-      } else if (type == 'file_chunk') {
-        final offerId = data['offer_id'] as String?;
-
-        // Skip chunks for cancelled offers
-        if (offerId != null && _cancelledOffers.contains(offerId)) return;
-
-        // For offer-based downloads, only process if WE accepted it
-        if (offerId != null && !_acceptedOffers.contains(offerId)) return;
-
-        // Track progress for offer-based downloads (throttled)
-        if (offerId != null) {
-          final total = data['total_chunks'] as int;
-          final chunkIdx = data['chunk_index'] as int;
-          _downloadProgress[offerId] = [chunkIdx + 1, total];
-          _progressDirty = true;
-          _progressThrottleTimer ??= Timer.periodic(
-            const Duration(milliseconds: 200),
-            (_) {
-              if (_progressDirty && mounted) {
-                _progressDirty = false;
-                setState(() {});
-              }
-            },
-          );
-        }
-
-        final manager = ref.read(fileTransferProvider);
-        final completeFile = await manager.handleChunk(data);
-        if (completeFile != null) {
-          final sender = data['sender'] as String;
-          final filename = data['filename'] as String;
-          if (offerId != null) _downloadProgress.remove(offerId);
-
-          // Log to download history
-          _logDownload(filename, completeFile.path, sender);
-
-          final notifier = ref.read(chatProvider.notifier);
-          if (offerId != null) {
-            final idx = notifier.findMessageIndex(offerId, isMe: false);
-            if (idx != -1) {
-              notifier.updateMessageAt(idx, ChatMessage(
-                sender: sender, text: '', isMe: false,
-                filePath: completeFile.path, fileName: filename, offerId: offerId,
-              ));
-            } else {
-              notifier.addMessage(ChatMessage(
-                sender: sender, text: '', isMe: false,
-                filePath: completeFile.path, fileName: filename,
-              ));
-            }
-          } else {
-            notifier.addMessage(ChatMessage(
-              sender: sender, text: '', isMe: false,
-              filePath: completeFile.path, fileName: filename,
-            ));
-          }
-          _scrollToBottom();
-
-          // Send file_downloaded ack back to everyone
-          final downloadedPayload = jsonEncode({
-            'type': 'file_downloaded',
-            'offer_id': offerId,
-            'downloader': ref.read(usernameProvider),
-            'filename': filename,
-          });
-          ref.read(chatProvider.notifier).broadcast(downloadedPayload);
-
-          // Notify if app is backgrounded
-          _notificationPlayer.play(AssetSource('audio/notification.mp3'));
-          NotificationService().showFileNotification(sender: sender, fileName: filename);
-        }
-      } else if (type == 'file_offer') {
-        final sender = data['sender'] as String;
-        final filename = data['filename'] as String;
-        final fileSize = data['size'] as int;
-        final offerId = data['offer_id'] as String;
-        ref.read(chatProvider.notifier).addMessage(ChatMessage(
-          sender: sender, text: '', isMe: false,
-          fileName: filename, fileSize: fileSize, offerId: offerId,
-        ));
-        _scrollToBottom();
-
-        _notificationPlayer.play(AssetSource('audio/notification.mp3'));
-        NotificationService().showFileNotification(
-          sender: sender, fileName: '$filename (${_formatFileSize(fileSize)})', isOffer: true,
-        );
-      } else if (type == 'accept_file') {
-        final offerId = data['offer_id'] as String;
-        final filePath = _pendingFileOffers[offerId]; // Don't remove yet — might be multi-user
-        if (filePath != null) {
-          final file = File(filePath);
-          if (await file.exists()) {
-            final senderName = ref.read(usernameProvider);
-            final manager = ref.read(fileTransferProvider);
-            final payloads = await manager.splitFileIntoChunks(file, senderName, offerId: offerId);
-            for (var payload in payloads) {
-              ref.read(chatProvider.notifier).broadcast(payload);
-            }
+      } else {
+        // File types — delegate to FileTransferNotifier
+        final fileResult = await ref.read(fileTransferNotifierProvider.notifier)
+            .handleFileMessage(rawMessage);
+        if (fileResult != null) {
+          switch (fileResult) {
+            case 'file_received':
+              final fileData = jsonDecode(rawMessage);
+              final sender = fileData['sender'] as String;
+              final filename = fileData['filename'] as String;
+              _scrollToBottom();
+              _notificationPlayer.play(AssetSource('audio/notification.mp3'));
+              NotificationService().showFileNotification(sender: sender, fileName: filename);
+              break;
+            case 'file_offer':
+              final fileData = jsonDecode(rawMessage);
+              final sender = fileData['sender'] as String;
+              final filename = fileData['filename'] as String;
+              final fileSize = fileData['size'] as int;
+              _scrollToBottom();
+              _notificationPlayer.play(AssetSource('audio/notification.mp3'));
+              NotificationService().showFileNotification(
+                sender: sender, fileName: '$filename (${formatFileSize(fileSize)})', isOffer: true,
+              );
+              break;
+            case 'file_downloaded':
+              final fileData = jsonDecode(rawMessage);
+              final downloader = fileData['downloader'] as String? ?? 'Someone';
+              _showTopSnackBar('✅ $downloader downloaded the file');
+              break;
           }
         }
-      } else if (type == 'file_downloaded') {
-        // Someone finished downloading our file — update sender state
-        final offerId = data['offer_id'] as String?;
-        final downloader = data['downloader'] as String? ?? 'Someone';
-        if (offerId != null) {
-          ref.read(chatProvider.notifier).updateMessageByOfferId(offerId, (old) => ChatMessage(
-            sender: old.sender, text: '', isMe: true,
-            fileName: old.fileName, fileSize: old.fileSize, offerId: offerId,
-            filePath: old.filePath ?? _pendingFileOffers[offerId],
-          ), senderOnly: true);
-          _showTopSnackBar('✅ $downloader downloaded the file');
-        }
-      } else if (type == 'cancel_file') {
-        final offerId = data['offer_id'] as String;
-        _cancelledOffers.add(offerId);
-        _pendingFileOffers.remove(offerId);
-        _downloadProgress.remove(offerId);
-        ref.read(chatProvider.notifier).updateMessageByOfferId(offerId, (old) => ChatMessage(
-          sender: old.sender, text: '', isMe: old.isMe,
-          fileName: old.fileName, fileSize: old.fileSize, offerId: offerId,
-          isCancelled: true,
-        ));
       }
     } catch (e) {
-      // JSON parse error for call/file types — notifier already handled
-      // parse errors for message types, so this is an unexpected case.
       debugPrint('Error handling call/file message: $e');
     }
-  }
-
-  void _logDownload(String filename, String filePath, String sender) {
-    final fileSize = File(filePath).lengthSync();
-    ref.read(downloadHistoryProvider.notifier).addRecord(DownloadRecord(
-      fileName: filename,
-      filePath: filePath,
-      fileSize: fileSize,
-      senderName: sender,
-      roomName: widget.room.name,
-      downloadedAt: DateTime.now(),
-    ));
   }
 
   void _scrollToBottom() {
@@ -380,7 +256,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> with WidgetsBindingObse
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
     _messageSubscription?.cancel();
-    _progressThrottleTimer?.cancel();
+    ref.read(fileTransferNotifierProvider.notifier).dispose();
     _audioRecorder.dispose();
     _audioPlayer.dispose();
     _ringtonePlayer.dispose();
@@ -672,88 +548,16 @@ class _ChatScreenState extends ConsumerState<ChatScreen> with WidgetsBindingObse
   }
 
   Future<void> _sendFile(File file) async {
-    final filename = p.basename(file.path);
-    final senderName = ref.read(usernameProvider);
-    final fileSize = await file.length();
-
-    if (fileSize > _autoDownloadThreshold) {
-      // Large file: send offer only, wait for accept
-      final offerId = '${DateTime.now().millisecondsSinceEpoch}_${filename.hashCode}';
-      _pendingFileOffers[offerId] = file.path;
-
-      final offerPayload = jsonEncode({
-        'type': 'file_offer',
-        'sender': senderName,
-        'filename': filename,
-        'size': fileSize,
-        'offer_id': offerId,
-      });
-
-      ref.read(chatProvider.notifier).broadcast(offerPayload);
-
-      ref.read(chatProvider.notifier).addMessage(ChatMessage(
-        sender: senderName, text: '', isMe: true,
-        fileName: '📤 $filename (${_formatFileSize(fileSize)})',
-        fileSize: fileSize, offerId: offerId,
-      ));
-      _scrollToBottom();
-    } else {
-      // Small file: auto-send immediately
-      ref.read(chatProvider.notifier).addMessage(ChatMessage(
-        sender: senderName, text: '', isMe: true,
-        filePath: file.path,
-        fileName: '📤 $filename (${_formatFileSize(fileSize)})',
-      ));
-      _scrollToBottom();
-
-      final manager = ref.read(fileTransferProvider);
-      final payloads = await manager.splitFileIntoChunks(file, senderName);
-
-      for (var payload in payloads) {
-        ref.read(chatProvider.notifier).broadcast(payload);
-      }
-    }
+    await ref.read(fileTransferNotifierProvider.notifier).sendFile(file);
+    _scrollToBottom();
   }
 
   void _acceptFileOffer(String offerId) {
-    _acceptedOffers.add(offerId);
-
-    final acceptPayload = jsonEncode({
-      'type': 'accept_file',
-      'offer_id': offerId,
-    });
-
-    ref.read(chatProvider.notifier).broadcast(acceptPayload);
-
-    final notifier = ref.read(chatProvider.notifier);
-    final idx = notifier.findMessageIndex(offerId, isMe: false);
-    if (idx != -1) {
-      final old = _messages[idx];
-      notifier.updateMessageAt(idx, ChatMessage(
-        sender: old.sender, text: '', isMe: false,
-        fileName: old.fileName, fileSize: old.fileSize,
-        offerId: offerId, isDownloading: true,
-      ));
-    }
+    ref.read(fileTransferNotifierProvider.notifier).acceptFileOffer(offerId);
   }
 
   void _cancelFileOffer(String offerId) {
-    _cancelledOffers.add(offerId);
-    _pendingFileOffers.remove(offerId);
-    _downloadProgress.remove(offerId);
-
-    final cancelPayload = jsonEncode({
-      'type': 'cancel_file',
-      'offer_id': offerId,
-    });
-
-    ref.read(chatProvider.notifier).broadcast(cancelPayload);
-
-    ref.read(chatProvider.notifier).updateMessageByOfferId(offerId, (old) => ChatMessage(
-      sender: old.sender, text: '', isMe: old.isMe,
-      fileName: old.fileName, fileSize: old.fileSize,
-      offerId: offerId, isCancelled: true,
-    ));
+    ref.read(fileTransferNotifierProvider.notifier).cancelFileOffer(offerId);
   }
 
   Future<void> _syncClipboard() async {
@@ -851,203 +655,16 @@ class _ChatScreenState extends ConsumerState<ChatScreen> with WidgetsBindingObse
     ref.read(chatProvider.notifier).sendTypingStatus();
   }
 
-  String _formatFileSize(int bytes) {
-    if (bytes < 1024) return '$bytes B';
-    if (bytes < 1024 * 1024) return '${(bytes / 1024).toStringAsFixed(1)} KB';
-    if (bytes < 1024 * 1024 * 1024) return '${(bytes / (1024 * 1024)).toStringAsFixed(1)} MB';
-    return '${(bytes / (1024 * 1024 * 1024)).toStringAsFixed(1)} GB';
-  }
-
-  void _openFile(String path) async {
-    final mimeType = _getMimeType(path);
-    await OpenFilex.open(path, type: mimeType);
-  }
-
-  String? _getMimeType(String path) {
-    final ext = p.extension(path).toLowerCase();
-    const mimeMap = {
-      '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.png': 'image/png',
-      '.gif': 'image/gif', '.webp': 'image/webp', '.bmp': 'image/bmp', '.svg': 'image/svg+xml',
-      '.mp4': 'video/mp4', '.mkv': 'video/x-matroska', '.avi': 'video/x-msvideo',
-      '.mov': 'video/quicktime', '.webm': 'video/webm',
-      '.mp3': 'audio/mpeg', '.m4a': 'audio/mp4', '.wav': 'audio/wav',
-      '.ogg': 'audio/ogg', '.flac': 'audio/flac', '.aac': 'audio/aac',
-      '.pdf': 'application/pdf', '.doc': 'application/msword',
-      '.docx': 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-      '.xls': 'application/vnd.ms-excel',
-      '.xlsx': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-      '.ppt': 'application/vnd.ms-powerpoint',
-      '.pptx': 'application/vnd.openxmlformats-officedocument.presentationml.presentation',
-      '.txt': 'text/plain', '.csv': 'text/csv', '.json': 'application/json',
-      '.zip': 'application/zip', '.rar': 'application/x-rar-compressed',
-      '.7z': 'application/x-7z-compressed', '.tar': 'application/x-tar',
-      '.gz': 'application/gzip',
-      '.apk': 'application/vnd.android.package-archive',
-    };
-    return mimeMap[ext];
-  }
-
-  void _openFolder(String path) async {
-    final dir = p.dirname(path);
-    if (Platform.isWindows) {
-      await Process.run('explorer', [dir]);
-    } else if (Platform.isMacOS) {
-      await Process.run('open', [dir]);
-    } else if (Platform.isLinux) {
-      await Process.run('xdg-open', [dir]);
-    }
-  }
-
-  void _shareFile(String path) async {
-    final file = XFile(path);
-    await SharePlus.instance.share(ShareParams(files: [file]));
-  }
-
   void _showRoomInfoPanel() {
-    final myName = ref.read(usernameProvider);
-    showModalBottomSheet(
+    showRoomInfoPanel(
       context: context,
-      backgroundColor: const Color(0xFF1E1E1E),
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-      ),
-      isScrollControlled: true,
-      builder: (ctx) => DraggableScrollableSheet(
-        initialChildSize: 0.6,
-        minChildSize: 0.3,
-        maxChildSize: 0.85,
-        expand: false,
-        builder: (_, scrollController) => SingleChildScrollView(
-          controller: scrollController,
-          padding: const EdgeInsets.all(24),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Center(
-                child: Container(
-                  width: 40, height: 4,
-                  decoration: BoxDecoration(color: Colors.grey.shade600, borderRadius: BorderRadius.circular(2)),
-                ),
-              ),
-              const SizedBox(height: 20),
-              Text(widget.room.name, style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: Colors.white)),
-              const SizedBox(height: 16),
-              _infoTile(Icons.wifi, 'Connection',
-                  widget.isHost ? 'Host • ${_localIp ?? "Loading..."} : ${widget.room.port}' : 'Client • Connected'),
-              _infoTile(
-                widget.room.e2eeEnabled ? Icons.lock : Icons.lock_open, 'Encryption',
-                widget.room.e2eeEnabled ? 'End-to-End Encrypted (AES-256)' : 'No encryption',
-                iconColor: widget.room.e2eeEnabled ? Colors.greenAccent : Colors.grey,
-              ),
-              _infoTile(Icons.person, 'Display Name', myName),
-              _infoTile(Icons.people, 'Participants', '${_participantCount + 1} (including you)',
-                  iconColor: _hasParticipants ? Colors.blueAccent : Colors.orangeAccent),
-
-              // Participant list
-              const SizedBox(height: 8),
-              Padding(
-                padding: const EdgeInsets.only(left: 4),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    // Always show self
-                    _participantRow(myName, isYou: true),
-                    // Show connected participants
-                    ..._participantNames.map((name) => _participantRow(name)),
-                    if (!_hasParticipants)
-                      const Padding(
-                        padding: EdgeInsets.only(left: 44, top: 4),
-                        child: Text('No one else is here yet...', style: TextStyle(color: Colors.grey, fontSize: 12, fontStyle: FontStyle.italic)),
-                      ),
-                  ],
-                ),
-              ),
-
-              if (widget.isHost && _localIp != null) ...[
-                const SizedBox(height: 20),
-                const Text('Share this room', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.white)),
-                const SizedBox(height: 8),
-                const Text('Others can scan this QR code to join:', style: TextStyle(color: Colors.grey, fontSize: 13)),
-                const SizedBox(height: 16),
-                Center(
-                  child: Container(
-                    padding: const EdgeInsets.all(16),
-                    decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(16)),
-                    child: QrImageView(
-                      data: jsonEncode({
-                        'ip': _localIp,
-                        'e2ee': widget.room.e2eeEnabled,
-                        'room': widget.room.name,
-                        'port': widget.room.port,
-                      }),
-                      version: QrVersions.auto, size: 180.0,
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 12),
-                Center(child: Text('IP: $_localIp:${widget.room.port}', style: const TextStyle(color: Colors.grey, fontSize: 13))),
-              ],
-              const SizedBox(height: 24),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _participantRow(String name, {bool isYou = false}) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 8),
-      child: Row(
-        children: [
-          Container(
-            width: 32, height: 32,
-            decoration: BoxDecoration(
-              color: Colors.blueAccent.withValues(alpha: 0.15),
-              borderRadius: BorderRadius.circular(8),
-            ),
-            child: Center(
-              child: Text(
-                name.isNotEmpty ? name[0].toUpperCase() : '?',
-                style: const TextStyle(color: Colors.blueAccent, fontWeight: FontWeight.bold, fontSize: 14),
-              ),
-            ),
-          ),
-          const SizedBox(width: 10),
-          Container(
-            width: 8, height: 8,
-            decoration: const BoxDecoration(color: Colors.greenAccent, shape: BoxShape.circle),
-          ),
-          const SizedBox(width: 8),
-          Text(
-            isYou ? '$name (You)' : name,
-            style: TextStyle(color: isYou ? Colors.white70 : Colors.white, fontSize: 14),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _infoTile(IconData icon, String label, String value, {Color iconColor = Colors.blueAccent}) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 14),
-      child: Row(
-        children: [
-          Container(
-            padding: const EdgeInsets.all(10),
-            decoration: BoxDecoration(color: iconColor.withValues(alpha: 0.12), borderRadius: BorderRadius.circular(10)),
-            child: Icon(icon, color: iconColor, size: 20),
-          ),
-          const SizedBox(width: 14),
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(label, style: const TextStyle(color: Colors.grey, fontSize: 12, fontWeight: FontWeight.bold)),
-              Text(value, style: const TextStyle(color: Colors.white, fontSize: 15)),
-            ],
-          ),
-        ],
-      ),
+      room: widget.room,
+      isHost: widget.isHost,
+      myName: ref.read(usernameProvider),
+      localIp: _localIp,
+      participantCount: _participantCount,
+      participantNames: _participantNames,
+      hasParticipants: _hasParticipants,
     );
   }
 
@@ -1055,6 +672,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> with WidgetsBindingObse
   Widget build(BuildContext context) {
     // Watch chat state so widget rebuilds on message/participant/typing changes
     final chatState = ref.watch(chatProvider);
+    final fileTransferState = ref.watch(fileTransferNotifierProvider);
     return DropTarget(
       onDragDone: (detail) {
         final files = detail.files.map((e) => File(e.path)).toList();
@@ -1133,7 +751,26 @@ class _ChatScreenState extends ConsumerState<ChatScreen> with WidgetsBindingObse
                     padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 24),
                     itemCount: chatState.messages.length,
                     itemBuilder: (context, index) {
-                      return _buildMessageBubble(chatState.messages[index], index);
+                      return ChatMessageBubble(
+                        msg: chatState.messages[index],
+                        index: index,
+                        messages: chatState.messages,
+                        expandedTimestamps: _expandedTimestamps,
+                        downloadProgress: fileTransferState.downloadProgress,
+                        audioPlayer: _audioPlayer,
+                        onAcceptFile: _acceptFileOffer,
+                        onCancelFile: _cancelFileOffer,
+                        onToggleTimestamp: (i) {
+                          setState(() {
+                            if (_expandedTimestamps.contains(i)) {
+                              _expandedTimestamps.remove(i);
+                            } else {
+                              _expandedTimestamps.add(i);
+                            }
+                          });
+                        },
+                        onShowSnackBar: _showTopSnackBar,
+                      );
                     },
                   ),
                 ),
@@ -1148,7 +785,17 @@ class _ChatScreenState extends ConsumerState<ChatScreen> with WidgetsBindingObse
                       ),
                     ),
                   ),
-                _buildMessageInput(),
+                ChatInputBar(
+                  textController: _textController,
+                  textFocusNode: _textFocusNode,
+                  hasParticipants: _hasParticipants,
+                  isRecording: _isRecording,
+                  onSendMessage: _sendMessage,
+                  onSendTypingStatus: _sendTypingStatus,
+                  onSyncClipboard: _syncClipboard,
+                  onShowAttachmentMenu: _showAttachmentMenu,
+                  onShowNoParticipantsWarning: _showNoParticipantsWarning,
+                ),
               ],
             ),
             if (_isDragging)
@@ -1167,635 +814,22 @@ class _ChatScreenState extends ConsumerState<ChatScreen> with WidgetsBindingObse
     );
   }
 
-  String _formatTimestamp(DateTime dt) {
-    final hour = dt.hour % 12 == 0 ? 12 : dt.hour % 12;
-    final minute = dt.minute.toString().padLeft(2, '0');
-    final ampm = dt.hour >= 12 ? 'PM' : 'AM';
-    return '$hour:$minute $ampm';
-  }
-
-  void _showMessageOptions(ChatMessage msg) {
-    showModalBottomSheet(
-      context: context,
-      backgroundColor: const Color(0xFF1E1E1E),
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-      ),
-      builder: (ctx) => SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 8),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Center(
-                child: Container(
-                  width: 40, height: 4,
-                  margin: const EdgeInsets.only(bottom: 12),
-                  decoration: BoxDecoration(color: Colors.grey.shade600, borderRadius: BorderRadius.circular(2)),
-                ),
-              ),
-              if (msg.text.isNotEmpty)
-                ListTile(
-                  leading: const Icon(Icons.copy, color: Colors.blueAccent),
-                  title: const Text('Copy Text', style: TextStyle(color: Colors.white)),
-                  onTap: () {
-                    Clipboard.setData(ClipboardData(text: msg.text));
-                    Navigator.pop(ctx);
-                    _showTopSnackBar('Copied to clipboard');
-                  },
-                ),
-              if (msg.filePath != null)
-                ListTile(
-                  leading: const Icon(Icons.open_in_new, color: Colors.orangeAccent),
-                  title: const Text('Open File', style: TextStyle(color: Colors.white)),
-                  onTap: () {
-                    Navigator.pop(ctx);
-                    _openFile(msg.filePath!);
-                  },
-                ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildMessageBubble(ChatMessage msg, int index) {
-    // Message grouping: hide sender if same sender as previous message
-    final bool showSender;
-    if (msg.isMe) {
-      showSender = false;
-    } else if (index == 0) {
-      showSender = true;
-    } else {
-      final prev = _messages[index - 1];
-      showSender = prev.sender != msg.sender || prev.isMe != msg.isMe;
-    }
-
-    // Reduce spacing for grouped messages
-    final bottomPadding = (!msg.isMe && index < _messages.length - 1 &&
-        _messages[index + 1].sender == msg.sender && !_messages[index + 1].isMe)
-        ? 4.0 : 14.0;
-
-    // Only show timestamp on the last message, or when explicitly tapped
-    final isLastMessage = index == _messages.length - 1;
-    final showTimestamp = isLastMessage || _expandedTimestamps.contains(index);
-
-    return Padding(
-      padding: EdgeInsets.only(bottom: bottomPadding),
-      child: Column(
-        crossAxisAlignment: msg.isMe ? CrossAxisAlignment.end : CrossAxisAlignment.start,
-        children: [
-          if (showSender)
-            Padding(
-              padding: const EdgeInsets.only(left: 12, bottom: 4),
-              child: Text(msg.sender, style: const TextStyle(color: Colors.grey, fontSize: 12, fontWeight: FontWeight.bold)),
-            ),
-          GestureDetector(
-            onLongPress: () => _showMessageOptions(msg),
-            onTap: isLastMessage ? null : () {
-              setState(() {
-                if (_expandedTimestamps.contains(index)) {
-                  _expandedTimestamps.remove(index);
-                } else {
-                  _expandedTimestamps.add(index);
-                }
-              });
-            },
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-              constraints: BoxConstraints(maxWidth: MediaQuery.of(context).size.width * 0.75),
-              decoration: BoxDecoration(
-                color: msg.isMe ? Colors.blueAccent : const Color(0xFF333333),
-                borderRadius: BorderRadius.only(
-                  topLeft: const Radius.circular(20),
-                  topRight: const Radius.circular(20),
-                  bottomLeft: Radius.circular(msg.isMe ? 20 : 0),
-                  bottomRight: Radius.circular(msg.isMe ? 0 : 20),
-                ),
-              ),
-              child: _buildMessageContent(msg),
-            ),
-          ),
-          // Timestamp + read receipt — animated slide
-          AnimatedSize(
-            duration: const Duration(milliseconds: 200),
-            curve: Curves.easeOut,
-            child: showTimestamp
-                ? Padding(
-                    padding: const EdgeInsets.only(top: 3, left: 12, right: 8),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Text(
-                          _formatTimestamp(msg.timestamp),
-                          style: const TextStyle(color: Colors.grey, fontSize: 10),
-                        ),
-                        if (msg.isMe && msg.id != null) ...[
-                          const SizedBox(width: 4),
-                          Icon(Icons.done_all, size: 14, color: msg.isAcked ? Colors.blueAccent : Colors.grey),
-                        ],
-                      ],
-                    ),
-                  )
-                : const SizedBox.shrink(),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildMessageContent(ChatMessage msg) {
-    if (msg.filePath != null || msg.offerId != null) {
-      return _buildFileBubble(msg);
-    }
-    if (msg.text.contains('.m4a') && msg.text.contains('Saved to: ')) {
-      return Row(mainAxisSize: MainAxisSize.min, children: [
-        IconButton(
-          icon: const Icon(Icons.play_circle_fill, color: Colors.white, size: 36),
-          onPressed: () {
-            final pathMatch = msg.text.split('Saved to: ');
-            if (pathMatch.length == 2) _audioPlayer.play(DeviceFileSource(pathMatch[1].trim()));
-          },
-        ),
-        const Expanded(child: Text("🎵 Voice Memo Received", style: TextStyle(color: Colors.white, fontSize: 14))),
-      ]);
-    }
-    if (msg.text.contains('.m4a') && msg.text.startsWith('🎤 Sent Voi')) {
-      return const Row(mainAxisSize: MainAxisSize.min, children: [
-        Icon(Icons.audiotrack, color: Colors.white, size: 30),
-        SizedBox(width: 8),
-        Text("🎵 Audio message sent", style: TextStyle(color: Colors.white)),
-      ]);
-    }
-
-    // Emoji-only: render large
-    if (isEmojiOnly(msg.text)) {
-      return Text(msg.text, style: const TextStyle(fontSize: 42));
-    }
-
-    // Linkified text with clickable URLs
-    return Linkify(
-      text: msg.text,
-      style: const TextStyle(color: Colors.white, fontSize: 15),
-      linkStyle: const TextStyle(color: Colors.lightBlueAccent, decoration: TextDecoration.underline, fontSize: 15),
-      onOpen: (link) async {
-        final uri = Uri.tryParse(link.url);
-        if (uri != null && await canLaunchUrl(uri)) {
-          await launchUrl(uri, mode: LaunchMode.externalApplication);
-        }
-      },
-    );
-  }
-
-  Widget _buildFileBubble(ChatMessage msg) {
-    final fileName = msg.fileName ?? (msg.filePath != null ? p.basename(msg.filePath!) : 'Unknown file');
-    final isCompleted = msg.filePath != null;
-    final isOffer = msg.offerId != null && !isCompleted;
-    final isAudio = msg.filePath != null &&
-        (msg.filePath!.endsWith('.m4a') || msg.filePath!.endsWith('.mp3') || msg.filePath!.endsWith('.wav'));
-    final isImage = isImageFile(msg.filePath);
-    final icon = isAudio ? Icons.audiotrack : (isImage ? Icons.image : Icons.insert_drive_file);
-
-    // Show inline image preview for completed image files
-    if (isCompleted && isImage && !msg.isMe) {
-      return Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          ClipRRect(
-            borderRadius: BorderRadius.circular(12),
-            child: ConstrainedBox(
-              constraints: const BoxConstraints(maxHeight: 250),
-              child: Image.file(
-                File(msg.filePath!),
-                fit: BoxFit.cover,
-                errorBuilder: (_, __, ___) => Row(mainAxisSize: MainAxisSize.min, children: [
-                  const Icon(Icons.broken_image, color: Colors.grey),
-                  const SizedBox(width: 8),
-                  Text(fileName, style: const TextStyle(color: Colors.white)),
-                ]),
-              ),
-            ),
-          ),
-          const SizedBox(height: 8),
-          Row(mainAxisSize: MainAxisSize.min, children: [
-            _fileActionButton(Icons.open_in_new, 'Open', () => _openFile(msg.filePath!)),
-            const SizedBox(width: 8),
-            if (Platform.isAndroid)
-              _fileActionButton(Icons.share, 'Share', () => _shareFile(msg.filePath!))
-            else
-              _fileActionButton(Icons.folder_open, 'Folder', () => _openFolder(msg.filePath!)),
-          ]),
-        ],
-      );
-    }
-
-    // Sender's own image preview
-    if (isCompleted && isImage && msg.isMe) {
-      return Column(
-        crossAxisAlignment: CrossAxisAlignment.end,
-        children: [
-          ClipRRect(
-            borderRadius: BorderRadius.circular(12),
-            child: ConstrainedBox(
-              constraints: const BoxConstraints(maxHeight: 250),
-              child: Image.file(
-                File(msg.filePath!),
-                fit: BoxFit.cover,
-                errorBuilder: (_, __, ___) => Row(mainAxisSize: MainAxisSize.min, children: [
-                  const Icon(Icons.broken_image, color: Colors.grey),
-                  const SizedBox(width: 8),
-                  Text(fileName, style: const TextStyle(color: Colors.white)),
-                ]),
-              ),
-            ),
-          ),
-          if (msg.offerId != null && !msg.isCancelled) ...[
-            const SizedBox(height: 6),
-            const Row(mainAxisSize: MainAxisSize.min, children: [
-              Icon(Icons.check_circle, color: Colors.greenAccent, size: 16),
-              SizedBox(width: 6),
-              Text('Downloaded', style: TextStyle(color: Colors.greenAccent, fontSize: 12)),
-            ]),
-          ],
-        ],
-      );
-    }
-
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Container(
-              padding: const EdgeInsets.all(8),
-              decoration: BoxDecoration(
-                color: Colors.white.withValues(alpha: 0.15),
-                borderRadius: BorderRadius.circular(8),
-              ),
-              child: Icon(icon, color: Colors.white, size: 24),
-            ),
-            const SizedBox(width: 12),
-            Flexible(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(fileName,
-                    style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 14),
-                    overflow: TextOverflow.ellipsis, maxLines: 2,
-                  ),
-                  if (msg.fileSize != null)
-                    Padding(
-                      padding: const EdgeInsets.only(top: 2),
-                      child: Text(_formatFileSize(msg.fileSize!), style: const TextStyle(color: Colors.grey, fontSize: 12)),
-                    ),
-                ],
-              ),
-            ),
-          ],
-        ),
-
-        // Cancelled
-        if (msg.isCancelled) ...[
-          const SizedBox(height: 8),
-          Row(mainAxisSize: MainAxisSize.min, children: [
-            Icon(Icons.cancel, color: Colors.redAccent.withValues(alpha: 0.7), size: 16),
-            const SizedBox(width: 6),
-            Text('Cancelled', style: TextStyle(color: Colors.redAccent.withValues(alpha: 0.7), fontSize: 12)),
-          ]),
-        ],
-
-        // Pending offer — Download button (receiver only)
-        if (isOffer && !msg.isMe && !msg.isDownloading && !msg.isCancelled) ...[
-          const SizedBox(height: 10),
-          Row(mainAxisSize: MainAxisSize.min, children: [
-            _fileActionButton(Icons.download, 'Download', () => _acceptFileOffer(msg.offerId!)),
-          ]),
-        ],
-
-        // Downloading — progress bar + cancel
-        if (msg.isDownloading && !msg.isCancelled) ...[
-          const SizedBox(height: 10),
-          Builder(builder: (_) {
-            final progress = _downloadProgress[msg.offerId];
-            final received = progress?[0] ?? 0;
-            final total = progress?[1] ?? 1;
-            final pct = total > 0 ? received / total : 0.0;
-            return Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                ClipRRect(
-                  borderRadius: BorderRadius.circular(4),
-                  child: LinearProgressIndicator(
-                    value: pct,
-                    backgroundColor: Colors.white.withValues(alpha: 0.15),
-                    valueColor: const AlwaysStoppedAnimation<Color>(Colors.greenAccent),
-                    minHeight: 6,
-                  ),
-                ),
-                const SizedBox(height: 6),
-                Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Text('${(pct * 100).toStringAsFixed(0)}%',
-                      style: const TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.bold)),
-                    if (msg.fileSize != null) ...[
-                      const SizedBox(width: 6),
-                      Text('${_formatFileSize((pct * msg.fileSize!).round())} / ${_formatFileSize(msg.fileSize!)}',
-                        style: const TextStyle(color: Colors.grey, fontSize: 11)),
-                    ],
-                    const Spacer(),
-                    InkWell(
-                      onTap: () => _cancelFileOffer(msg.offerId!),
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                        decoration: BoxDecoration(
-                          color: Colors.redAccent.withValues(alpha: 0.15),
-                          borderRadius: BorderRadius.circular(6),
-                        ),
-                        child: const Row(mainAxisSize: MainAxisSize.min, children: [
-                          Icon(Icons.close, color: Colors.redAccent, size: 14),
-                          SizedBox(width: 4),
-                          Text('Cancel', style: TextStyle(color: Colors.redAccent, fontSize: 11, fontWeight: FontWeight.w600)),
-                        ]),
-                      ),
-                    ),
-                  ],
-                ),
-              ],
-            );
-          }),
-        ],
-
-        // Sender: waiting for download + cancel, or downloaded status
-        if (isOffer && msg.isMe && !msg.isCancelled) ...[
-          const SizedBox(height: 8),
-          Row(mainAxisSize: MainAxisSize.min, children: [
-            const Text('⏳ Waiting for download', style: TextStyle(color: Colors.grey, fontSize: 11)),
-            const SizedBox(width: 12),
-            InkWell(
-              onTap: () => _cancelFileOffer(msg.offerId!),
-              child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                decoration: BoxDecoration(
-                  color: Colors.redAccent.withValues(alpha: 0.15),
-                  borderRadius: BorderRadius.circular(6),
-                ),
-                child: const Row(mainAxisSize: MainAxisSize.min, children: [
-                  Icon(Icons.close, color: Colors.redAccent, size: 14),
-                  SizedBox(width: 4),
-                  Text('Cancel', style: TextStyle(color: Colors.redAccent, fontSize: 11, fontWeight: FontWeight.w600)),
-                ]),
-              ),
-            ),
-          ]),
-        ],
-
-        // Sender: file was downloaded by someone (isCompleted && isMe && had offer)
-        if (isCompleted && msg.isMe && msg.offerId != null && !msg.isCancelled) ...[
-          const SizedBox(height: 8),
-          const Row(mainAxisSize: MainAxisSize.min, children: [
-            Icon(Icons.check_circle, color: Colors.greenAccent, size: 16),
-            SizedBox(width: 6),
-            Text('Downloaded', style: TextStyle(color: Colors.greenAccent, fontSize: 12)),
-          ]),
-        ],
-
-        // Completed file: Open/Folder/Play buttons (receiver side)
-        if (isCompleted && !msg.isMe) ...[
-          const SizedBox(height: 10),
-          Row(mainAxisSize: MainAxisSize.min, children: [
-            if (isAudio)
-              _fileActionButton(Icons.play_arrow, 'Play', () {
-                _audioPlayer.play(DeviceFileSource(msg.filePath!));
-              }),
-            _fileActionButton(Icons.open_in_new, 'Open', () => _openFile(msg.filePath!)),
-            const SizedBox(width: 8),
-            if (Platform.isAndroid)
-              _fileActionButton(Icons.share, 'Share', () => _shareFile(msg.filePath!))
-            else
-              _fileActionButton(Icons.folder_open, 'Folder', () => _openFolder(msg.filePath!)),
-          ]),
-        ],
-      ],
-    );
-  }
-
-  Widget _fileActionButton(IconData icon, String label, VoidCallback onTap) {
-    return Padding(
-      padding: const EdgeInsets.only(right: 6),
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(8),
-        child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-          decoration: BoxDecoration(
-            color: Colors.white.withValues(alpha: 0.12),
-            borderRadius: BorderRadius.circular(8),
-          ),
-          child: Row(mainAxisSize: MainAxisSize.min, children: [
-            Icon(icon, color: Colors.white, size: 16),
-            const SizedBox(width: 4),
-            Text(label, style: const TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.w600)),
-          ]),
-        ),
-      ),
-    );
-  }
 
   void _showAttachmentMenu() {
-    final bool isMobile = Platform.isAndroid || Platform.isIOS;
     showModalBottomSheet(
       context: context,
       backgroundColor: const Color(0xFF1E1E1E),
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),
-      builder: (ctx) => SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 24),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Center(
-                child: Container(
-                  width: 40, height: 4,
-                  margin: const EdgeInsets.only(bottom: 20),
-                  decoration: BoxDecoration(color: Colors.grey.shade600, borderRadius: BorderRadius.circular(2)),
-                ),
-              ),
-              GridView.count(
-                crossAxisCount: 4,
-                shrinkWrap: true,
-                physics: const NeverScrollableScrollPhysics(),
-                mainAxisSpacing: 16,
-                crossAxisSpacing: 12,
-                childAspectRatio: 0.85,
-                children: [
-                  _attachmentGridItem(
-                    icon: Icons.attach_file,
-                    label: 'File',
-                    color: Colors.blueAccent,
-                    onTap: () { Navigator.pop(ctx); _pickAndSendFile(); },
-                  ),
-                  _attachmentGridItem(
-                    icon: Icons.photo_library,
-                    label: 'Gallery',
-                    color: Colors.purpleAccent,
-                    onTap: () { Navigator.pop(ctx); _pickFromGallery(); },
-                  ),
-                  if (isMobile)
-                    _attachmentGridItem(
-                      icon: Icons.camera_alt,
-                      label: 'Camera',
-                      color: Colors.orangeAccent,
-                      onTap: () { Navigator.pop(ctx); _takePhoto(); },
-                    ),
-                  _attachmentGridItem(
-                    icon: Icons.content_paste,
-                    label: 'Clipboard',
-                    color: Colors.greenAccent,
-                    onTap: () { Navigator.pop(ctx); _syncClipboard(); },
-                  ),
-                  _attachmentGridItem(
-                    icon: _isRecording ? Icons.stop : Icons.mic,
-                    label: _isRecording ? 'Stop' : 'Voice Memo',
-                    color: _isRecording ? Colors.red : Colors.redAccent,
-                    onTap: () {
-                      Navigator.pop(ctx);
-                      if (_isRecording) {
-                        _stopRecording();
-                      } else {
-                        _startRecording();
-                      }
-                    },
-                  ),
-                ],
-              ),
-              const SizedBox(height: 8),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _attachmentGridItem({
-    required IconData icon,
-    required String label,
-    required Color color,
-    required VoidCallback onTap,
-  }) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Container(
-            width: 52, height: 52,
-            decoration: BoxDecoration(
-              color: color.withValues(alpha: 0.15),
-              borderRadius: BorderRadius.circular(14),
-            ),
-            child: Icon(icon, color: color, size: 26),
-          ),
-          const SizedBox(height: 8),
-          Text(
-            label,
-            style: const TextStyle(color: Colors.white70, fontSize: 12),
-            textAlign: TextAlign.center,
-            overflow: TextOverflow.ellipsis,
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildMessageInput() {
-    final disabledColor = Colors.grey.shade700;
-    final bool isDesktop = Platform.isWindows || Platform.isMacOS || Platform.isLinux;
-
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-      decoration: const BoxDecoration(
-        color: Color(0xFF252525),
-        boxShadow: [BoxShadow(color: Colors.black12, blurRadius: 8, offset: Offset(0, -2))],
-      ),
-      child: SafeArea(
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.end,
-          children: [
-            // "+" menu button
-            Padding(
-              padding: const EdgeInsets.only(bottom: 4),
-              child: IconButton(
-                icon: Icon(Icons.add_circle_outline, color: _hasParticipants ? Colors.blueAccent : disabledColor, size: 28),
-                tooltip: 'Attach',
-                onPressed: () {
-                  if (!_hasParticipants) {
-                    _showNoParticipantsWarning();
-                    return;
-                  }
-                  _showAttachmentMenu();
-                },
-              ),
-            ),
-            // Clipboard button (quick access)
-            Padding(
-              padding: const EdgeInsets.only(bottom: 4),
-              child: IconButton(
-                icon: Icon(Icons.content_paste, color: _hasParticipants ? Colors.greenAccent : disabledColor, size: 24),
-                tooltip: 'Sync Clipboard',
-                onPressed: _syncClipboard,
-              ),
-            ),
-            const SizedBox(width: 4),
-            // Expandable text field
-            Expanded(
-              child: KeyboardListener(
-                focusNode: _textFocusNode,
-                onKeyEvent: isDesktop ? (event) {
-                  if (event is KeyDownEvent &&
-                      event.logicalKey == LogicalKeyboardKey.enter &&
-                      !HardwareKeyboard.instance.isShiftPressed) {
-                    _sendMessage();
-                  }
-                } : null,
-                child: TextField(
-                  controller: _textController,
-                  style: const TextStyle(color: Colors.white),
-                  minLines: 1,
-                  maxLines: 5,
-                  keyboardType: TextInputType.multiline,
-                  textInputAction: isDesktop ? TextInputAction.none : TextInputAction.send,
-                  onChanged: (_) => _sendTypingStatus(),
-                  decoration: InputDecoration(
-                    hintText: _hasParticipants ? 'Type a message...' : 'Waiting for someone to join...',
-                    hintStyle: const TextStyle(color: Colors.grey),
-                    filled: true,
-                    fillColor: const Color(0xFF333333),
-                    contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
-                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(24), borderSide: BorderSide.none),
-                  ),
-                  onSubmitted: isDesktop ? null : (_) => _sendMessage(),
-                ),
-              ),
-            ),
-            const SizedBox(width: 8),
-            Padding(
-              padding: const EdgeInsets.only(bottom: 2),
-              child: CircleAvatar(
-                backgroundColor: _hasParticipants ? Colors.blueAccent : disabledColor,
-                radius: 22,
-                child: IconButton(
-                  icon: const Icon(Icons.send, color: Colors.white, size: 20),
-                  onPressed: _sendMessage,
-                ),
-              ),
-            ),
-          ],
-        ),
+      builder: (_) => AttachmentMenu(
+        isRecording: _isRecording,
+        onPickFile: _pickAndSendFile,
+        onPickFromGallery: _pickFromGallery,
+        onTakePhoto: _takePhoto,
+        onSyncClipboard: _syncClipboard,
+        onStartRecording: _startRecording,
+        onStopRecording: _stopRecording,
       ),
     );
   }
