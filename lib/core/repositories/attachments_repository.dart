@@ -30,6 +30,12 @@ class AttachmentsRepository {
     )..where((tbl) => tbl.id.equals(attachmentId))).getSingleOrNull();
   }
 
+  Future<void> deleteAttachmentsForMessage(String messageId) {
+    return (_database.delete(
+      _database.attachmentsTable,
+    )..where((tbl) => tbl.messageId.equals(messageId))).go();
+  }
+
   Future<AttachmentRow> insertAttachment({
     String? id,
     required String messageId,
@@ -97,7 +103,9 @@ class AttachmentsRepository {
             ? const drift.Value.absent()
             : drift.Value(checksum),
         width: width == null ? const drift.Value.absent() : drift.Value(width),
-        height: height == null ? const drift.Value.absent() : drift.Value(height),
+        height: height == null
+            ? const drift.Value.absent()
+            : drift.Value(height),
         durationMs: durationMs == null
             ? const drift.Value.absent()
             : drift.Value(durationMs),

@@ -2,18 +2,22 @@ import 'package:drift/drift.dart' as drift;
 import 'package:uuid/uuid.dart';
 
 import '../db/app_database.dart';
+import 'attachments_repository.dart';
 import 'conversations_repository.dart';
 
 class MessagesRepository {
   final AppDatabase _database;
   final ConversationsRepository _conversationsRepository;
+  final AttachmentsRepository _attachmentsRepository;
   final Uuid _uuid;
 
   MessagesRepository(
     this._database, {
     required ConversationsRepository conversationsRepository,
+    required AttachmentsRepository attachmentsRepository,
     Uuid? uuid,
   }) : _conversationsRepository = conversationsRepository,
+       _attachmentsRepository = attachmentsRepository,
        _uuid = uuid ?? const Uuid();
 
   Stream<List<MessageRow>> watchMessages(String conversationId) {
@@ -24,9 +28,8 @@ class MessagesRepository {
   }
 
   Future<MessageRow?> getMessageByClientGeneratedId(String clientGeneratedId) {
-    return (_database.select(
-      _database.messagesTable,
-    )..where((tbl) => tbl.clientGeneratedId.equals(clientGeneratedId)))
+    return (_database.select(_database.messagesTable)
+          ..where((tbl) => tbl.clientGeneratedId.equals(clientGeneratedId)))
         .getSingleOrNull();
   }
 
@@ -112,6 +115,51 @@ class MessagesRepository {
         status: drift.Value(status),
         updatedAt: drift.Value(now),
       ),
+    );
+  }
+
+  Future<void> deleteMessage(String messageId) async {
+    final message = await getMessageById(messageId);
+    if (message == null) return;
+
+    await _database.transaction(() async {
+      await _attachmentsRepository.deleteAttachmentsForMessage(messageId);
+      await (_database.delete(
+        _database.messagesTable,
+      )..where((tbl) => tbl.id.equals(messageId))).go();
+      await _refreshConversationPreview(message.conversationId);
+    });
+  }
+
+  Future<void> _refreshConversationPreview(String conversationId) async {
+    final latestMessage =
+        await (_database.select(_database.messagesTable)
+              ..where((tbl) => tbl.conversationId.equals(conversationId))
+              ..orderBy([
+                (tbl) => drift.OrderingTerm.desc(tbl.createdLocallyAt),
+              ])
+              ..limit(1))
+            .getSingleOrNull();
+
+    final now = DateTime.now().millisecondsSinceEpoch;
+
+    if (latestMessage == null) {
+      await (_database.update(
+        _database.conversationsTable,
+      )..where((tbl) => tbl.id.equals(conversationId))).write(
+        ConversationsTableCompanion(
+          lastMessagePreview: const drift.Value(null),
+          lastMessageAt: const drift.Value(null),
+          updatedAt: drift.Value(now),
+        ),
+      );
+      return;
+    }
+
+    await _conversationsRepository.updateConversationPreview(
+      conversationId: conversationId,
+      preview: latestMessage.textBody ?? latestMessage.type,
+      messageTimestamp: latestMessage.sentAt ?? latestMessage.createdLocallyAt,
     );
   }
 }

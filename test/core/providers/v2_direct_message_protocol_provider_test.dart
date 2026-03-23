@@ -7,6 +7,7 @@ import 'package:lanline/core/db/app_database.dart';
 import 'package:lanline/core/identity/identity_service.dart';
 import 'package:lanline/core/network/v2_request_signaling_service.dart';
 import 'package:lanline/core/providers/v2_direct_message_protocol_provider.dart';
+import 'package:lanline/core/repositories/attachments_repository.dart';
 import 'package:lanline/core/repositories/conversations_repository.dart';
 import 'package:lanline/core/repositories/identity_repository.dart';
 import 'package:lanline/core/repositories/messages_repository.dart';
@@ -24,6 +25,7 @@ void main() {
     late IdentityService identityService;
     late PeersRepository peersRepository;
     late ConversationsRepository conversationsRepository;
+    late AttachmentsRepository attachmentsRepository;
     late MessagesRepository messagesRepository;
     late MockV2PeerSignalingService signalingService;
     late StreamController<String> incomingMessages;
@@ -34,9 +36,11 @@ void main() {
       identityRepository = IdentityRepository(database);
       peersRepository = PeersRepository(database);
       conversationsRepository = ConversationsRepository(database);
+      attachmentsRepository = AttachmentsRepository(database);
       messagesRepository = MessagesRepository(
         database,
         conversationsRepository: conversationsRepository,
+        attachmentsRepository: attachmentsRepository,
       );
       signalingService = MockV2PeerSignalingService();
       incomingMessages = StreamController<String>.broadcast();

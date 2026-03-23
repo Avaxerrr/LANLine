@@ -1,6 +1,7 @@
 import 'package:drift/native.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:lanline/core/db/app_database.dart';
+import 'package:lanline/core/repositories/attachments_repository.dart';
 import 'package:lanline/core/repositories/conversations_repository.dart';
 import 'package:lanline/core/repositories/messages_repository.dart';
 import 'package:lanline/core/repositories/peers_repository.dart';
@@ -9,15 +10,18 @@ void main() {
   late AppDatabase database;
   late PeersRepository peersRepository;
   late ConversationsRepository conversationsRepository;
+  late AttachmentsRepository attachmentsRepository;
   late MessagesRepository messagesRepository;
 
   setUp(() {
     database = AppDatabase(executor: NativeDatabase.memory());
     peersRepository = PeersRepository(database);
     conversationsRepository = ConversationsRepository(database);
+    attachmentsRepository = AttachmentsRepository(database);
     messagesRepository = MessagesRepository(
       database,
       conversationsRepository: conversationsRepository,
+      attachmentsRepository: attachmentsRepository,
     );
   });
 

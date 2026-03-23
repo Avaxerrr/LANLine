@@ -200,6 +200,20 @@ class _DirectConversationScreenState
     setState(() => _replyingToMessage = null);
   }
 
+  Future<void> _deleteMessage(MessageRow message) async {
+    try {
+      await ref.read(conversationActionsProvider).deleteMessage(message.id);
+      if (_replyingToMessage?.id == message.id) {
+        _clearReply();
+      }
+    } catch (error) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Failed to delete message: $error')),
+      );
+    }
+  }
+
   String _replyPreviewText(MessageRow message) {
     final text = message.textBody?.trim();
     if (text != null && text.isNotEmpty) {
@@ -312,6 +326,7 @@ class _DirectConversationScreenState
                                 ? null
                                 : messageById[message.replyToMessageId!],
                             onReply: _setReply,
+                            onDelete: _deleteMessage,
                           );
                         },
                       );

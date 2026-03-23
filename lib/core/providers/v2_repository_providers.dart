@@ -34,5 +34,6 @@ final messagesRepositoryProvider = Provider<MessagesRepository>((ref) {
   return MessagesRepository(
     ref.read(appDatabaseProvider),
     conversationsRepository: ref.read(conversationsRepositoryProvider),
+    attachmentsRepository: ref.read(attachmentsRepositoryProvider),
   );
 });

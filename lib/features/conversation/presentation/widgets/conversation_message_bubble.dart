@@ -38,6 +38,7 @@ class ConversationMessageBubble extends ConsumerWidget {
   final bool showStatus;
   final MessageRow? repliedMessage;
   final ValueChanged<MessageRow>? onReply;
+  final ValueChanged<MessageRow>? onDelete;
 
   const ConversationMessageBubble({
     super.key,
@@ -50,6 +51,7 @@ class ConversationMessageBubble extends ConsumerWidget {
     required this.showStatus,
     this.repliedMessage,
     this.onReply,
+    this.onDelete,
   });
 
   @override
@@ -255,6 +257,45 @@ class ConversationMessageBubble extends ConsumerWidget {
                     );
                   },
                 ),
+              ListTile(
+                leading: const Icon(
+                  Icons.delete_outline,
+                  color: Colors.redAccent,
+                ),
+                title: const Text(
+                  'Delete from this device',
+                  style: TextStyle(color: Colors.white),
+                ),
+                onTap: () async {
+                  Navigator.pop(sheetContext);
+                  final shouldDelete = await showDialog<bool>(
+                    context: context,
+                    builder: (dialogContext) => AlertDialog(
+                      backgroundColor: const Color(0xFF1E1E1E),
+                      title: const Text('Delete message'),
+                      content: const Text(
+                        'This only removes the message from this device.',
+                      ),
+                      actions: [
+                        TextButton(
+                          onPressed: () => Navigator.pop(dialogContext, false),
+                          child: const Text('Cancel'),
+                        ),
+                        FilledButton(
+                          onPressed: () => Navigator.pop(dialogContext, true),
+                          style: FilledButton.styleFrom(
+                            backgroundColor: Colors.redAccent,
+                          ),
+                          child: const Text('Delete'),
+                        ),
+                      ],
+                    ),
+                  );
+                  if (shouldDelete == true) {
+                    onDelete?.call(message);
+                  }
+                },
+              ),
             ],
           ),
         ),

@@ -1,6 +1,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../db/app_database.dart';
+import '../repositories/messages_repository.dart';
 import '../repositories/conversations_repository.dart';
 import 'v2_direct_message_protocol_provider.dart';
 import 'v2_group_protocol_provider.dart';
@@ -149,12 +150,14 @@ class ConversationActions {
   final V2DirectMessageProtocolController _directController;
   final V2GroupProtocolController _groupController;
   final ConversationsRepository _conversationsRepository;
+  final MessagesRepository _messagesRepository;
   final Ref _ref;
 
   ConversationActions(
     this._directController,
     this._groupController,
     this._conversationsRepository,
+    this._messagesRepository,
     this._ref,
   );
 
@@ -228,6 +231,10 @@ class ConversationActions {
     }
     await _directController.setActiveConversation(conversationId);
   }
+
+  Future<void> deleteMessage(String messageId) {
+    return _messagesRepository.deleteMessage(messageId);
+  }
 }
 
 final conversationActionsProvider = Provider<ConversationActions>((ref) {
@@ -237,6 +244,7 @@ final conversationActionsProvider = Provider<ConversationActions>((ref) {
     ref.read(v2DirectMessageProtocolControllerProvider),
     ref.read(v2GroupProtocolControllerProvider),
     ref.read(conversationsRepositoryProvider),
+    ref.read(messagesRepositoryProvider),
     ref,
   );
 });
