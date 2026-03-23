@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'dart:io';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_linkify/flutter_linkify.dart';
@@ -28,7 +29,7 @@ String? latestOutgoingMessageId(
   return null;
 }
 
-class ConversationMessageBubble extends ConsumerWidget {
+class ConversationMessageBubble extends ConsumerStatefulWidget {
   final MessageRow message;
   final bool isMe;
   final String? peerId;
@@ -65,8 +66,31 @@ class ConversationMessageBubble extends ConsumerWidget {
   });
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    if (message.type == 'system') {
+  ConsumerState<ConversationMessageBubble> createState() =>
+      _ConversationMessageBubbleState();
+}
+
+class _ConversationMessageBubbleState
+    extends ConsumerState<ConversationMessageBubble> {
+  bool _isHovered = false;
+
+  bool get _supportsHover {
+    if (kIsWeb) return true;
+    switch (defaultTargetPlatform) {
+      case TargetPlatform.macOS:
+      case TargetPlatform.windows:
+      case TargetPlatform.linux:
+        return true;
+      case TargetPlatform.android:
+      case TargetPlatform.iOS:
+      case TargetPlatform.fuchsia:
+        return false;
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (widget.message.type == 'system') {
       return Padding(
         padding: const EdgeInsets.only(bottom: 14),
         child: Center(
@@ -77,7 +101,7 @@ class ConversationMessageBubble extends ConsumerWidget {
               borderRadius: BorderRadius.circular(999),
             ),
             child: Text(
-              message.textBody ?? '',
+              widget.message.textBody ?? '',
               style: const TextStyle(color: Colors.grey, fontSize: 12),
             ),
           ),
@@ -85,95 +109,108 @@ class ConversationMessageBubble extends ConsumerWidget {
       );
     }
 
-    final attachmentsAsync = ref.watch(messageAttachmentsProvider(message.id));
+    final attachmentsAsync = ref.watch(
+      messageAttachmentsProvider(widget.message.id),
+    );
 
     return Padding(
       padding: const EdgeInsets.only(bottom: 12),
       child: attachmentsAsync.when(
         data: (attachments) {
           final attachment = attachments.isEmpty ? null : attachments.first;
-          final bubbleColor = isMe
+          final actionsVisible =
+              widget.showInlineActions || (_supportsHover && _isHovered);
+          final bubbleColor = widget.isMe
               ? Colors.blueAccent.withValues(alpha: 0.22)
               : const Color(0xFF1F1F1F);
-          final alignment = isMe
+          final alignment = widget.isMe
               ? CrossAxisAlignment.end
               : CrossAxisAlignment.start;
-          final textAlign = isMe ? TextAlign.right : TextAlign.left;
+          final textAlign = widget.isMe ? TextAlign.right : TextAlign.left;
 
-          return Column(
-            crossAxisAlignment: alignment,
-            children: [
-              if (isGroup && !isMe)
-                Padding(
-                  padding: const EdgeInsets.only(left: 4, bottom: 4),
-                  child: Text(
-                    senderLabel,
-                    style: const TextStyle(
-                      color: Colors.amber,
-                      fontSize: 12,
-                      fontWeight: FontWeight.w700,
+          return MouseRegion(
+            onEnter: _supportsHover
+                ? (_) => setState(() => _isHovered = true)
+                : null,
+            onExit: _supportsHover
+                ? (_) => setState(() => _isHovered = false)
+                : null,
+            child: Column(
+              crossAxisAlignment: alignment,
+              children: [
+                if (widget.isGroup && !widget.isMe)
+                  Padding(
+                    padding: const EdgeInsets.only(left: 4, bottom: 4),
+                    child: Text(
+                      widget.senderLabel,
+                      style: const TextStyle(
+                        color: Colors.amber,
+                        fontSize: 12,
+                        fontWeight: FontWeight.w700,
+                      ),
                     ),
                   ),
-                ),
-              GestureDetector(
-                onTap: onToggleActions,
-                child: Container(
-                  constraints: const BoxConstraints(maxWidth: 320),
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 14,
-                    vertical: 12,
-                  ),
-                  decoration: BoxDecoration(
-                    color: bubbleColor,
-                    borderRadius: BorderRadius.circular(18),
-                    border: showInlineActions
-                        ? Border.all(
-                            color: Colors.white.withValues(alpha: 0.12),
+                GestureDetector(
+                  onTap: _supportsHover ? null : widget.onToggleActions,
+                  child: Container(
+                    constraints: const BoxConstraints(maxWidth: 320),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 14,
+                      vertical: 12,
+                    ),
+                    decoration: BoxDecoration(
+                      color: bubbleColor,
+                      borderRadius: BorderRadius.circular(18),
+                      border: actionsVisible
+                          ? Border.all(
+                              color: Colors.white.withValues(alpha: 0.12),
+                            )
+                          : null,
+                    ),
+                    child: attachment != null
+                        ? AttachmentMessageContent(
+                            attachment: attachment,
+                            peerId: widget.peerId,
+                            isMe: widget.isMe,
+                            downloadProgress: widget.downloadProgress,
+                            repliedMessage: widget.repliedMessage,
                           )
-                        : null,
+                        : TextLikeMessageContent(
+                            message: widget.message,
+                            textAlign: textAlign,
+                            repliedMessage: widget.repliedMessage,
+                          ),
                   ),
-                  child: attachment != null
-                      ? AttachmentMessageContent(
-                          attachment: attachment,
-                          peerId: peerId,
-                          isMe: isMe,
-                          downloadProgress: downloadProgress,
-                          repliedMessage: repliedMessage,
-                        )
-                      : TextLikeMessageContent(
-                          message: message,
-                          textAlign: textAlign,
-                          repliedMessage: repliedMessage,
-                        ),
                 ),
-              ),
-              if (showInlineActions) ...[
-                const SizedBox(height: 8),
-                _InlineMessageActions(
-                  message: message,
-                  isPinned: isPinned,
-                  showCopy: (message.textBody?.trim().isNotEmpty ?? false),
-                  alignment: isMe
-                      ? MainAxisAlignment.end
-                      : MainAxisAlignment.start,
-                  onReply: onReply,
-                  onForward: onForward,
-                  onTogglePin: onTogglePin,
-                  onDelete: onDelete,
-                ),
-              ],
-              if (showStatus) ...[
-                const SizedBox(height: 4),
-                Text(
-                  _statusLabel(
-                    message: message,
-                    attachment: attachment,
-                    isMe: isMe,
+                if (actionsVisible) ...[
+                  const SizedBox(height: 8),
+                  _InlineMessageActions(
+                    message: widget.message,
+                    isPinned: widget.isPinned,
+                    showCopy:
+                        (widget.message.textBody?.trim().isNotEmpty ?? false),
+                    alignment: widget.isMe
+                        ? MainAxisAlignment.end
+                        : MainAxisAlignment.start,
+                    onReply: widget.onReply,
+                    onForward: widget.onForward,
+                    onTogglePin: widget.onTogglePin,
+                    onDelete: widget.onDelete,
                   ),
-                  style: const TextStyle(fontSize: 12, color: Colors.grey),
-                ),
+                ],
+                if (widget.showStatus) ...[
+                  const SizedBox(height: 4),
+                  Text(
+                    _statusLabel(
+                      message: widget.message,
+                      attachment: attachment,
+                      isMe: widget.isMe,
+                    ),
+                    style: const TextStyle(fontSize: 12, color: Colors.grey),
+                  ),
+                ],
               ],
-            ],
+            ),
           );
         },
         loading: () => const SizedBox.shrink(),
