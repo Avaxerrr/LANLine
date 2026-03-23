@@ -39,6 +39,7 @@ class ConversationMessageBubble extends ConsumerWidget {
   final MessageRow? repliedMessage;
   final ValueChanged<MessageRow>? onReply;
   final ValueChanged<MessageRow>? onDelete;
+  final ValueChanged<MessageRow>? onForward;
 
   const ConversationMessageBubble({
     super.key,
@@ -52,6 +53,7 @@ class ConversationMessageBubble extends ConsumerWidget {
     this.repliedMessage,
     this.onReply,
     this.onDelete,
+    this.onForward,
   });
 
   @override
@@ -238,6 +240,21 @@ class ConversationMessageBubble extends ConsumerWidget {
                   onReply?.call(message);
                 },
               ),
+              if (text.isNotEmpty)
+                ListTile(
+                  leading: const Icon(
+                    Icons.forward_outlined,
+                    color: Colors.amber,
+                  ),
+                  title: const Text(
+                    'Forward',
+                    style: TextStyle(color: Colors.white),
+                  ),
+                  onTap: () {
+                    Navigator.pop(sheetContext);
+                    onForward?.call(message);
+                  },
+                ),
               if (text.isNotEmpty)
                 ListTile(
                   leading: const Icon(

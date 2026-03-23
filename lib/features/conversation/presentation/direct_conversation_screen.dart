@@ -12,6 +12,7 @@ import '../../call/presentation/call_screen.dart';
 import 'widgets/conversation_chrome.dart';
 import 'widgets/conversation_input_bar.dart';
 import 'widgets/conversation_message_bubble.dart';
+import 'widgets/forward_message_sheet.dart';
 
 class DirectConversationScreen extends ConsumerStatefulWidget {
   final String conversationId;
@@ -214,6 +215,68 @@ class _DirectConversationScreenState
     }
   }
 
+  Future<void> _forwardMessage(MessageRow message) async {
+    final text = message.textBody?.trim();
+    if (text == null || text.isEmpty) return;
+    if (!mounted) return;
+
+    final targetConversation = await showModalBottomSheet<ConversationRow>(
+      context: context,
+      backgroundColor: const Color(0xFF1E1E1E),
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      isScrollControlled: true,
+      builder: (sheetContext) => FractionallySizedBox(
+        heightFactor: 0.72,
+        child: ForwardMessageSheet(
+          currentConversationId: widget.conversationId,
+          onSelectConversation: (conversation) {
+            Navigator.pop(sheetContext, conversation);
+          },
+        ),
+      ),
+    );
+
+    if (targetConversation == null) return;
+
+    try {
+      String? targetPeerId;
+      if (targetConversation.type == 'direct') {
+        final peer = await ref.read(
+          directConversationPeerProvider(targetConversation.id).future,
+        );
+        targetPeerId = peer?.peerId;
+        if (targetPeerId == null) {
+          throw StateError('Could not resolve the target contact.');
+        }
+      }
+
+      await ref
+          .read(conversationActionsProvider)
+          .sendTextMessage(
+            peerId: targetPeerId,
+            text: text,
+            conversationId: targetConversation.id,
+            conversationTitle: targetConversation.title,
+          );
+
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            'Forwarded to ${targetConversation.title ?? 'conversation'}',
+          ),
+        ),
+      );
+    } catch (error) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Failed to forward message: $error')),
+      );
+    }
+  }
+
   String _replyPreviewText(MessageRow message) {
     final text = message.textBody?.trim();
     if (text != null && text.isNotEmpty) {
@@ -327,6 +390,7 @@ class _DirectConversationScreenState
                                 : messageById[message.replyToMessageId!],
                             onReply: _setReply,
                             onDelete: _deleteMessage,
+                            onForward: _forwardMessage,
                           );
                         },
                       );
