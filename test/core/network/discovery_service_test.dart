@@ -71,7 +71,7 @@ void main() {
           'status': 'online',
           'isReachable': true,
           'transportType': 'lan',
-          'host': '192.168.1.21',
+          'host': '192.168.1.105',
           'port': 55556,
           'lastHeartbeatAt': 1234567890,
         }),
@@ -88,6 +88,23 @@ void main() {
       expect(peer.status, 'online');
       expect(peer.isReachable, isTrue);
       expect(peer.lastHeartbeatAt, 1234567890);
+    });
+
+    test('prefers UDP sender IP over advertised host for LAN peers', () {
+      final signal = DiscoveryService.parseDiscoveryMessage(
+        jsonEncode({
+          'app': 'LANLINE',
+          'kind': 'peer_presence',
+          'peerId': 'peer-123',
+          'displayName': 'Alex',
+          'host': '192.168.1.105',
+          'transportType': 'lan',
+        }),
+        '192.168.1.104',
+      );
+
+      expect(signal, isA<DiscoveredPeerPresence>());
+      expect((signal as DiscoveredPeerPresence).ip, '192.168.1.104');
     });
 
     test('keeps plain legacy discovery fallback intact', () {

@@ -191,7 +191,6 @@ class DiscoveryService {
     int? port,
     String? bindAddress,
   }) async {
-    final ip = bindAddress ?? await getLocalIpAddress();
     _broadcastSocket ??= await RawDatagramSocket.bind(
       InternetAddress.anyIPv4,
       0,
@@ -200,23 +199,31 @@ class DiscoveryService {
 
     _peerBroadcastTimer?.cancel();
     _peerBroadcastTimer = Timer.periodic(const Duration(seconds: 5), (_) {
-      final payload = jsonEncode({
-        'app': 'LANLINE',
-        'kind': 'peer_presence',
-        'peerId': peerId,
-        'displayName': displayName,
-        'deviceLabel': deviceLabel,
-        'fingerprint': fingerprint,
-        'status': status,
-        'isReachable': isReachable,
-        'transportType': transportType ?? 'lan',
-        'host': ip,
-        'ip': ip,
-        'port': port,
-        'lastHeartbeatAt': DateTime.now().millisecondsSinceEpoch,
-      });
-      unawaited(_sendPayloadToBroadcastTargets(payload));
+      unawaited(
+        _broadcastPeerPresence(
+          peerId: peerId,
+          displayName: displayName,
+          isReachable: isReachable,
+          status: status,
+          fingerprint: fingerprint,
+          deviceLabel: deviceLabel,
+          transportType: transportType,
+          port: port,
+          bindAddress: bindAddress,
+        ),
+      );
     });
+    await _broadcastPeerPresence(
+      peerId: peerId,
+      displayName: displayName,
+      isReachable: isReachable,
+      status: status,
+      fingerprint: fingerprint,
+      deviceLabel: deviceLabel,
+      transportType: transportType,
+      port: port,
+      bindAddress: bindAddress,
+    );
   }
 
   void stopPeerBroadcasting() {
@@ -272,6 +279,36 @@ class DiscoveryService {
     }
   }
 
+  Future<void> _broadcastPeerPresence({
+    required String peerId,
+    required String displayName,
+    required bool isReachable,
+    required String status,
+    required String fingerprint,
+    String? deviceLabel,
+    String? transportType,
+    int? port,
+    String? bindAddress,
+  }) async {
+    final ip = bindAddress ?? await getLocalIpAddress();
+    final payload = jsonEncode({
+      'app': 'LANLINE',
+      'kind': 'peer_presence',
+      'peerId': peerId,
+      'displayName': displayName,
+      'deviceLabel': deviceLabel,
+      'fingerprint': fingerprint,
+      'status': status,
+      'isReachable': isReachable,
+      'transportType': transportType ?? 'lan',
+      'host': ip,
+      'ip': ip,
+      'port': port,
+      'lastHeartbeatAt': DateTime.now().millisecondsSinceEpoch,
+    });
+    await _sendPayloadToBroadcastTargets(payload);
+  }
+
   Future<List<InternetAddress>> _resolveBroadcastTargets() async {
     final interfaces = await NetworkInterface.list(
       type: InternetAddressType.IPv4,
@@ -325,8 +362,13 @@ class DiscoveryService {
       if (data is Map<String, dynamic> && data['app'] == 'LANLINE') {
         final kind = data['kind']?.toString();
         final hasPeerIdentity = data.containsKey('peerId');
+        final transportType = data['transportType']?.toString() ?? 'lan';
 
         if (kind == 'peer_presence' || hasPeerIdentity) {
+          final advertisedIp =
+              data['host']?.toString() ?? data['ip']?.toString() ?? senderIp;
+          final resolvedIp = transportType == 'lan' ? senderIp : advertisedIp;
+
           return DiscoveredPeerPresence(
             peerId: data['peerId']?.toString() ?? senderIp,
             displayName:
@@ -335,12 +377,12 @@ class DiscoveryService {
                 'Unknown Peer',
             deviceLabel: data['deviceLabel']?.toString(),
             fingerprint: data['fingerprint']?.toString(),
-            ip: data['host']?.toString() ?? data['ip']?.toString() ?? senderIp,
+            ip: resolvedIp,
             status: data['status']?.toString() ?? 'online',
             isReachable: data['isReachable'] is bool
                 ? data['isReachable'] as bool
                 : true,
-            transportType: data['transportType']?.toString() ?? 'lan',
+            transportType: transportType,
             port: data['port'] as int?,
             lastHeartbeatAt: data['lastHeartbeatAt'] as int?,
           );
