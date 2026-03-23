@@ -100,6 +100,12 @@ class _ChatScreenState extends ConsumerState<ChatScreen> with WidgetsBindingObse
   }
 
   Future<void> _loadLocalIp() async {
+    // If a specific bind address was chosen (e.g. Tailscale), use that
+    // instead of auto-detecting — the server is bound to that IP.
+    if (widget.room.bindAddress != null) {
+      if (mounted) setState(() => _localIp = widget.room.bindAddress);
+      return;
+    }
     final ip = await ref.read(discoveryServiceProvider).getLocalIpAddress();
     if (mounted) setState(() => _localIp = ip);
   }
