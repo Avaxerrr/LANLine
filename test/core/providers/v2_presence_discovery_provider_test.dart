@@ -10,7 +10,7 @@ import 'package:lanline/core/repositories/identity_repository.dart';
 import 'package:lanline/core/repositories/peers_repository.dart';
 import 'package:mocktail/mocktail.dart';
 
-import '../../helpers/test_helpers.dart';
+class MockDiscoveryService extends Mock implements DiscoveryService {}
 
 void main() {
   group('V2PresenceDiscoveryController', () {

@@ -46,7 +46,7 @@ Current product shape:
 
 - app now opens into a new V2 shell
 - `Chats`, `People`, `Requests`, and `Settings` screens exist
-- legacy room flow is no longer exposed in the active Settings UX
+- direct chats, group chats, files, calls, and local history now run through V2 conversations
 - V2 peer presence now starts from the shell and updates the local DB
 - `People` is now contacts-only and `Requests` owns discovery/request actions
 - remote request delivery and status sync now work between devices
@@ -56,7 +56,7 @@ Current project state:
 
 - existing codebase has usable networking and feature foundations
 - architecture direction has been drafted in `V2_ARCHITECTURE.md`
-- Phase 1 through Phase 4 are implemented
+- Phase 1 through Phase 7 are implemented for the approved V2 scope
 
 ## 4. Approved Direction
 
@@ -227,7 +227,7 @@ Exit criteria:
 - V2 group conversations work from chats, requests, and the conversation screen
 
 ### Phase 7: Cleanup And Hardening
-Status: In progress
+Status: Complete
 
 Goals:
 
@@ -247,12 +247,11 @@ Exit criteria:
 
 ## 7. Immediate Next Step
 
-The next implementation slice should start Phase 7:
+The approved V2 overhaul phases are now complete. The next work should be follow-up planning:
 
-- continue removing or quarantining obsolete room-first code that V2 no longer needs
-- harden group/direct protocols and reduce temporary migration shims
-- decide whether direct-only media limits in groups stay temporary or become a planned follow-up
-- keep deeper legacy room code only if it still serves a migration/debug purpose
+- decide which polish items become post-V2 milestones
+- decide whether group media is a separate feature phase
+- continue UX refinement and regression hardening as needed
 
 ## 8. Status Board
 
@@ -268,9 +267,9 @@ Use this section as the live session-by-session tracker.
 - Phase 4 direct messaging MVP: Implemented
 - Phase 5 calls and file transfer migration: Implemented
 - Phase 6 group conversations: Implemented
-- Phase 7 cleanup and hardening: In progress
-- Implementation: In progress
-- Current focus: Phase 7 cleanup and hardening
+- Phase 7 cleanup and hardening: Implemented
+- Implementation: Approved V2 scope implemented
+- Current focus: post-overhaul polish and follow-up planning
 
 ### Completed
 
@@ -316,17 +315,19 @@ Use this section as the live session-by-session tracker.
 - group invites now appear in `Requests` and require explicit accept/decline
 - group chats now show group-aware list styling and sender labels in-thread
 - Phase 6 tests added for group creation, inbound invites, and group message fan-out
+- legacy room Settings access was removed
+- unreachable legacy room UI, room runtime providers, and room tests were deleted
+- obsolete room WebSocket transport files were deleted
+- discovery service now only handles V2 peer presence, not legacy room broadcasts
 
 ### In Progress
 
-- V2 overhaul implementation
-- planning Phase 7 cleanup and hardening
-- removing active UX access to the legacy room flow
+ - post-overhaul follow-up planning
 
 ### Pending
 
-- Phase 7 cleanup and hardening
-- deeper legacy room code removal/quarantine
+- group media follow-up decision
+- Tailscale/presence polish follow-up decision
 
 ## 9. Decision Log
 
@@ -349,6 +350,7 @@ Add every major approved change here.
 - decided invited members must explicitly accept before joining a group
 - decided group metadata changes should be admin-only for now
 - decided the legacy room flow should no longer remain visible in the active Settings UX
+- decided the approved V2 overhaul scope is complete once legacy room runtime and discovery paths are removed
 
 ## 10. Change Log
 
@@ -384,6 +386,9 @@ Use this as the project history for the overhaul itself.
 - added group creation UI and pending group invite handling
 - updated the conversation UI and chat list for group chat presentation
 - removed legacy room entry points from Settings and kept downloads as the remaining history entry
+- deleted the unreachable legacy room host/join/chat screens and room-specific providers
+- removed the old room WebSocket server/client transport and legacy notifier tests
+- removed legacy room discovery parsing/broadcast support from the discovery service
 
 ## 11. Open Questions
 
@@ -391,9 +396,8 @@ These stay here until resolved.
 
 1. Should initial DM delivery be live-only, or include pending outbox immediately?
 2. Should Tailscale support be manual-address-first or more automated later?
-3. Should group chat be explicitly deferred until DMs are stable?
-4. Should old room screens remain temporarily hidden behind a migration/debug path?
-5. How much of the current encryption model should remain unchanged during early V2 work?
+3. Should group media become the next post-V2 feature phase?
+4. How much of the current encryption model should remain unchanged during early V2 work?
 
 ## 12. Risks
 

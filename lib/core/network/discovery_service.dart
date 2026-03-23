@@ -9,29 +9,6 @@ final discoveryServiceProvider = Provider<DiscoveryService>((ref) {
   return DiscoveryService();
 });
 
-/// Structured info about a room discovered on the LAN.
-class DiscoveredRoom extends DiscoverySignal {
-  final String ip;
-  final String roomName;
-  final bool e2eeEnabled;
-  final int port;
-
-  DiscoveredRoom({
-    required this.ip,
-    required this.roomName,
-    required this.e2eeEnabled,
-    this.port = 55556,
-  });
-
-  @override
-  bool operator ==(Object other) =>
-      identical(this, other) ||
-      other is DiscoveredRoom && ip == other.ip && port == other.port;
-
-  @override
-  int get hashCode => Object.hash(ip, port);
-}
-
 /// Structured info about a peer's live presence on the LAN.
 class DiscoveredPeerPresence extends DiscoverySignal {
   final String peerId;
@@ -78,18 +55,12 @@ class DiscoveryService {
   RawDatagramSocket? _listenSocket;
   RawDatagramSocket? _broadcastSocket;
   final int _discoveryPort = 55555;
-  Timer? _roomBroadcastTimer;
   Timer? _peerBroadcastTimer;
   StreamSubscription? _listenSubscription;
 
-  // Re-creatable controllers so they survive stop/start cycles.
-  StreamController<DiscoveredRoom> _roomDiscoveredController =
-      StreamController<DiscoveredRoom>.broadcast();
   StreamController<DiscoveredPeerPresence> _peerDiscoveredController =
       StreamController<DiscoveredPeerPresence>.broadcast();
 
-  Stream<DiscoveredRoom> get onRoomDiscovered =>
-      _roomDiscoveredController.stream;
   Stream<DiscoveredPeerPresence> get onPeerPresenceDiscovered =>
       _peerDiscoveredController.stream;
 
@@ -98,10 +69,6 @@ class DiscoveryService {
     // Don't double-bind.
     if (_listenSocket != null) return;
 
-    // Ensure the controllers are open.
-    if (_roomDiscoveredController.isClosed) {
-      _roomDiscoveredController = StreamController<DiscoveredRoom>.broadcast();
-    }
     if (_peerDiscoveredController.isClosed) {
       _peerDiscoveredController =
           StreamController<DiscoveredPeerPresence>.broadcast();
@@ -129,9 +96,7 @@ class DiscoveryService {
           senderIp,
         );
 
-        if (signal is DiscoveredRoom) {
-          _roomDiscoveredController.add(signal);
-        } else if (signal is DiscoveredPeerPresence) {
+        if (signal is DiscoveredPeerPresence) {
           _peerDiscoveredController.add(signal);
         }
       });
@@ -149,34 +114,6 @@ class DiscoveryService {
     _listenSubscription = null;
     _listenSocket?.close();
     _listenSocket = null;
-  }
-
-  /// Broadcasts our room's presence to the network.
-  Future<void> startBroadcasting({
-    required String roomName,
-    required bool e2eeEnabled,
-    int port = 55556,
-    String? bindAddress,
-  }) async {
-    final ip = bindAddress ?? await getLocalIpAddress();
-    _broadcastSocket ??= await RawDatagramSocket.bind(
-      InternetAddress.anyIPv4,
-      0,
-    );
-    _broadcastSocket?.broadcastEnabled = true;
-
-    _roomBroadcastTimer?.cancel();
-    _roomBroadcastTimer = Timer.periodic(const Duration(seconds: 2), (_) {
-      final payload = jsonEncode({
-        'app': 'LANLINE',
-        'kind': 'room',
-        'room': roomName,
-        'e2ee': e2eeEnabled,
-        'ip': ip,
-        'port': port,
-      });
-      unawaited(_sendPayloadToBroadcastTargets(payload));
-    });
   }
 
   /// Broadcasts live peer presence to the network.
@@ -331,23 +268,18 @@ class DiscoveryService {
 
   /// Full stop - closes everything including the stream controllers.
   void stop() {
-    _roomBroadcastTimer?.cancel();
-    _roomBroadcastTimer = null;
     _peerBroadcastTimer?.cancel();
     _peerBroadcastTimer = null;
     stopListening();
     _broadcastSocket?.close();
     _broadcastSocket = null;
-    if (!_roomDiscoveredController.isClosed) {
-      _roomDiscoveredController.close();
-    }
     if (!_peerDiscoveredController.isClosed) {
       _peerDiscoveredController.close();
     }
   }
 
   void _closeBroadcastSocketIfIdle() {
-    if (_roomBroadcastTimer == null && _peerBroadcastTimer == null) {
+    if (_peerBroadcastTimer == null) {
       _broadcastSocket?.close();
       _broadcastSocket = null;
     }
@@ -387,25 +319,8 @@ class DiscoveryService {
             lastHeartbeatAt: data['lastHeartbeatAt'] as int?,
           );
         }
-
-        if (kind == 'room' || data.containsKey('room')) {
-          return DiscoveredRoom(
-            ip: data['ip']?.toString() ?? senderIp,
-            roomName: data['room']?.toString() ?? 'Unknown Room',
-            e2eeEnabled: data['e2ee'] as bool? ?? false,
-            port: data['port'] as int? ?? 55556,
-          );
-        }
       }
-    } catch (_) {
-      if (message == 'LANLINE_DISCOVERY') {
-        return DiscoveredRoom(
-          ip: senderIp,
-          roomName: 'LANLine Room',
-          e2eeEnabled: false,
-        );
-      }
-    }
+    } catch (_) {}
 
     return null;
   }

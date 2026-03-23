@@ -38,27 +38,6 @@ void main() {
   });
 
   group('DiscoveryService.parseDiscoveryMessage', () {
-    test('parses legacy room broadcasts', () {
-      final signal = DiscoveryService.parseDiscoveryMessage(
-        jsonEncode({
-          'app': 'LANLINE',
-          'kind': 'room',
-          'room': 'Studio',
-          'e2ee': true,
-          'ip': '192.168.1.20',
-          'port': 55556,
-        }),
-        '192.168.1.20',
-      );
-
-      expect(signal, isA<DiscoveredRoom>());
-      final room = signal as DiscoveredRoom;
-      expect(room.roomName, 'Studio');
-      expect(room.e2eeEnabled, isTrue);
-      expect(room.ip, '192.168.1.20');
-      expect(room.port, 55556);
-    });
-
     test('parses peer presence broadcasts', () {
       final signal = DiscoveryService.parseDiscoveryMessage(
         jsonEncode({
@@ -107,16 +86,20 @@ void main() {
       expect((signal as DiscoveredPeerPresence).ip, '192.168.1.104');
     });
 
-    test('keeps plain legacy discovery fallback intact', () {
+    test('ignores legacy room broadcasts now that V2 owns discovery', () {
       final signal = DiscoveryService.parseDiscoveryMessage(
-        'LANLINE_DISCOVERY',
+        jsonEncode({
+          'app': 'LANLINE',
+          'kind': 'room',
+          'room': 'Studio',
+          'e2ee': true,
+          'ip': '192.168.1.20',
+          'port': 55556,
+        }),
         '192.168.1.22',
       );
 
-      expect(signal, isA<DiscoveredRoom>());
-      final room = signal as DiscoveredRoom;
-      expect(room.roomName, 'LANLine Room');
-      expect(room.ip, '192.168.1.22');
+      expect(signal, isNull);
     });
   });
 }
