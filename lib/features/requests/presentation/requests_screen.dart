@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../core/db/app_database.dart';
 import '../../../core/providers/v2_data_providers.dart';
 
 class RequestsScreen extends ConsumerWidget {
@@ -10,6 +11,7 @@ class RequestsScreen extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final discoveredAsync = ref.watch(discoveredPeersProvider);
     final incomingAsync = ref.watch(pendingIncomingRequestsProvider);
     final outgoingAsync = ref.watch(pendingOutgoingRequestsProvider);
     final requestActions = ref.read(requestActionsProvider);
@@ -32,6 +34,42 @@ class RequestsScreen extends ConsumerWidget {
     return ListView(
       padding: const EdgeInsets.fromLTRB(16, 16, 16, 24),
       children: [
+        const _RequestHeader(
+          title: 'Nearby / Discovery',
+          subtitle: 'Find devices and send new connection requests here.',
+        ),
+        const SizedBox(height: 12),
+        discoveredAsync.when(
+          data: (peers) => peers.isEmpty
+              ? const _RequestPlaceholder(
+                  icon: Icons.radar_outlined,
+                  text: 'No discovered peers yet',
+                )
+              : Column(
+                  children: [
+                    for (final peer in peers)
+                      _RequestCard(
+                        title: peer.displayName,
+                        subtitle:
+                            peer.deviceLabel ??
+                            peer.fingerprint ??
+                            peer.relationshipState,
+                        accent: _accentForRelationship(peer.relationshipState),
+                        icon: _iconForRelationship(peer.relationshipState),
+                        statusLabel: _relationshipLabel(peer.relationshipState),
+                        actions: _actionsForPeer(
+                          peer: peer,
+                          requestActions: requestActions,
+                          runRequestAction: runRequestAction,
+                        ),
+                      ),
+                  ],
+                ),
+          loading: () => const _RequestLoading(),
+          error: (error, stackTrace) =>
+              _RequestPlaceholder(icon: Icons.error_outline, text: '$error'),
+        ),
+        const SizedBox(height: 28),
         const _RequestHeader(
           title: 'Incoming Requests',
           subtitle: 'Accept, decline, or block requests from nearby peers.',
@@ -170,6 +208,125 @@ class RequestsScreen extends ConsumerWidget {
         ),
       ],
     );
+  }
+
+  List<Widget> _actionsForPeer({
+    required PeerRow peer,
+    required RequestActions requestActions,
+    required Future<void> Function(
+      String successMessage,
+      Future<void> Function() action,
+    )
+    runRequestAction,
+  }) {
+    switch (peer.relationshipState) {
+      case 'pending_incoming':
+        return [
+          _ActionButton(
+            label: 'Block',
+            icon: Icons.block_outlined,
+            foreground: Colors.redAccent,
+            outlined: true,
+            onPressed: () {
+              unawaited(
+                runRequestAction(
+                  'Blocked ${peer.displayName}',
+                  () => requestActions.blockPeer(peerId: peer.peerId),
+                ),
+              );
+            },
+          ),
+        ];
+      case 'pending_outgoing':
+        return [
+          _ActionButton(
+            label: 'Block',
+            icon: Icons.block_outlined,
+            foreground: Colors.redAccent,
+            outlined: true,
+            onPressed: () {
+              unawaited(
+                runRequestAction(
+                  'Blocked ${peer.displayName}',
+                  () => requestActions.blockPeer(peerId: peer.peerId),
+                ),
+              );
+            },
+          ),
+        ];
+      case 'blocked':
+        return const [];
+      default:
+        return [
+          _ActionButton(
+            label: 'Connect',
+            icon: Icons.person_add_alt_1_outlined,
+            foreground: Colors.greenAccent,
+            onPressed: () {
+              unawaited(
+                runRequestAction(
+                  'Request sent to ${peer.displayName}',
+                  () =>
+                      requestActions.sendConnectionRequest(peerId: peer.peerId),
+                ),
+              );
+            },
+          ),
+          _ActionButton(
+            label: 'Block',
+            icon: Icons.block_outlined,
+            foreground: Colors.redAccent,
+            outlined: true,
+            onPressed: () {
+              unawaited(
+                runRequestAction(
+                  'Blocked ${peer.displayName}',
+                  () => requestActions.blockPeer(peerId: peer.peerId),
+                ),
+              );
+            },
+          ),
+        ];
+    }
+  }
+
+  static String _relationshipLabel(String relationshipState) {
+    switch (relationshipState) {
+      case 'pending_incoming':
+        return 'Incoming request';
+      case 'pending_outgoing':
+        return 'Request sent';
+      case 'blocked':
+        return 'Blocked';
+      default:
+        return 'Nearby';
+    }
+  }
+
+  static Color _accentForRelationship(String relationshipState) {
+    switch (relationshipState) {
+      case 'pending_incoming':
+        return Colors.blueAccent;
+      case 'pending_outgoing':
+        return Colors.orangeAccent;
+      case 'blocked':
+        return Colors.redAccent;
+      default:
+        return Colors.cyanAccent;
+    }
+  }
+
+  static IconData _iconForRelationship(String relationshipState) {
+    switch (relationshipState) {
+      case 'pending_incoming':
+        return Icons.call_received;
+      case 'pending_outgoing':
+        return Icons.call_made;
+      case 'blocked':
+        return Icons.block_outlined;
+      default:
+        return Icons.wifi_tethering_outlined;
+    }
   }
 }
 

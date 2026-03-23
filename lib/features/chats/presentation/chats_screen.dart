@@ -4,9 +4,9 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/providers/v2_data_providers.dart';
 
 class ChatsScreen extends ConsumerWidget {
-  final VoidCallback? onGoToPeople;
+  final VoidCallback? onGoToRequests;
 
-  const ChatsScreen({super.key, this.onGoToPeople});
+  const ChatsScreen({super.key, this.onGoToRequests});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -15,7 +15,7 @@ class ChatsScreen extends ConsumerWidget {
     return conversationsAsync.when(
       data: (conversations) {
         if (conversations.isEmpty) {
-          return _EmptyChatsState(onGoToPeople: onGoToPeople);
+          return _EmptyChatsState(onGoToRequests: onGoToRequests);
         }
 
         return ListView.separated(
@@ -78,9 +78,9 @@ class ChatsScreen extends ConsumerWidget {
 }
 
 class _EmptyChatsState extends StatelessWidget {
-  final VoidCallback? onGoToPeople;
+  final VoidCallback? onGoToRequests;
 
-  const _EmptyChatsState({this.onGoToPeople});
+  const _EmptyChatsState({this.onGoToRequests});
 
   @override
   Widget build(BuildContext context) {
@@ -109,15 +109,15 @@ class _EmptyChatsState extends StatelessWidget {
             ),
             const SizedBox(height: 10),
             const Text(
-              'Direct conversations will appear here once contacts and requests are set up.',
+              'Direct conversations will appear here once you connect from the Requests tab.',
               textAlign: TextAlign.center,
               style: TextStyle(color: Colors.grey, height: 1.4),
             ),
             const SizedBox(height: 24),
             OutlinedButton.icon(
-              onPressed: onGoToPeople,
-              icon: const Icon(Icons.people_outline),
-              label: const Text('Open People'),
+              onPressed: onGoToRequests,
+              icon: const Icon(Icons.inbox_outlined),
+              label: const Text('Open Requests'),
             ),
           ],
         ),

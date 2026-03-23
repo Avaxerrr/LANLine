@@ -18,8 +18,8 @@ class AppShell extends ConsumerStatefulWidget {
 class _AppShellState extends ConsumerState<AppShell> {
   int _selectedIndex = 0;
 
-  void _goToPeople() {
-    setState(() => _selectedIndex = 1);
+  void _goToRequests() {
+    setState(() => _selectedIndex = 2);
   }
 
   @override
@@ -28,7 +28,7 @@ class _AppShellState extends ConsumerState<AppShell> {
     ref.watch(v2RequestProtocolControllerProvider);
 
     final screens = <Widget>[
-      ChatsScreen(onGoToPeople: _goToPeople),
+      ChatsScreen(onGoToRequests: _goToRequests),
       const PeopleScreen(),
       const RequestsScreen(),
       const SettingsScreen(),
