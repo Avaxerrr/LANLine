@@ -4,6 +4,7 @@ import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../core/db/app_database.dart';
 import '../../../core/providers/v2_data_providers.dart';
 import '../../../core/providers/v2_identity_provider.dart';
 import '../../../core/providers/v2_media_protocol_provider.dart';
@@ -37,6 +38,7 @@ class _DirectConversationScreenState
   final ScrollController _scrollController = ScrollController();
   bool _isSending = false;
   bool _isPickingFile = false;
+  MessageRow? _replyingToMessage;
 
   bool get _isGroup => widget.conversationType == 'group';
   bool get _supportsDirectMedia => !_isGroup && widget.peerId != null;
@@ -65,13 +67,17 @@ class _DirectConversationScreenState
 
     setState(() => _isSending = true);
     try {
-      await ref.read(conversationActionsProvider).sendTextMessage(
-        peerId: widget.peerId,
-        text: text,
-        conversationId: widget.conversationId,
-        conversationTitle: widget.title,
-      );
+      await ref
+          .read(conversationActionsProvider)
+          .sendTextMessage(
+            peerId: widget.peerId,
+            text: text,
+            conversationId: widget.conversationId,
+            conversationTitle: widget.title,
+            replyToMessageId: _replyingToMessage?.id,
+          );
       _textController.clear();
+      _clearReply();
       _scrollToBottom();
     } catch (error) {
       if (!mounted) return;
@@ -94,18 +100,20 @@ class _DirectConversationScreenState
       final path = result?.files.single.path;
       if (path == null) return;
 
-      await ref.read(mediaActionsProvider).sendFile(
-        peerId: widget.peerId!,
-        conversationId: widget.conversationId,
-        conversationTitle: widget.title,
-        filePath: path,
-      );
+      await ref
+          .read(mediaActionsProvider)
+          .sendFile(
+            peerId: widget.peerId!,
+            conversationId: widget.conversationId,
+            conversationTitle: widget.title,
+            filePath: path,
+          );
       _scrollToBottom();
     } catch (error) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Failed to send file: $error')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Failed to send file: $error')));
     } finally {
       if (mounted) {
         setState(() => _isPickingFile = false);
@@ -117,12 +125,14 @@ class _DirectConversationScreenState
     if (!_supportsDirectMedia) return;
 
     try {
-      await ref.read(mediaActionsProvider).prepareOutgoingCall(
-        peerId: widget.peerId!,
-        conversationId: widget.conversationId,
-        conversationTitle: widget.title,
-        callType: callType,
-      );
+      await ref
+          .read(mediaActionsProvider)
+          .prepareOutgoingCall(
+            peerId: widget.peerId!,
+            conversationId: widget.conversationId,
+            conversationTitle: widget.title,
+            callType: callType,
+          );
 
       final localIdentity = await ref.read(identityServiceProvider).bootstrap();
       if (!mounted) return;
@@ -138,7 +148,9 @@ class _DirectConversationScreenState
             isInitiator: true,
             sendSignal: (payload) {
               unawaited(
-                ref.read(mediaActionsProvider).sendCallSignal(
+                ref
+                    .read(mediaActionsProvider)
+                    .sendCallSignal(
                       peerId: widget.peerId!,
                       conversationId: widget.conversationId,
                       conversationTitle: widget.title,
@@ -151,7 +163,9 @@ class _DirectConversationScreenState
       );
 
       if (result != null && result > 0) {
-        await ref.read(mediaActionsProvider).addLocalCallSummary(
+        await ref
+            .read(mediaActionsProvider)
+            .addLocalCallSummary(
               conversationId: widget.conversationId,
               callType: callType,
               durationSeconds: result,
@@ -159,9 +173,9 @@ class _DirectConversationScreenState
       }
     } catch (error) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Unable to start call: $error')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Unable to start call: $error')));
     }
   }
 
@@ -175,6 +189,32 @@ class _DirectConversationScreenState
         );
       }
     });
+  }
+
+  void _setReply(MessageRow message) {
+    setState(() => _replyingToMessage = message);
+  }
+
+  void _clearReply() {
+    if (_replyingToMessage == null) return;
+    setState(() => _replyingToMessage = null);
+  }
+
+  String _replyPreviewText(MessageRow message) {
+    final text = message.textBody?.trim();
+    if (text != null && text.isNotEmpty) {
+      return text;
+    }
+    switch (message.type) {
+      case 'file':
+        return 'Attachment';
+      case 'call_summary':
+        return 'Call summary';
+      case 'system':
+        return 'System message';
+      default:
+        return message.type;
+    }
   }
 
   @override
@@ -242,6 +282,9 @@ class _DirectConversationScreenState
                         for (final member in members)
                           member.peerId: member.displayName,
                       };
+                      final messageById = {
+                        for (final message in messages) message.id: message,
+                      };
                       final latestMessageId = latestOutgoingMessageId(
                         messages,
                         localIdentity?.peerId,
@@ -265,6 +308,10 @@ class _DirectConversationScreenState
                                 message.senderPeerId,
                             downloadProgress: mediaState.downloadProgress,
                             showStatus: isMe && message.id == latestMessageId,
+                            repliedMessage: message.replyToMessageId == null
+                                ? null
+                                : messageById[message.replyToMessageId!],
+                            onReply: _setReply,
                           );
                         },
                       );
@@ -292,6 +339,11 @@ class _DirectConversationScreenState
             textController: _textController,
             onPickFile: _pickAndSendFile,
             onSendMessage: _sendMessage,
+            replyTitle: _replyingToMessage == null ? null : 'Replying',
+            replyPreview: _replyingToMessage == null
+                ? null
+                : _replyPreviewText(_replyingToMessage!),
+            onClearReply: _replyingToMessage == null ? null : _clearReply,
           ),
         ],
       ),

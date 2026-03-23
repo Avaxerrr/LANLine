@@ -50,8 +50,9 @@ void main() {
         prefs: prefs,
       );
 
-      when(() => signalingService.onMessageReceived)
-          .thenAnswer((_) => incomingMessages.stream);
+      when(
+        () => signalingService.onMessageReceived,
+      ).thenAnswer((_) => incomingMessages.stream);
       when(
         () => signalingService.startServer(
           port: any(named: 'port'),
@@ -81,7 +82,54 @@ void main() {
       await database.close();
     });
 
-    test('sendTextMessage stores a local outgoing message and marks it sent', () async {
+    test(
+      'sendTextMessage stores a local outgoing message and marks it sent',
+      () async {
+        await identityService.bootstrap();
+        await peersRepository.upsertPeer(
+          peerId: 'peer-remote',
+          displayName: 'Remote Device',
+          relationshipState: 'accepted',
+        );
+        await peersRepository.upsertPresence(
+          peerId: 'peer-remote',
+          status: 'online',
+          isReachable: true,
+          transportType: 'lan',
+          host: '192.168.1.21',
+          port: V2RequestSignalingService.defaultPort,
+        );
+
+        final message = await controller.sendTextMessage(
+          peerId: 'peer-remote',
+          text: 'Hello there',
+          conversationTitle: 'Remote Device',
+        );
+
+        verify(
+          () => signalingService.sendMessage(
+            host: '192.168.1.21',
+            port: V2RequestSignalingService.defaultPort,
+            payload: any(named: 'payload'),
+          ),
+        ).called(1);
+
+        final conversation = await conversationsRepository
+            .findDirectConversationByPeerId('peer-remote');
+        final messages = await messagesRepository
+            .watchMessages(conversation!.id)
+            .first;
+
+        expect(message.status, 'sent');
+        expect(conversation.title, 'Remote Device');
+        expect(conversation.lastMessagePreview, 'Hello there');
+        expect(messages, hasLength(1));
+        expect(messages.single.textBody, 'Hello there');
+        expect(messages.single.senderPeerId, isNot('peer-remote'));
+      },
+    );
+
+    test('sendTextMessage preserves reply metadata', () async {
       await identityService.bootstrap();
       await peersRepository.upsertPeer(
         peerId: 'peer-remote',
@@ -97,34 +145,100 @@ void main() {
         port: V2RequestSignalingService.defaultPort,
       );
 
-      final message = await controller.sendTextMessage(
+      final conversation = await controller.openDirectConversation(
         peerId: 'peer-remote',
-        text: 'Hello there',
-        conversationTitle: 'Remote Device',
+        title: 'Remote Device',
+      );
+      final original = await messagesRepository.insertMessage(
+        conversationId: conversation.id,
+        senderPeerId: 'peer-remote',
+        type: 'text',
+        textBody: 'Original message',
+        status: 'delivered',
       );
 
-      verify(
-        () => signalingService.sendMessage(
-          host: '192.168.1.21',
-          port: V2RequestSignalingService.defaultPort,
-          payload: any(named: 'payload'),
-        ),
-      ).called(1);
+      final reply = await controller.sendTextMessage(
+        peerId: 'peer-remote',
+        text: 'Reply message',
+        conversationId: conversation.id,
+        conversationTitle: 'Remote Device',
+        replyToMessageId: original.id,
+      );
 
-      final conversation = await conversationsRepository
-          .findDirectConversationByPeerId('peer-remote');
-      final messages = await messagesRepository.watchMessages(conversation!.id).first;
-
-      expect(message.status, 'sent');
-      expect(conversation.title, 'Remote Device');
-      expect(conversation.lastMessagePreview, 'Hello there');
-      expect(messages, hasLength(1));
-      expect(messages.single.textBody, 'Hello there');
-      expect(messages.single.senderPeerId, isNot('peer-remote'));
+      expect(reply.replyToMessageId, original.id);
     });
 
-    test('incoming text message creates a conversation, message, unread count, and ack', () async {
+    test(
+      'incoming text message creates a conversation, message, unread count, and ack',
+      () async {
+        await controller.start();
+        await peersRepository.upsertPresence(
+          peerId: 'peer-remote',
+          status: 'online',
+          isReachable: true,
+          transportType: 'lan',
+          host: '192.168.1.21',
+          port: V2RequestSignalingService.defaultPort,
+        );
+
+        incomingMessages.add(
+          jsonEncode({
+            'protocol': 'lanline_v2_message',
+            'action': 'message',
+            'senderPeerId': 'peer-remote',
+            'senderDisplayName': 'Remote Device',
+            'clientGeneratedId': 'msg-123',
+            'type': 'text',
+            'text': 'Hi from remote',
+            'sentAt': 1234567890,
+          }),
+        );
+
+        await Future<void>.delayed(const Duration(milliseconds: 20));
+
+        final peer = await peersRepository.getPeerByPeerId('peer-remote');
+        final conversation = await conversationsRepository
+            .findDirectConversationByPeerId('peer-remote');
+        final messages = await messagesRepository
+            .watchMessages(conversation!.id)
+            .first;
+
+        expect(peer, isNotNull);
+        expect(peer!.displayName, 'Remote Device');
+        expect(conversation.title, 'Remote Device');
+        expect(conversation.unreadCount, 1);
+        expect(messages, hasLength(1));
+        expect(messages.single.textBody, 'Hi from remote');
+        expect(messages.single.clientGeneratedId, 'msg-123');
+
+        verify(
+          () => signalingService.sendMessage(
+            host: '192.168.1.21',
+            port: V2RequestSignalingService.defaultPort,
+            payload: any(named: 'payload'),
+          ),
+        ).called(1);
+      },
+    );
+
+    test('incoming text message keeps reply metadata', () async {
       await controller.start();
+
+      final conversation = await conversationsRepository
+          .findOrCreateDirectConversation(
+            localPeerId: (await identityService.bootstrap()).peerId,
+            peerId: 'peer-remote',
+            title: 'Remote Device',
+          );
+      final original = await messagesRepository.insertMessage(
+        conversationId: conversation.id,
+        senderPeerId: 'peer-remote',
+        type: 'text',
+        textBody: 'Original',
+        status: 'delivered',
+        clientGeneratedId: 'seed-1',
+      );
+
       await peersRepository.upsertPresence(
         peerId: 'peer-remote',
         status: 'online',
@@ -140,35 +254,20 @@ void main() {
           'action': 'message',
           'senderPeerId': 'peer-remote',
           'senderDisplayName': 'Remote Device',
-          'clientGeneratedId': 'msg-123',
+          'clientGeneratedId': 'msg-reply',
           'type': 'text',
-          'text': 'Hi from remote',
+          'text': 'Reply body',
+          'replyToMessageId': original.id,
           'sentAt': 1234567890,
         }),
       );
 
       await Future<void>.delayed(const Duration(milliseconds: 20));
 
-      final peer = await peersRepository.getPeerByPeerId('peer-remote');
-      final conversation = await conversationsRepository
-          .findDirectConversationByPeerId('peer-remote');
-      final messages = await messagesRepository.watchMessages(conversation!.id).first;
-
-      expect(peer, isNotNull);
-      expect(peer!.displayName, 'Remote Device');
-      expect(conversation.title, 'Remote Device');
-      expect(conversation.unreadCount, 1);
-      expect(messages, hasLength(1));
-      expect(messages.single.textBody, 'Hi from remote');
-      expect(messages.single.clientGeneratedId, 'msg-123');
-
-      verify(
-        () => signalingService.sendMessage(
-          host: '192.168.1.21',
-          port: V2RequestSignalingService.defaultPort,
-          payload: any(named: 'payload'),
-        ),
-      ).called(1);
+      final messages = await messagesRepository
+          .watchMessages(conversation.id)
+          .first;
+      expect(messages.last.replyToMessageId, original.id);
     });
   });
 }

@@ -47,34 +47,32 @@ final conversationListProvider = StreamProvider<List<ConversationRow>>((ref) {
   );
 });
 
-final pendingGroupInvitesProvider = StreamProvider<List<ConversationRow>>((ref) {
+final pendingGroupInvitesProvider = StreamProvider<List<ConversationRow>>((
+  ref,
+) {
   final localIdentityAsync = ref.watch(localIdentityBootstrapProvider);
   return localIdentityAsync.when(
     data: (localIdentity) {
-      return ref.read(conversationsRepositoryProvider).watchPendingGroupInvites(
-            localPeerId: localIdentity.peerId,
-          );
+      return ref
+          .read(conversationsRepositoryProvider)
+          .watchPendingGroupInvites(localPeerId: localIdentity.peerId);
     },
     loading: () => Stream.value(const []),
     error: (error, stackTrace) => Stream.error(error, stackTrace),
   );
 });
 
-final conversationDetailsProvider = FutureProvider.family<ConversationRow?, String>((
-  ref,
-  conversationId,
-) {
-  return ref.read(conversationsRepositoryProvider).getConversationById(
-        conversationId,
-      );
-});
+final conversationDetailsProvider =
+    FutureProvider.family<ConversationRow?, String>((ref, conversationId) {
+      return ref
+          .read(conversationsRepositoryProvider)
+          .getConversationById(conversationId);
+    });
 
-final conversationMessagesProvider = StreamProvider.family<List<MessageRow>, String>((
-  ref,
-  conversationId,
-) {
-  return ref.read(messagesRepositoryProvider).watchMessages(conversationId);
-});
+final conversationMessagesProvider =
+    StreamProvider.family<List<MessageRow>, String>((ref, conversationId) {
+      return ref.read(messagesRepositoryProvider).watchMessages(conversationId);
+    });
 
 final messageAttachmentsProvider =
     StreamProvider.family<List<AttachmentRow>, String>((ref, messageId) {
@@ -98,7 +96,9 @@ final directConversationPeerProvider = FutureProvider.family<PeerRow?, String>((
   conversationId,
 ) async {
   final localIdentity = await ref.read(identityServiceProvider).bootstrap();
-  return ref.read(conversationsRepositoryProvider).getDirectPeerForConversation(
+  return ref
+      .read(conversationsRepositoryProvider)
+      .getDirectPeerForConversation(
         conversationId: conversationId,
         localPeerId: localIdentity.peerId,
       );
@@ -162,7 +162,10 @@ class ConversationActions {
     required String peerId,
     String? title,
   }) {
-    return _directController.openDirectConversation(peerId: peerId, title: title);
+    return _directController.openDirectConversation(
+      peerId: peerId,
+      title: title,
+    );
   }
 
   Future<ConversationRow> createGroupConversation({
@@ -180,6 +183,7 @@ class ConversationActions {
     required String text,
     required String conversationId,
     String? conversationTitle,
+    String? replyToMessageId,
   }) async {
     final conversation = await _conversationsRepository.getConversationById(
       conversationId,
@@ -192,6 +196,7 @@ class ConversationActions {
       return _groupController.sendGroupTextMessage(
         conversationId: conversationId,
         text: text,
+        replyToMessageId: replyToMessageId,
       );
     }
 
@@ -204,6 +209,7 @@ class ConversationActions {
       text: text,
       conversationId: conversationId,
       conversationTitle: conversationTitle,
+      replyToMessageId: replyToMessageId,
     );
   }
 

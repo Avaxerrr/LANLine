@@ -8,6 +8,9 @@ class ConversationInputBar extends StatelessWidget {
   final TextEditingController textController;
   final VoidCallback onPickFile;
   final VoidCallback onSendMessage;
+  final String? replyTitle;
+  final String? replyPreview;
+  final VoidCallback? onClearReply;
 
   const ConversationInputBar({
     super.key,
@@ -18,6 +21,9 @@ class ConversationInputBar extends StatelessWidget {
     required this.textController,
     required this.onPickFile,
     required this.onSendMessage,
+    this.replyTitle,
+    this.replyPreview,
+    this.onClearReply,
   });
 
   @override
@@ -26,54 +32,113 @@ class ConversationInputBar extends StatelessWidget {
       top: false,
       child: Padding(
         padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
-        child: Row(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
           children: [
-            if (supportsDirectMedia) ...[
-              IconButton.filledTonal(
-                onPressed: isPickingFile ? null : onPickFile,
-                icon: isPickingFile
-                    ? const SizedBox(
-                        width: 18,
-                        height: 18,
-                        child: CircularProgressIndicator(strokeWidth: 2),
-                      )
-                    : const Icon(Icons.attach_file),
-              ),
-              const SizedBox(width: 8),
-            ],
-            Expanded(
-              child: TextField(
-                controller: textController,
-                minLines: 1,
-                maxLines: 5,
-                textInputAction: TextInputAction.send,
-                onSubmitted: (_) => onSendMessage(),
-                decoration: InputDecoration(
-                  hintText: isGroup ? 'Message the group' : 'Type a message',
-                  filled: true,
-                  fillColor: const Color(0xFF1B1B1B),
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(18),
-                    borderSide: BorderSide.none,
+            if (replyTitle != null &&
+                replyPreview != null &&
+                onClearReply != null) ...[
+              Container(
+                margin: const EdgeInsets.only(bottom: 10),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 14,
+                  vertical: 12,
+                ),
+                decoration: BoxDecoration(
+                  color: const Color(0xFF1B1B1B),
+                  borderRadius: BorderRadius.circular(18),
+                  border: Border(
+                    left: BorderSide(
+                      color: Colors.blueAccent.withValues(alpha: 0.8),
+                      width: 4,
+                    ),
                   ),
                 ),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            replyTitle!,
+                            style: const TextStyle(
+                              color: Colors.blueAccent,
+                              fontWeight: FontWeight.w700,
+                              fontSize: 12,
+                            ),
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            replyPreview!,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(color: Colors.grey),
+                          ),
+                        ],
+                      ),
+                    ),
+                    IconButton(
+                      onPressed: onClearReply,
+                      icon: const Icon(Icons.close, color: Colors.grey),
+                      tooltip: 'Cancel reply',
+                    ),
+                  ],
+                ),
               ),
-            ),
-            const SizedBox(width: 12),
-            FilledButton(
-              onPressed: isSending ? null : onSendMessage,
-              style: FilledButton.styleFrom(
-                backgroundColor: Colors.blueAccent,
-                shape: const CircleBorder(),
-                padding: const EdgeInsets.all(14),
-              ),
-              child: isSending
-                  ? const SizedBox(
-                      width: 18,
-                      height: 18,
-                      child: CircularProgressIndicator(strokeWidth: 2),
-                    )
-                  : const Icon(Icons.send),
+            ],
+            Row(
+              children: [
+                if (supportsDirectMedia) ...[
+                  IconButton.filledTonal(
+                    onPressed: isPickingFile ? null : onPickFile,
+                    icon: isPickingFile
+                        ? const SizedBox(
+                            width: 18,
+                            height: 18,
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          )
+                        : const Icon(Icons.attach_file),
+                  ),
+                  const SizedBox(width: 8),
+                ],
+                Expanded(
+                  child: TextField(
+                    controller: textController,
+                    minLines: 1,
+                    maxLines: 5,
+                    textInputAction: TextInputAction.send,
+                    onSubmitted: (_) => onSendMessage(),
+                    decoration: InputDecoration(
+                      hintText: isGroup
+                          ? 'Message the group'
+                          : 'Type a message',
+                      filled: true,
+                      fillColor: const Color(0xFF1B1B1B),
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(18),
+                        borderSide: BorderSide.none,
+                      ),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 12),
+                FilledButton(
+                  onPressed: isSending ? null : onSendMessage,
+                  style: FilledButton.styleFrom(
+                    backgroundColor: Colors.blueAccent,
+                    shape: const CircleBorder(),
+                    padding: const EdgeInsets.all(14),
+                  ),
+                  child: isSending
+                      ? const SizedBox(
+                          width: 18,
+                          height: 18,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
+                      : const Icon(Icons.send),
+                ),
+              ],
             ),
           ],
         ),

@@ -144,8 +144,9 @@ class V2GroupProtocolController {
     );
     if (membership.role != 'invited') return;
 
-    final conversation =
-        await _conversationsRepository.getConversationById(conversationId);
+    final conversation = await _conversationsRepository.getConversationById(
+      conversationId,
+    );
     if (conversation == null) {
       throw StateError('Group invite no longer exists.');
     }
@@ -193,8 +194,9 @@ class V2GroupProtocolController {
     );
     if (membership.role != 'invited') return;
 
-    final conversation =
-        await _conversationsRepository.getConversationById(conversationId);
+    final conversation = await _conversationsRepository.getConversationById(
+      conversationId,
+    );
     if (conversation == null) {
       throw StateError('Group invite no longer exists.');
     }
@@ -229,6 +231,7 @@ class V2GroupProtocolController {
   Future<MessageRow> sendGroupTextMessage({
     required String conversationId,
     required String text,
+    String? replyToMessageId,
   }) async {
     await start();
     final trimmed = text.trim();
@@ -236,8 +239,9 @@ class V2GroupProtocolController {
       throw StateError('Cannot send an empty message.');
     }
 
-    final conversation =
-        await _conversationsRepository.getConversationById(conversationId);
+    final conversation = await _conversationsRepository.getConversationById(
+      conversationId,
+    );
     if (conversation == null || conversation.type != 'group') {
       throw StateError('Conversation is not a group chat.');
     }
@@ -253,6 +257,7 @@ class V2GroupProtocolController {
       type: 'text',
       textBody: trimmed,
       status: 'pending',
+      replyToMessageId: replyToMessageId,
       sentAt: DateTime.now().millisecondsSinceEpoch,
     );
 
@@ -268,6 +273,7 @@ class V2GroupProtocolController {
       'clientGeneratedId': message.clientGeneratedId,
       'type': 'text',
       'text': trimmed,
+      'replyToMessageId': replyToMessageId,
       'sentAt': message.sentAt,
     });
 
@@ -342,15 +348,21 @@ class V2GroupProtocolController {
         deviceLabel: member['deviceLabel']?.toString(),
         fingerprint: member['fingerprint']?.toString(),
         relationshipState:
-            (await _peersRepository.getPeerByPeerId(peerId))?.relationshipState ??
-            (peerId == data['senderPeerId']?.toString() ? 'accepted' : 'discovered'),
+            (await _peersRepository.getPeerByPeerId(
+              peerId,
+            ))?.relationshipState ??
+            (peerId == data['senderPeerId']?.toString()
+                ? 'accepted'
+                : 'discovered'),
         isBlocked:
-            (await _peersRepository.getPeerByPeerId(peerId))?.isBlocked ?? false,
+            (await _peersRepository.getPeerByPeerId(peerId))?.isBlocked ??
+            false,
       );
       seeds.add(
         GroupConversationMemberSeed(
           peerId: peerId,
-          role: member['role']?.toString() ??
+          role:
+              member['role']?.toString() ??
               (peerId == _localIdentity!.peerId ? 'invited' : 'invited'),
         ),
       );
@@ -358,7 +370,10 @@ class V2GroupProtocolController {
 
     if (!seeds.any((seed) => seed.peerId == _localIdentity!.peerId)) {
       seeds.add(
-        GroupConversationMemberSeed(peerId: _localIdentity!.peerId, role: 'invited'),
+        GroupConversationMemberSeed(
+          peerId: _localIdentity!.peerId,
+          role: 'invited',
+        ),
       );
     }
 
@@ -373,7 +388,8 @@ class V2GroupProtocolController {
     final conversationId = data['conversationId']?.toString();
     final response = data['response']?.toString();
     final senderPeerId = data['senderPeerId']?.toString();
-    final senderDisplayName = data['senderDisplayName']?.toString() ?? senderPeerId;
+    final senderDisplayName =
+        data['senderDisplayName']?.toString() ?? senderPeerId;
     if (conversationId == null || response == null || senderPeerId == null) {
       return;
     }
@@ -469,7 +485,8 @@ class V2GroupProtocolController {
       return;
     }
 
-    final senderDisplayName = data['senderDisplayName']?.toString() ?? senderPeerId;
+    final senderDisplayName =
+        data['senderDisplayName']?.toString() ?? senderPeerId;
     final existingPeer = await _peersRepository.getPeerByPeerId(senderPeerId);
     await _peersRepository.upsertPeer(
       peerId: senderPeerId,
@@ -480,9 +497,8 @@ class V2GroupProtocolController {
       isBlocked: existingPeer?.isBlocked ?? false,
     );
 
-    final existingMessage = await _messagesRepository.getMessageByClientGeneratedId(
-      clientGeneratedId,
-    );
+    final existingMessage = await _messagesRepository
+        .getMessageByClientGeneratedId(clientGeneratedId);
     if (existingMessage != null) return;
 
     final activeConversationId = _readActiveConversationId();
@@ -493,6 +509,7 @@ class V2GroupProtocolController {
       type: data['type']?.toString() ?? 'text',
       textBody: data['text']?.toString(),
       status: activeConversationId == conversationId ? 'read' : 'delivered',
+      replyToMessageId: data['replyToMessageId']?.toString(),
       sentAt: data['sentAt'] as int?,
       receivedAt: DateTime.now().millisecondsSinceEpoch,
       readAt: activeConversationId == conversationId
@@ -505,7 +522,9 @@ class V2GroupProtocolController {
     }
   }
 
-  Future<List<PresenceRow>> _resolveReachableTargets(String conversationId) async {
+  Future<List<PresenceRow>> _resolveReachableTargets(
+    String conversationId,
+  ) async {
     final targetIds = await _conversationsRepository.getMessageTargetPeerIds(
       conversationId: conversationId,
       localPeerId: _localIdentity!.peerId,
@@ -526,8 +545,9 @@ class V2GroupProtocolController {
     required String memberPeerId,
     required String role,
   }) async {
-    final conversation =
-        await _conversationsRepository.getConversationById(conversationId);
+    final conversation = await _conversationsRepository.getConversationById(
+      conversationId,
+    );
     if (conversation == null) return;
 
     final member = await _peersRepository.getPeerByPeerId(memberPeerId);
@@ -568,7 +588,9 @@ class V2GroupProtocolController {
     final targets = <PresenceRow>[];
     for (final member in members) {
       if (member.peerId == _localIdentity!.peerId) continue;
-      final presence = await _peersRepository.getPresenceByPeerId(member.peerId);
+      final presence = await _peersRepository.getPresenceByPeerId(
+        member.peerId,
+      );
       if (presence != null && presence.isReachable && presence.host != null) {
         targets.add(presence);
       }
@@ -627,18 +649,19 @@ class V2GroupProtocolController {
   }
 }
 
-final v2GroupProtocolControllerProvider =
-    Provider<V2GroupProtocolController>((ref) {
-      final controller = V2GroupProtocolController(
-        signalingService: ref.read(v2RequestSignalingServiceProvider),
-        identityService: ref.read(identityServiceProvider),
-        peersRepository: ref.read(peersRepositoryProvider),
-        conversationsRepository: ref.read(conversationsRepositoryProvider),
-        messagesRepository: ref.read(messagesRepositoryProvider),
-        readActiveConversationId: () => ref.read(activeConversationIdProvider),
-      );
+final v2GroupProtocolControllerProvider = Provider<V2GroupProtocolController>((
+  ref,
+) {
+  final controller = V2GroupProtocolController(
+    signalingService: ref.read(v2RequestSignalingServiceProvider),
+    identityService: ref.read(identityServiceProvider),
+    peersRepository: ref.read(peersRepositoryProvider),
+    conversationsRepository: ref.read(conversationsRepositoryProvider),
+    messagesRepository: ref.read(messagesRepositoryProvider),
+    readActiveConversationId: () => ref.read(activeConversationIdProvider),
+  );
 
-      unawaited(controller.start());
-      ref.onDispose(controller.dispose);
-      return controller;
-    });
+  unawaited(controller.start());
+  ref.onDispose(controller.dispose);
+  return controller;
+});

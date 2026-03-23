@@ -68,6 +68,7 @@ class V2DirectMessageProtocolController {
     required String text,
     String? conversationId,
     String? conversationTitle,
+    String? replyToMessageId,
   }) async {
     await start();
     final trimmed = text.trim();
@@ -78,7 +79,9 @@ class V2DirectMessageProtocolController {
     final peer = await _requirePeer(peerId);
     final presence = await _requireReachablePresence(peerId);
     final conversation = conversationId != null
-        ? (await _conversationsRepository.getConversationById(conversationId)) ??
+        ? (await _conversationsRepository.getConversationById(
+                conversationId,
+              )) ??
               await _conversationsRepository.findOrCreateDirectConversation(
                 localPeerId: _localIdentity!.peerId,
                 peerId: peerId,
@@ -96,6 +99,7 @@ class V2DirectMessageProtocolController {
       type: 'text',
       textBody: trimmed,
       status: 'pending',
+      replyToMessageId: replyToMessageId,
       sentAt: DateTime.now().millisecondsSinceEpoch,
     );
 
@@ -109,6 +113,7 @@ class V2DirectMessageProtocolController {
       'clientGeneratedId': message.clientGeneratedId,
       'type': 'text',
       'text': trimmed,
+      'replyToMessageId': replyToMessageId,
       'sentAt': message.sentAt,
     });
 
@@ -189,15 +194,15 @@ class V2DirectMessageProtocolController {
       isBlocked: existingPeer?.isBlocked ?? false,
     );
 
-    final conversation = await _conversationsRepository.findOrCreateDirectConversation(
-      localPeerId: _localIdentity!.peerId,
-      peerId: senderPeerId,
-      title: displayName,
-    );
+    final conversation = await _conversationsRepository
+        .findOrCreateDirectConversation(
+          localPeerId: _localIdentity!.peerId,
+          peerId: senderPeerId,
+          title: displayName,
+        );
 
-    final existingMessage = await _messagesRepository.getMessageByClientGeneratedId(
-      clientGeneratedId,
-    );
+    final existingMessage = await _messagesRepository
+        .getMessageByClientGeneratedId(clientGeneratedId);
 
     if (existingMessage == null) {
       await _messagesRepository.insertMessage(
@@ -207,6 +212,7 @@ class V2DirectMessageProtocolController {
         type: data['type']?.toString() ?? 'text',
         textBody: data['text']?.toString(),
         status: _activeConversationId == conversation.id ? 'read' : 'delivered',
+        replyToMessageId: data['replyToMessageId']?.toString(),
         sentAt: data['sentAt'] as int?,
         receivedAt: DateTime.now().millisecondsSinceEpoch,
         readAt: _activeConversationId == conversation.id

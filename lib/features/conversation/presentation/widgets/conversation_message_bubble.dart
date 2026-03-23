@@ -36,6 +36,8 @@ class ConversationMessageBubble extends ConsumerWidget {
   final String senderLabel;
   final Map<String, List<int>> downloadProgress;
   final bool showStatus;
+  final MessageRow? repliedMessage;
+  final ValueChanged<MessageRow>? onReply;
 
   const ConversationMessageBubble({
     super.key,
@@ -46,6 +48,8 @@ class ConversationMessageBubble extends ConsumerWidget {
     required this.senderLabel,
     required this.downloadProgress,
     required this.showStatus,
+    this.repliedMessage,
+    this.onReply,
   });
 
   @override
@@ -79,8 +83,9 @@ class ConversationMessageBubble extends ConsumerWidget {
           final bubbleColor = isMe
               ? Colors.blueAccent.withValues(alpha: 0.22)
               : const Color(0xFF1F1F1F);
-          final alignment =
-              isMe ? CrossAxisAlignment.end : CrossAxisAlignment.start;
+          final alignment = isMe
+              ? CrossAxisAlignment.end
+              : CrossAxisAlignment.start;
           final textAlign = isMe ? TextAlign.right : TextAlign.left;
 
           return Column(
@@ -116,10 +121,12 @@ class ConversationMessageBubble extends ConsumerWidget {
                           peerId: peerId,
                           isMe: isMe,
                           downloadProgress: downloadProgress,
+                          repliedMessage: repliedMessage,
                         )
                       : TextLikeMessageContent(
                           message: message,
                           textAlign: textAlign,
+                          repliedMessage: repliedMessage,
                         ),
                 ),
               ),
@@ -138,10 +145,8 @@ class ConversationMessageBubble extends ConsumerWidget {
           );
         },
         loading: () => const SizedBox.shrink(),
-        error: (error, stackTrace) => Text(
-          '$error',
-          style: const TextStyle(color: Colors.redAccent),
-        ),
+        error: (error, stackTrace) =>
+            Text('$error', style: const TextStyle(color: Colors.redAccent)),
       ),
     );
   }
@@ -193,7 +198,6 @@ class ConversationMessageBubble extends ConsumerWidget {
     MessageRow message,
   ) async {
     final text = message.textBody?.trim() ?? '';
-    if (text.isEmpty) return;
 
     await showModalBottomSheet<void>(
       context: context,
@@ -220,22 +224,37 @@ class ConversationMessageBubble extends ConsumerWidget {
               ),
               ListTile(
                 leading: const Icon(
-                  Icons.copy_all_outlined,
-                  color: Colors.blueAccent,
+                  Icons.reply_outlined,
+                  color: Colors.greenAccent,
                 ),
                 title: const Text(
-                  'Copy text',
+                  'Reply',
                   style: TextStyle(color: Colors.white),
                 ),
-                onTap: () async {
-                  await Clipboard.setData(ClipboardData(text: text));
-                  if (!sheetContext.mounted) return;
+                onTap: () {
                   Navigator.pop(sheetContext);
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('Copied to clipboard')),
-                  );
+                  onReply?.call(message);
                 },
               ),
+              if (text.isNotEmpty)
+                ListTile(
+                  leading: const Icon(
+                    Icons.copy_all_outlined,
+                    color: Colors.blueAccent,
+                  ),
+                  title: const Text(
+                    'Copy text',
+                    style: TextStyle(color: Colors.white),
+                  ),
+                  onTap: () async {
+                    await Clipboard.setData(ClipboardData(text: text));
+                    if (!sheetContext.mounted) return;
+                    Navigator.pop(sheetContext);
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(content: Text('Copied to clipboard')),
+                    );
+                  },
+                ),
             ],
           ),
         ),
@@ -247,36 +266,49 @@ class ConversationMessageBubble extends ConsumerWidget {
 class TextLikeMessageContent extends StatelessWidget {
   final MessageRow message;
   final TextAlign textAlign;
+  final MessageRow? repliedMessage;
 
   const TextLikeMessageContent({
     super.key,
     required this.message,
     required this.textAlign,
+    this.repliedMessage,
   });
 
   @override
   Widget build(BuildContext context) {
+    final contentAlignment = textAlign == TextAlign.right
+        ? CrossAxisAlignment.end
+        : CrossAxisAlignment.start;
+
     if (message.type == 'call_summary') {
       final metadata = message.metadataJson == null
           ? const <String, dynamic>{}
-          : Map<String, dynamic>.from(
-              jsonDecode(message.metadataJson!) as Map,
-            );
+          : Map<String, dynamic>.from(jsonDecode(message.metadataJson!) as Map);
       final icon = metadata['callType'] == 'video'
           ? Icons.videocam
           : Icons.call;
 
-      return Row(
-        mainAxisSize: MainAxisSize.min,
+      return Column(
+        crossAxisAlignment: contentAlignment,
         children: [
-          Icon(icon, color: Colors.greenAccent, size: 18),
-          const SizedBox(width: 8),
-          Flexible(
-            child: Text(
-              message.textBody ?? 'Call',
-              textAlign: textAlign,
-              style: const TextStyle(fontWeight: FontWeight.w600),
-            ),
+          if (repliedMessage != null) ...[
+            ReplyPreview(message: repliedMessage!, textAlign: textAlign),
+            const SizedBox(height: 8),
+          ],
+          Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(icon, color: Colors.greenAccent, size: 18),
+              const SizedBox(width: 8),
+              Flexible(
+                child: Text(
+                  message.textBody ?? 'Call',
+                  textAlign: textAlign,
+                  style: const TextStyle(fontWeight: FontWeight.w600),
+                ),
+              ),
+            ],
           ),
         ],
       );
@@ -284,29 +316,121 @@ class TextLikeMessageContent extends StatelessWidget {
 
     final text = message.textBody ?? '';
     if (isEmojiOnly(text)) {
-      return Text(
-        text,
-        textAlign: textAlign,
-        style: const TextStyle(fontSize: 42, height: 1.0),
+      return Column(
+        crossAxisAlignment: contentAlignment,
+        children: [
+          if (repliedMessage != null) ...[
+            ReplyPreview(message: repliedMessage!, textAlign: textAlign),
+            const SizedBox(height: 8),
+          ],
+          Text(
+            text,
+            textAlign: textAlign,
+            style: const TextStyle(fontSize: 42, height: 1.0),
+          ),
+        ],
       );
     }
 
-    return Linkify(
-      text: text,
-      textAlign: textAlign,
-      style: const TextStyle(color: Colors.white, fontSize: 15, height: 1.35),
-      linkStyle: const TextStyle(
-        color: Colors.lightBlueAccent,
-        decoration: TextDecoration.underline,
-        fontSize: 15,
-      ),
-      onOpen: (link) async {
-        final uri = Uri.tryParse(link.url);
-        if (uri != null && await canLaunchUrl(uri)) {
-          await launchUrl(uri, mode: LaunchMode.externalApplication);
-        }
-      },
+    return Column(
+      crossAxisAlignment: contentAlignment,
+      children: [
+        if (repliedMessage != null) ...[
+          ReplyPreview(message: repliedMessage!, textAlign: textAlign),
+          const SizedBox(height: 8),
+        ],
+        Linkify(
+          text: text,
+          textAlign: textAlign,
+          style: const TextStyle(
+            color: Colors.white,
+            fontSize: 15,
+            height: 1.35,
+          ),
+          linkStyle: const TextStyle(
+            color: Colors.lightBlueAccent,
+            decoration: TextDecoration.underline,
+            fontSize: 15,
+          ),
+          onOpen: (link) async {
+            final uri = Uri.tryParse(link.url);
+            if (uri != null && await canLaunchUrl(uri)) {
+              await launchUrl(uri, mode: LaunchMode.externalApplication);
+            }
+          },
+        ),
+      ],
     );
+  }
+}
+
+class ReplyPreview extends StatelessWidget {
+  final MessageRow message;
+  final TextAlign textAlign;
+
+  const ReplyPreview({
+    super.key,
+    required this.message,
+    required this.textAlign,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final alignment = textAlign == TextAlign.right
+        ? CrossAxisAlignment.end
+        : CrossAxisAlignment.start;
+    return Container(
+      constraints: const BoxConstraints(maxWidth: 260),
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+      decoration: BoxDecoration(
+        color: Colors.white.withValues(alpha: 0.08),
+        borderRadius: BorderRadius.circular(12),
+        border: Border(
+          left: BorderSide(
+            color: Colors.blueAccent.withValues(alpha: 0.85),
+            width: 3,
+          ),
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: alignment,
+        children: [
+          Text(
+            'Replying to',
+            style: const TextStyle(
+              color: Colors.blueAccent,
+              fontSize: 12,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            _previewText(message),
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
+            textAlign: textAlign,
+            style: const TextStyle(color: Colors.grey, fontSize: 12),
+          ),
+        ],
+      ),
+    );
+  }
+
+  static String _previewText(MessageRow message) {
+    final text = message.textBody?.trim();
+    if (text != null && text.isNotEmpty) {
+      return text;
+    }
+    switch (message.type) {
+      case 'file':
+        return 'Attachment';
+      case 'call_summary':
+        return 'Call summary';
+      case 'system':
+        return 'System message';
+      default:
+        return message.type;
+    }
   }
 }
 
@@ -315,6 +439,7 @@ class AttachmentMessageContent extends ConsumerWidget {
   final String? peerId;
   final bool isMe;
   final Map<String, List<int>> downloadProgress;
+  final MessageRow? repliedMessage;
 
   const AttachmentMessageContent({
     super.key,
@@ -322,6 +447,7 @@ class AttachmentMessageContent extends ConsumerWidget {
     required this.peerId,
     required this.isMe,
     required this.downloadProgress,
+    this.repliedMessage,
   });
 
   @override
@@ -338,6 +464,10 @@ class AttachmentMessageContent extends ConsumerWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
+        if (repliedMessage != null) ...[
+          ReplyPreview(message: repliedMessage!, textAlign: TextAlign.left),
+          const SizedBox(height: 8),
+        ],
         if (hasImagePreview) ...[
           ClipRRect(
             borderRadius: BorderRadius.circular(12),
@@ -421,11 +551,7 @@ class AttachmentMessageContent extends ConsumerWidget {
           ),
         ],
         const SizedBox(height: 10),
-        Wrap(
-          spacing: 8,
-          runSpacing: 8,
-          children: _buildActions(context, ref),
-        ),
+        Wrap(spacing: 8, runSpacing: 8, children: _buildActions(context, ref)),
       ],
     );
   }
@@ -445,10 +571,9 @@ class AttachmentMessageContent extends ConsumerWidget {
         _actionButton(
           icon: Icons.download,
           label: 'Download',
-          onTap: () => ref.read(mediaActionsProvider).acceptFile(
-                peerId: peerId!,
-                attachmentId: attachment.id,
-              ),
+          onTap: () => ref
+              .read(mediaActionsProvider)
+              .acceptFile(peerId: peerId!, attachmentId: attachment.id),
         ),
       ];
     }
@@ -461,15 +586,15 @@ class AttachmentMessageContent extends ConsumerWidget {
         _actionButton(
           icon: Icons.close,
           label: 'Cancel',
-          onTap: () => ref.read(mediaActionsProvider).cancelFileTransfer(
-                peerId: peerId!,
-                attachmentId: attachment.id,
-              ),
+          onTap: () => ref
+              .read(mediaActionsProvider)
+              .cancelFileTransfer(peerId: peerId!, attachmentId: attachment.id),
         ),
       ];
     }
 
-    if (attachment.transferState == 'completed' && attachment.localPath != null) {
+    if (attachment.transferState == 'completed' &&
+        attachment.localPath != null) {
       return [
         _actionButton(
           icon: Icons.open_in_new,
