@@ -49,13 +49,15 @@ Current product shape:
 - legacy room flow remains temporarily accessible from Settings
 - V2 peer presence now starts from the shell and updates the local DB
 - `People` and `Requests` now perform real local request/contact actions
+- remote request delivery is not wired yet
 - live DM behavior is not implemented yet
 
 Current project state:
 
 - existing codebase has usable networking and feature foundations
 - architecture direction has been drafted in `V2_ARCHITECTURE.md`
-- Phase 1 through Phase 3 foundations are implemented
+- Phase 1 and Phase 2 are implemented
+- Phase 3 discovery/presence foundations are implemented
 
 ## 4. Approved Direction
 
@@ -154,7 +156,7 @@ Exit criteria:
 - old room flow is no longer the primary path
 
 ### Phase 3: Presence And Contact Requests
-Status: Complete
+Status: In progress
 
 Goals:
 
@@ -244,12 +246,12 @@ Exit criteria:
 
 ## 7. Immediate Next Step
 
-The next implementation slice should start Phase 4:
+The next implementation slice should finish Phase 3:
 
-- create direct conversations from accepted contacts
-- persist direct messages and power the chat list with conversation data
-- replace placeholder `Chats` content with real conversation state
-- keep the Phase 3 discovery/request flows feeding the DM entry path
+- deliver request messages between devices
+- create incoming request records from remote actions
+- sync accept/decline/block outcomes on both peers
+- keep the current discovery UI and DB flows as the base for that protocol
 
 ## 8. Status Board
 
@@ -261,9 +263,9 @@ Use this section as the live session-by-session tracker.
 - Master plan: Active
 - Phase 1 implementation spec: Implemented
 - Phase 2 app shell: Implemented
-- Phase 3 presence and requests: Implemented
+- Phase 3 presence and requests: In progress
 - Implementation: In progress
-- Current focus: Phase 4 direct messaging MVP
+- Current focus: Phase 3 remote request delivery
 
 ### Completed
 
@@ -290,7 +292,7 @@ Use this section as the live session-by-session tracker.
 ### In Progress
 
 - V2 overhaul implementation
-- planning Phase 4 DM messaging flow
+- Phase 3 remote request delivery and approval sync
 
 ### Pending
 
