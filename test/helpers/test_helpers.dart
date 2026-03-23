@@ -6,6 +6,7 @@ import 'package:lanline/core/network/websocket_server.dart';
 import 'package:lanline/core/network/websocket_client.dart';
 import 'package:lanline/core/network/file_transfer_manager.dart';
 import 'package:lanline/core/network/discovery_service.dart';
+import 'package:lanline/core/network/webrtc_call_service.dart';
 import 'package:lanline/core/providers/username_provider.dart';
 
 // ── Mock Services ──────────────────────────────────────────────
@@ -22,6 +23,18 @@ class MockFileTransferManager extends Mock implements FileTransferManager {}
 
 class MockDiscoveryService extends Mock implements DiscoveryService {}
 
+/// Mock call service with real fields for state and participants.
+class MockWebRtcCallService extends Mock implements WebRtcCallService {
+  @override
+  CallState state = CallState.idle;
+
+  @override
+  final Set<String> callParticipants = {};
+
+  @override
+  void Function(String participant, bool joined)? onParticipantChanged;
+}
+
 // ── Test Container Builder ─────────────────────────────────────
 
 /// Creates a [ProviderContainer] with all external services mocked out.
@@ -36,6 +49,7 @@ Future<({
   MockWebSocketClient client,
   MockFileTransferManager fileTransfer,
   MockDiscoveryService discovery,
+  MockWebRtcCallService callService,
 })> createTestContainer({
   String username = 'TestUser',
 }) async {
@@ -43,6 +57,7 @@ Future<({
   final client = MockWebSocketClient();
   final fileTransfer = MockFileTransferManager();
   final discovery = MockDiscoveryService();
+  final callService = MockWebRtcCallService();
 
   // Default stubs so tests don't crash on common calls
   // Use thenAnswer for Stream getters (thenReturn not allowed for Streams)
@@ -67,6 +82,7 @@ Future<({
       webSocketClientProvider.overrideWithValue(client),
       fileTransferProvider.overrideWithValue(fileTransfer),
       discoveryServiceProvider.overrideWithValue(discovery),
+      webRtcCallServiceProvider.overrideWithValue(callService),
     ],
   );
 
@@ -76,5 +92,6 @@ Future<({
     client: client,
     fileTransfer: fileTransfer,
     discovery: discovery,
+    callService: callService,
   );
 }

@@ -89,13 +89,13 @@ Extract business logic from `chat_screen.dart` (~1600 lines) into testable, reus
 - [ ] Manual test: send small file, send large file (offer), cancel file
 
 ### Phase 5: Extract CallNotifier
-- [ ] Create `lib/core/providers/call_provider.dart`
-- [ ] Move call signal routing (`_handleIncomingCall`, `_handleCallJoin`, etc.)
-- [ ] Move `_sendCallSignal`
-- [ ] Move call-related handlers from incoming message router
-- [ ] Widget reacts to call state (show dialog, open call screen)
-- [ ] Write tests: `test/core/providers/call_provider_test.dart`
-- [ ] `flutter analyze` + `flutter test` pass
+- [x] Create `lib/core/providers/call_notifier.dart`
+- [x] Move call signal routing (`_handleCallJoin`, `_handleCallOffer`, `_handleCallAnswer`, `_handleIceCandidate`, `_handleCallEnd`)
+- [x] Move `_sendCallSignal` → `sendCallSignal`
+- [x] Move call-related handlers from incoming message router
+- [x] Widget reacts to call state via `onIncomingCall` callback (show dialog, open call screen)
+- [x] Write tests: `test/core/providers/call_notifier_test.dart`
+- [x] `flutter analyze` + `flutter test` pass
 - [ ] Manual test: audio call, video call, decline call
 
 ---
@@ -194,7 +194,21 @@ Status: Complete
 - 20 new tests for FileTransferNotifier
 - Total tests: 86, all passing
 
-### NEXT: Phase 5 (extract CallNotifier)
+### Phase 5 - 2026-03-23
+Status: Complete
+- Created `CallNotifier` in `core/providers/call_notifier.dart`
+- Moved all call signaling handlers: call_start, call_join, call_offer, call_answer, ice_candidate, call_leave, call_end, call_decline, call_busy
+- Moved `sendCallSignal` and `addCallSummary` to notifier
+- Busy-check logic (auto-decline when in call) moved to notifier
+- `IncomingCallInfo` data class passes call details to widget via `onIncomingCall` callback
+- Widget keeps: incoming call dialog UI (ringtone, proximity channel, accept/decline buttons), `_openCallScreen` (navigation)
+- Removed unused import: `webrtc_call_service.dart` from chat_screen
+- Added `MockWebRtcCallService` to test helpers with real `state` and `callParticipants` fields
+- 17 new tests for CallNotifier
+- chat_screen.dart reduced from 836 → 750 lines
+- Total tests: 103, all passing
+
+### REFACTOR COMPLETE
 
 ---
 

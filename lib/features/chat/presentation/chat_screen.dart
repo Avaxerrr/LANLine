@@ -15,10 +15,10 @@ import '../../../core/models/chat_message.dart';
 import '../../../core/models/room_model.dart';
 import '../../../core/providers/chat_provider.dart';
 import '../../../core/providers/file_transfer_notifier.dart';
+import '../../../core/providers/call_notifier.dart';
 import '../../../core/network/websocket_server.dart';
 import '../../../core/network/websocket_client.dart';
 import '../../../core/network/discovery_service.dart';
-import '../../../core/network/webrtc_call_service.dart';
 import '../../../core/providers/username_provider.dart';
 import '../../../core/services/notification_service.dart';
 import '../../call/presentation/call_screen.dart';
@@ -81,6 +81,11 @@ class _ChatScreenState extends ConsumerState<ChatScreen> with WidgetsBindingObse
       ref.read(fileTransferNotifierProvider.notifier).init(
         FileTransferConfig(roomName: widget.room.name),
       );
+
+      // Register callback for incoming calls (needs BuildContext for dialog)
+      ref.read(callNotifierProvider.notifier).onIncomingCall = (info) {
+        if (mounted) _showIncomingCallDialog(info);
+      };
     });
 
     final stream = widget.isHost
@@ -162,70 +167,63 @@ class _ChatScreenState extends ConsumerState<ChatScreen> with WidgetsBindingObse
       return;
     }
 
-    // Notifier returned null — handle call/file types in the widget.
-    try {
-      final data = jsonDecode(rawMessage);
-      final type = data['type'] as String?;
-
-      if (type == 'call_start') {
-        _handleIncomingCall(data);
-      } else if (type == 'call_join') {
-        _handleCallJoin(data);
-      } else if (type == 'call_offer') {
-        _handleCallOffer(data);
-      } else if (type == 'call_answer') {
-        _handleCallAnswer(data);
-      } else if (type == 'ice_candidate') {
-        _handleIceCandidate(data);
-      } else if (type == 'call_leave' || type == 'call_end') {
-        _handleCallEnd(data);
-      } else if (type == 'call_decline') {
-        final sender = data['sender'] as String;
-        final myName = ref.read(usernameProvider);
-        if (sender != myName) {
-          _showTopSnackBar('$sender declined the call');
-        }
-      } else if (type == 'call_busy') {
-        final sender = data['sender'] as String;
-        final myName = ref.read(usernameProvider);
-        if (sender != myName) {
-          _showTopSnackBar('$sender is on another call');
-        }
-      } else {
-        // File types — delegate to FileTransferNotifier
-        final fileResult = await ref.read(fileTransferNotifierProvider.notifier)
-            .handleFileMessage(rawMessage);
-        if (fileResult != null) {
-          switch (fileResult) {
-            case 'file_received':
-              final fileData = jsonDecode(rawMessage);
-              final sender = fileData['sender'] as String;
-              final filename = fileData['filename'] as String;
-              _scrollToBottom();
-              _notificationPlayer.play(AssetSource('audio/notification.mp3'));
-              NotificationService().showFileNotification(sender: sender, fileName: filename);
-              break;
-            case 'file_offer':
-              final fileData = jsonDecode(rawMessage);
-              final sender = fileData['sender'] as String;
-              final filename = fileData['filename'] as String;
-              final fileSize = fileData['size'] as int;
-              _scrollToBottom();
-              _notificationPlayer.play(AssetSource('audio/notification.mp3'));
-              NotificationService().showFileNotification(
-                sender: sender, fileName: '$filename (${formatFileSize(fileSize)})', isOffer: true,
-              );
-              break;
-            case 'file_downloaded':
-              final fileData = jsonDecode(rawMessage);
-              final downloader = fileData['downloader'] as String? ?? 'Someone';
-              _showTopSnackBar('✅ $downloader downloaded the file');
-              break;
+    // Notifier returned null — try call types, then file types.
+    // Call signaling
+    final callResult = ref.read(callNotifierProvider.notifier).handleCallMessage(rawMessage);
+    if (callResult != null) {
+      switch (callResult) {
+        case 'call_decline':
+          final data = jsonDecode(rawMessage);
+          final sender = data['sender'] as String;
+          if (sender != ref.read(usernameProvider)) {
+            _showTopSnackBar('$sender declined the call');
           }
+          break;
+        case 'call_busy':
+          final data = jsonDecode(rawMessage);
+          final sender = data['sender'] as String;
+          if (sender != ref.read(usernameProvider)) {
+            _showTopSnackBar('$sender is on another call');
+          }
+          break;
+      }
+      return;
+    }
+
+    // File types — delegate to FileTransferNotifier
+    try {
+      final fileResult = await ref.read(fileTransferNotifierProvider.notifier)
+          .handleFileMessage(rawMessage);
+      if (fileResult != null) {
+        switch (fileResult) {
+          case 'file_received':
+            final fileData = jsonDecode(rawMessage);
+            final sender = fileData['sender'] as String;
+            final filename = fileData['filename'] as String;
+            _scrollToBottom();
+            _notificationPlayer.play(AssetSource('audio/notification.mp3'));
+            NotificationService().showFileNotification(sender: sender, fileName: filename);
+            break;
+          case 'file_offer':
+            final fileData = jsonDecode(rawMessage);
+            final sender = fileData['sender'] as String;
+            final filename = fileData['filename'] as String;
+            final fileSize = fileData['size'] as int;
+            _scrollToBottom();
+            _notificationPlayer.play(AssetSource('audio/notification.mp3'));
+            NotificationService().showFileNotification(
+              sender: sender, fileName: '$filename (${formatFileSize(fileSize)})', isOffer: true,
+            );
+            break;
+          case 'file_downloaded':
+            final fileData = jsonDecode(rawMessage);
+            final downloader = fileData['downloader'] as String? ?? 'Someone';
+            _showTopSnackBar('✅ $downloader downloaded the file');
+            break;
         }
       }
     } catch (e) {
-      debugPrint('Error handling call/file message: $e');
+      debugPrint('Error handling file message: $e');
     }
   }
 
@@ -263,6 +261,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> with WidgetsBindingObse
     WidgetsBinding.instance.removeObserver(this);
     _messageSubscription?.cancel();
     ref.read(fileTransferNotifierProvider.notifier).dispose();
+    ref.read(callNotifierProvider.notifier).dispose();
     _audioRecorder.dispose();
     _audioPlayer.dispose();
     _ringtonePlayer.dispose();
@@ -315,11 +314,9 @@ class _ChatScreenState extends ConsumerState<ChatScreen> with WidgetsBindingObse
     );
   }
 
-  // ─── Call Handling ─────────────────────────────────────────────
+  // ─── Call Handling (UI only — signaling is in CallNotifier) ───
 
-  void _sendCallSignal(String message) {
-    ref.read(chatProvider.notifier).broadcast(message);
-  }
+  static const _proximityChannel = MethodChannel('com.lanline.lanline/proximity');
 
   void _openCallScreen({
     required String callId,
@@ -327,6 +324,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> with WidgetsBindingObse
     required String callType,
     required bool isInitiator,
   }) async {
+    final callNotifier = ref.read(callNotifierProvider.notifier);
     final result = await Navigator.push<int>(
       context,
       MaterialPageRoute(
@@ -335,62 +333,29 @@ class _ChatScreenState extends ConsumerState<ChatScreen> with WidgetsBindingObse
           myName: myName,
           callType: callType,
           isInitiator: isInitiator,
-          sendSignal: _sendCallSignal,
+          sendSignal: callNotifier.sendCallSignal,
         ),
       ),
     );
 
-    // Add call summary bubble to chat AND broadcast to others
     if (result != null && result > 0 && mounted) {
-      final m = (result ~/ 60).toString().padLeft(2, '0');
-      final s = (result % 60).toString().padLeft(2, '0');
-      final icon = callType == 'video' ? '📹' : '📞';
-      final label = callType == 'video' ? 'Video call' : 'Voice call';
-      final summaryText = '$icon $label • $m:$s';
-
-      ref.read(chatProvider.notifier).addMessage(ChatMessage(
-        sender: myName,
-        text: summaryText,
-        isMe: true,
-      ));
+      callNotifier.addCallSummary(
+        myName: myName,
+        callType: callType,
+        durationSeconds: result,
+      );
       _scrollToBottom();
-
-      // Broadcast call summary so receiver(s) also see the bubble
-      _sendCallSignal(jsonEncode({
-        'type': 'call_summary',
-        'sender': myName,
-        'text': summaryText,
-      }));
     }
   }
 
-  static const _proximityChannel = MethodChannel('com.lanline.lanline/proximity');
-
-  void _handleIncomingCall(Map<String, dynamic> data) {
-    final sender = data['sender'] as String;
-    final callId = data['callId'] as String;
-    final callType = (data['callType'] as String?) ?? 'audio';
-    final myName = ref.read(usernameProvider);
-
-    if (sender == myName) return;
-
-    // Busy state — if already in a call, auto-decline
-    final callService = ref.read(webRtcCallServiceProvider);
-    if (callService.state == CallState.inCall) {
-      _sendCallSignal(jsonEncode({
-        'type': 'call_busy',
-        'callId': callId,
-        'sender': myName,
-      }));
-      return;
-    }
-
-    // Start ringtone (cross-platform) + vibration (Android only)
+  void _showIncomingCallDialog(IncomingCallInfo info) {
     _ringtonePlayer.setReleaseMode(ReleaseMode.loop);
     _ringtonePlayer.play(AssetSource('audio/ringtone.mp3'));
     if (Platform.isAndroid) {
       try { _proximityChannel.invokeMethod('startRingtone'); } catch (_) {}
     }
+
+    final callNotifier = ref.read(callNotifierProvider.notifier);
 
     showDialog(
       context: context,
@@ -407,19 +372,19 @@ class _ChatScreenState extends ConsumerState<ChatScreen> with WidgetsBindingObse
                 color: Colors.greenAccent.withValues(alpha: 0.15),
               ),
               child: Icon(
-                callType == 'video' ? Icons.videocam : Icons.call,
+                info.callType == 'video' ? Icons.videocam : Icons.call,
                 size: 36, color: Colors.greenAccent,
               ),
             ),
             const SizedBox(height: 16),
             Text(
-              callType == 'video' ? 'Incoming Video Call' : 'Incoming Call',
+              info.callType == 'video' ? 'Incoming Video Call' : 'Incoming Call',
               style: const TextStyle(color: Colors.white, fontSize: 20),
             ),
           ],
         ),
         content: Text(
-          '$sender is calling...',
+          '${info.sender} is calling...',
           style: const TextStyle(color: Colors.grey, fontSize: 16),
           textAlign: TextAlign.center,
         ),
@@ -432,10 +397,10 @@ class _ChatScreenState extends ConsumerState<ChatScreen> with WidgetsBindingObse
               if (Platform.isAndroid) {
                 try { _proximityChannel.invokeMethod('stopRingtone'); } catch (_) {}
               }
-              _sendCallSignal(jsonEncode({
+              callNotifier.sendCallSignal(jsonEncode({
                 'type': 'call_decline',
-                'callId': callId,
-                'sender': myName,
+                'callId': info.callId,
+                'sender': info.myName,
               }));
               Navigator.pop(ctx);
             },
@@ -460,7 +425,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> with WidgetsBindingObse
                 try { _proximityChannel.invokeMethod('stopRingtone'); } catch (_) {}
               }
               Navigator.pop(ctx);
-              _openCallScreen(callId: callId, myName: myName, callType: callType, isInitiator: false);
+              _openCallScreen(callId: info.callId, myName: info.myName, callType: info.callType, isInitiator: false);
             },
             child: Column(
               mainAxisSize: MainAxisSize.min,
@@ -468,7 +433,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> with WidgetsBindingObse
                 Container(
                   width: 56, height: 56,
                   decoration: const BoxDecoration(shape: BoxShape.circle, color: Colors.greenAccent),
-                  child: Icon(callType == 'video' ? Icons.videocam : Icons.call, color: Colors.white, size: 28),
+                  child: Icon(info.callType == 'video' ? Icons.videocam : Icons.call, color: Colors.white, size: 28),
                 ),
                 const SizedBox(height: 6),
                 const Text('Accept', style: TextStyle(color: Colors.greenAccent, fontSize: 11)),
@@ -478,63 +443,6 @@ class _ChatScreenState extends ConsumerState<ChatScreen> with WidgetsBindingObse
         ],
       ),
     );
-  }
-
-  void _handleCallJoin(Map<String, dynamic> data) {
-    final sender = data['sender'] as String;
-    final myName = ref.read(usernameProvider);
-    if (sender == myName) return;
-
-    final callService = ref.read(webRtcCallServiceProvider);
-    if (callService.state == CallState.inCall) {
-      callService.callParticipants.add(sender);
-      callService.onParticipantChanged?.call(sender, true);
-      // I create offer to the new joiner
-      callService.setupPeerConnection(sender, myName, makeOffer: true);
-    }
-  }
-
-  void _handleCallOffer(Map<String, dynamic> data) {
-    final sender = data['sender'] as String;
-    final target = data['target'] as String;
-    final myName = ref.read(usernameProvider);
-    if (target != myName) return;
-
-    final callService = ref.read(webRtcCallServiceProvider);
-    callService.handleOffer(sender, myName, data['sdp'] as Map<String, dynamic>);
-  }
-
-  void _handleCallAnswer(Map<String, dynamic> data) {
-    final sender = data['sender'] as String;
-    final target = data['target'] as String;
-    final myName = ref.read(usernameProvider);
-    if (target != myName) return;
-
-    final callService = ref.read(webRtcCallServiceProvider);
-    callService.handleAnswer(sender, data['sdp'] as Map<String, dynamic>);
-  }
-
-  void _handleIceCandidate(Map<String, dynamic> data) {
-    final sender = data['sender'] as String;
-    final target = data['target'] as String;
-    final myName = ref.read(usernameProvider);
-    if (target != myName) return;
-
-    final callService = ref.read(webRtcCallServiceProvider);
-    callService.handleIceCandidate(sender, data['candidate'] as Map<String, dynamic>);
-  }
-
-  void _handleCallEnd(Map<String, dynamic> data) {
-    final sender = data['sender'] as String;
-    final callService = ref.read(webRtcCallServiceProvider);
-
-    if (data['type'] == 'call_end') {
-      // Entire call ended
-      callService.handleParticipantLeft(sender);
-    } else {
-      // Single participant left
-      callService.handleParticipantLeft(sender);
-    }
   }
 
   // ─── End Call Handling ─────────────────────────────────────────
