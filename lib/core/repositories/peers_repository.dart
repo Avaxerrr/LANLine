@@ -15,6 +15,12 @@ class PeersRepository {
     )..where((tbl) => tbl.peerId.equals(peerId))).getSingleOrNull();
   }
 
+  Future<PresenceRow?> getPresenceByPeerId(String peerId) {
+    return (_database.select(
+      _database.presenceTable,
+    )..where((tbl) => tbl.peerId.equals(peerId))).getSingleOrNull();
+  }
+
   Stream<List<PeerRow>> watchAcceptedContacts() {
     return (_database.select(_database.peersTable)
           ..where((tbl) => tbl.relationshipState.equals('accepted'))

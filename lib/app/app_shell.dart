@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../core/providers/v2_presence_discovery_provider.dart';
+import '../core/providers/v2_request_protocol_provider.dart';
 import '../features/chats/presentation/chats_screen.dart';
 import '../features/people/presentation/people_screen.dart';
 import '../features/requests/presentation/requests_screen.dart';
@@ -24,6 +25,7 @@ class _AppShellState extends ConsumerState<AppShell> {
   @override
   Widget build(BuildContext context) {
     ref.watch(v2PresenceDiscoveryControllerProvider);
+    ref.watch(v2RequestProtocolControllerProvider);
 
     final screens = <Widget>[
       ChatsScreen(onGoToPeople: _goToPeople),

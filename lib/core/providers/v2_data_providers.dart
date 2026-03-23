@@ -1,8 +1,8 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../db/app_database.dart';
-import '../repositories/requests_repository.dart';
 import 'v2_presence_discovery_provider.dart';
+import 'v2_request_protocol_provider.dart';
 import 'v2_repository_providers.dart';
 
 final contactsProvider = StreamProvider((ref) {
@@ -28,34 +28,35 @@ final conversationListProvider = StreamProvider((ref) {
 });
 
 class RequestActions {
-  final RequestsRepository _repository;
+  final V2RequestProtocolController _controller;
 
-  RequestActions(this._repository);
+  RequestActions(this._controller);
 
   Future<ContactRequestRow> sendConnectionRequest({
     required String peerId,
     String? message,
   }) {
-    return _repository.sendConnectionRequest(peerId: peerId, message: message);
+    return _controller.sendConnectionRequest(peerId: peerId, message: message);
   }
 
   Future<ContactRequestRow> acceptRequest(String requestId) {
-    return _repository.acceptRequest(requestId);
+    return _controller.acceptRequest(requestId);
   }
 
   Future<ContactRequestRow> declineRequest(String requestId) {
-    return _repository.declineRequest(requestId);
+    return _controller.declineRequest(requestId);
   }
 
   Future<ContactRequestRow> cancelRequest(String requestId) {
-    return _repository.cancelRequest(requestId);
+    return _controller.cancelRequest(requestId);
   }
 
   Future<void> blockPeer({required String peerId, String? requestId}) {
-    return _repository.blockPeer(peerId: peerId, requestId: requestId);
+    return _controller.blockPeer(peerId: peerId, requestId: requestId);
   }
 }
 
 final requestActionsProvider = Provider<RequestActions>((ref) {
-  return RequestActions(ref.read(requestsRepositoryProvider));
+  ref.watch(v2RequestProtocolControllerProvider);
+  return RequestActions(ref.read(v2RequestProtocolControllerProvider));
 });

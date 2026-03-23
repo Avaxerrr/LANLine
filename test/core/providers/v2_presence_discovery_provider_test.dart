@@ -4,6 +4,7 @@ import 'package:drift/native.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:lanline/core/db/app_database.dart';
 import 'package:lanline/core/network/discovery_service.dart';
+import 'package:lanline/core/network/v2_request_signaling_service.dart';
 import 'package:lanline/core/providers/v2_presence_discovery_provider.dart';
 import 'package:lanline/core/repositories/identity_repository.dart';
 import 'package:lanline/core/repositories/peers_repository.dart';
@@ -86,7 +87,7 @@ void main() {
             status: 'online',
             bindAddress: '192.168.1.20',
             transportType: null,
-            port: null,
+            port: V2RequestSignalingService.defaultPort,
           ),
         ).called(1);
 

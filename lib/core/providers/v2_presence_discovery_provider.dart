@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../db/app_database.dart';
 import '../network/discovery_service.dart';
+import '../network/v2_request_signaling_service.dart';
 import '../repositories/peers_repository.dart';
 import 'v2_identity_provider.dart';
 import 'v2_repository_providers.dart';
@@ -46,6 +47,7 @@ class V2PresenceDiscoveryController {
       fingerprint: _localIdentity!.fingerprint,
       isReachable: true,
       status: 'online',
+      port: V2RequestSignalingService.defaultPort,
       bindAddress: await _discoveryService.getLocalIpAddress(),
     );
   }

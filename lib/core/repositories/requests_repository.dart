@@ -35,9 +35,10 @@ class RequestsRepository {
     required String direction,
     String status = 'pending',
     String? message,
+    String? id,
   }) async {
     final now = DateTime.now().millisecondsSinceEpoch;
-    final id = _uuid.v4();
+    final requestId = id ?? _uuid.v4();
     final existing = await _findPendingRequest(
       peerId: peerId,
       direction: direction,
@@ -57,7 +58,7 @@ class RequestsRepository {
         .into(_database.contactRequestsTable)
         .insert(
           ContactRequestsTableCompanion.insert(
-            id: id,
+            id: requestId,
             peerId: peerId,
             direction: direction,
             status: status,
@@ -76,7 +77,7 @@ class RequestsRepository {
 
     return (_database.select(
       _database.contactRequestsTable,
-    )..where((tbl) => tbl.id.equals(id))).getSingle();
+    )..where((tbl) => tbl.id.equals(requestId))).getSingle();
   }
 
   Future<void> updateStatus(String requestId, String status) async {
@@ -95,11 +96,31 @@ class RequestsRepository {
   Future<ContactRequestRow> sendConnectionRequest({
     required String peerId,
     String? message,
+    String? requestId,
   }) {
     return createRequest(
       peerId: peerId,
       direction: 'outgoing',
       message: message,
+      id: requestId,
+    );
+  }
+
+  Future<ContactRequestRow> receiveConnectionRequest({
+    required String requestId,
+    required String peerId,
+    String? message,
+  }) async {
+    final existing = await getRequestById(requestId);
+    if (existing != null) {
+      return existing;
+    }
+
+    return createRequest(
+      peerId: peerId,
+      direction: 'incoming',
+      message: message,
+      id: requestId,
     );
   }
 
@@ -164,10 +185,40 @@ class RequestsRepository {
         .getSingleOrNull();
   }
 
+  Future<ContactRequestRow?> getRequestById(String requestId) {
+    return (_database.select(
+      _database.contactRequestsTable,
+    )..where((tbl) => tbl.id.equals(requestId))).getSingleOrNull();
+  }
+
   Future<ContactRequestRow> _getRequestById(String requestId) async {
     return (_database.select(
       _database.contactRequestsTable,
     )..where((tbl) => tbl.id.equals(requestId))).getSingle();
+  }
+
+  Future<ContactRequestRow?> applyRemoteRequestStatus({
+    required String requestId,
+    required String peerId,
+    required String status,
+  }) async {
+    final existing = await getRequestById(requestId);
+    if (existing == null) return null;
+
+    await updateStatus(requestId, status);
+
+    final relationshipState = switch (status) {
+      'accepted' => 'accepted',
+      'blocked' => 'blocked',
+      _ => 'discovered',
+    };
+
+    await _syncPeerRelationship(
+      peerId: peerId,
+      relationshipState: relationshipState,
+    );
+
+    return getRequestById(requestId);
   }
 
   Future<void> _syncPeerRelationship({
