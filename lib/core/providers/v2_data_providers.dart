@@ -1,7 +1,9 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../db/app_database.dart';
+import '../repositories/conversations_repository.dart';
 import 'v2_direct_message_protocol_provider.dart';
+import 'v2_group_protocol_provider.dart';
 import 'v2_identity_provider.dart';
 import 'v2_media_protocol_provider.dart';
 import 'v2_navigation_state_provider.dart';
@@ -12,6 +14,11 @@ import 'v2_repository_providers.dart';
 final contactsProvider = StreamProvider((ref) {
   ref.watch(v2PresenceDiscoveryControllerProvider);
   return ref.read(peersRepositoryProvider).watchAcceptedContacts();
+});
+
+final reachableContactsProvider = StreamProvider((ref) {
+  ref.watch(v2PresenceDiscoveryControllerProvider);
+  return ref.read(peersRepositoryProvider).watchReachableAcceptedContacts();
 });
 
 final discoveredPeersProvider = StreamProvider((ref) {
@@ -27,14 +34,45 @@ final pendingOutgoingRequestsProvider = StreamProvider((ref) {
   return ref.read(requestsRepositoryProvider).watchPendingOutgoingRequests();
 });
 
-final conversationListProvider = StreamProvider((ref) {
-  return ref.read(conversationsRepositoryProvider).watchConversationList();
+final conversationListProvider = StreamProvider<List<ConversationRow>>((ref) {
+  final localIdentityAsync = ref.watch(localIdentityBootstrapProvider);
+  return localIdentityAsync.when(
+    data: (localIdentity) {
+      return ref
+          .read(conversationsRepositoryProvider)
+          .watchConversationList(localPeerId: localIdentity.peerId);
+    },
+    loading: () => Stream.value(const []),
+    error: (error, stackTrace) => Stream.error(error, stackTrace),
+  );
 });
 
-final conversationMessagesProvider = StreamProvider.family<
-  List<MessageRow>,
-  String
->((ref, conversationId) {
+final pendingGroupInvitesProvider = StreamProvider<List<ConversationRow>>((ref) {
+  final localIdentityAsync = ref.watch(localIdentityBootstrapProvider);
+  return localIdentityAsync.when(
+    data: (localIdentity) {
+      return ref.read(conversationsRepositoryProvider).watchPendingGroupInvites(
+            localPeerId: localIdentity.peerId,
+          );
+    },
+    loading: () => Stream.value(const []),
+    error: (error, stackTrace) => Stream.error(error, stackTrace),
+  );
+});
+
+final conversationDetailsProvider = FutureProvider.family<ConversationRow?, String>((
+  ref,
+  conversationId,
+) {
+  return ref.read(conversationsRepositoryProvider).getConversationById(
+        conversationId,
+      );
+});
+
+final conversationMessagesProvider = StreamProvider.family<List<MessageRow>, String>((
+  ref,
+  conversationId,
+) {
   return ref.read(messagesRepositoryProvider).watchMessages(conversationId);
 });
 
@@ -45,16 +83,33 @@ final messageAttachmentsProvider =
           .watchAttachmentsForMessage(messageId);
     });
 
+final conversationMembersProvider =
+    StreamProvider.family<List<ConversationMemberRow>, String>((
+      ref,
+      conversationId,
+    ) {
+      return ref
+          .read(conversationsRepositoryProvider)
+          .watchConversationMembers(conversationId);
+    });
+
 final directConversationPeerProvider = FutureProvider.family<PeerRow?, String>((
   ref,
   conversationId,
 ) async {
   final localIdentity = await ref.read(identityServiceProvider).bootstrap();
   return ref.read(conversationsRepositoryProvider).getDirectPeerForConversation(
-    conversationId: conversationId,
-    localPeerId: localIdentity.peerId,
-  );
+        conversationId: conversationId,
+        localPeerId: localIdentity.peerId,
+      );
 });
+
+final conversationMemberPeersProvider =
+    FutureProvider.family<List<PeerRow>, String>((ref, conversationId) {
+      return ref
+          .read(conversationsRepositoryProvider)
+          .getConversationPeers(conversationId);
+    });
 
 class RequestActions {
   final V2RequestProtocolController _controller;
@@ -91,25 +146,60 @@ final requestActionsProvider = Provider<RequestActions>((ref) {
 });
 
 class ConversationActions {
-  final V2DirectMessageProtocolController _controller;
+  final V2DirectMessageProtocolController _directController;
+  final V2GroupProtocolController _groupController;
+  final ConversationsRepository _conversationsRepository;
   final Ref _ref;
 
-  ConversationActions(this._controller, this._ref);
+  ConversationActions(
+    this._directController,
+    this._groupController,
+    this._conversationsRepository,
+    this._ref,
+  );
 
   Future<ConversationRow> openDirectConversation({
     required String peerId,
     String? title,
   }) {
-    return _controller.openDirectConversation(peerId: peerId, title: title);
+    return _directController.openDirectConversation(peerId: peerId, title: title);
+  }
+
+  Future<ConversationRow> createGroupConversation({
+    required String title,
+    required List<String> invitedPeerIds,
+  }) {
+    return _groupController.createGroupConversation(
+      title: title,
+      invitedPeerIds: invitedPeerIds,
+    );
   }
 
   Future<MessageRow> sendTextMessage({
-    required String peerId,
+    String? peerId,
     required String text,
-    String? conversationId,
+    required String conversationId,
     String? conversationTitle,
-  }) {
-    return _controller.sendTextMessage(
+  }) async {
+    final conversation = await _conversationsRepository.getConversationById(
+      conversationId,
+    );
+    if (conversation == null) {
+      throw StateError('Conversation was not found.');
+    }
+
+    if (conversation.type == 'group') {
+      return _groupController.sendGroupTextMessage(
+        conversationId: conversationId,
+        text: text,
+      );
+    }
+
+    if (peerId == null) {
+      throw StateError('A direct conversation requires a peer ID.');
+    }
+
+    return _directController.sendTextMessage(
       peerId: peerId,
       text: text,
       conversationId: conversationId,
@@ -117,16 +207,30 @@ class ConversationActions {
     );
   }
 
-  Future<void> setActiveConversation(String? conversationId) {
+  Future<void> acceptGroupInvite(String conversationId) {
+    return _groupController.acceptGroupInvite(conversationId);
+  }
+
+  Future<void> declineGroupInvite(String conversationId) {
+    return _groupController.declineGroupInvite(conversationId);
+  }
+
+  Future<void> setActiveConversation(String? conversationId) async {
     _ref.read(activeConversationIdProvider.notifier).set(conversationId);
-    return _controller.setActiveConversation(conversationId);
+    if (conversationId != null) {
+      await _conversationsRepository.markConversationRead(conversationId);
+    }
+    await _directController.setActiveConversation(conversationId);
   }
 }
 
 final conversationActionsProvider = Provider<ConversationActions>((ref) {
   ref.watch(v2DirectMessageProtocolControllerProvider);
+  ref.watch(v2GroupProtocolControllerProvider);
   return ConversationActions(
     ref.read(v2DirectMessageProtocolControllerProvider),
+    ref.read(v2GroupProtocolControllerProvider),
+    ref.read(conversationsRepositoryProvider),
     ref,
   );
 });

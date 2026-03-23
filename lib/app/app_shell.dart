@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../core/providers/v2_data_providers.dart';
 import '../core/providers/v2_direct_message_protocol_provider.dart';
+import '../core/providers/v2_group_protocol_provider.dart';
 import '../core/providers/v2_identity_provider.dart';
 import '../core/providers/v2_media_protocol_provider.dart';
 import '../core/providers/v2_presence_discovery_provider.dart';
@@ -183,6 +184,7 @@ class _AppShellState extends ConsumerState<AppShell> {
     });
 
     ref.watch(v2DirectMessageProtocolControllerProvider);
+    ref.watch(v2GroupProtocolControllerProvider);
     ref.watch(v2MediaProtocolProvider);
     ref.watch(v2PresenceDiscoveryControllerProvider);
     ref.watch(v2RequestProtocolControllerProvider);

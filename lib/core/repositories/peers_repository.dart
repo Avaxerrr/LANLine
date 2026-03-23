@@ -28,6 +28,21 @@ class PeersRepository {
         .watch();
   }
 
+  Stream<List<PeerRow>> watchReachableAcceptedContacts() {
+    final reachablePeerIds = _database.selectOnly(_database.presenceTable)
+      ..addColumns([_database.presenceTable.peerId])
+      ..where(_database.presenceTable.isReachable.equals(true));
+
+    return (_database.select(_database.peersTable)
+          ..where(
+            (tbl) =>
+                tbl.relationshipState.equals('accepted') &
+                tbl.peerId.isInQuery(reachablePeerIds),
+          )
+          ..orderBy([(tbl) => drift.OrderingTerm.asc(tbl.displayName)]))
+        .watch();
+  }
+
   Stream<List<PeerRow>> watchDiscoveredPeers() {
     return (_database.select(_database.peersTable)
           ..where(
@@ -159,5 +174,12 @@ class PeersRepository {
         updatedAt: drift.Value(now),
       ),
     );
+  }
+
+  Future<List<PeerRow>> getPeersByPeerIds(List<String> peerIds) async {
+    if (peerIds.isEmpty) return const [];
+    return (_database.select(
+      _database.peersTable,
+    )..where((tbl) => tbl.peerId.isIn(peerIds))).get();
   }
 }

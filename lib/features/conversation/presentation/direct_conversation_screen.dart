@@ -17,14 +17,16 @@ import '../../call/presentation/call_screen.dart';
 
 class DirectConversationScreen extends ConsumerStatefulWidget {
   final String conversationId;
-  final String peerId;
+  final String? peerId;
   final String title;
+  final String conversationType;
 
   const DirectConversationScreen({
     super.key,
     required this.conversationId,
     required this.peerId,
     required this.title,
+    required this.conversationType,
   });
 
   @override
@@ -38,6 +40,9 @@ class _DirectConversationScreenState
   final ScrollController _scrollController = ScrollController();
   bool _isSending = false;
   bool _isPickingFile = false;
+
+  bool get _isGroup => widget.conversationType == 'group';
+  bool get _supportsDirectMedia => !_isGroup && widget.peerId != null;
 
   @override
   void initState() {
@@ -84,7 +89,7 @@ class _DirectConversationScreenState
   }
 
   Future<void> _pickAndSendFile() async {
-    if (_isPickingFile) return;
+    if (_isPickingFile || !_supportsDirectMedia) return;
     setState(() => _isPickingFile = true);
 
     try {
@@ -93,7 +98,7 @@ class _DirectConversationScreenState
       if (path == null) return;
 
       await ref.read(mediaActionsProvider).sendFile(
-        peerId: widget.peerId,
+        peerId: widget.peerId!,
         conversationId: widget.conversationId,
         conversationTitle: widget.title,
         filePath: path,
@@ -112,9 +117,11 @@ class _DirectConversationScreenState
   }
 
   Future<void> _startCall(String callType) async {
+    if (!_supportsDirectMedia) return;
+
     try {
       await ref.read(mediaActionsProvider).prepareOutgoingCall(
-        peerId: widget.peerId,
+        peerId: widget.peerId!,
         conversationId: widget.conversationId,
         conversationTitle: widget.title,
         callType: callType,
@@ -135,7 +142,7 @@ class _DirectConversationScreenState
             sendSignal: (payload) {
               unawaited(
                 ref.read(mediaActionsProvider).sendCallSignal(
-                      peerId: widget.peerId,
+                      peerId: widget.peerId!,
                       conversationId: widget.conversationId,
                       conversationTitle: widget.title,
                       payload: payload,
@@ -180,34 +187,53 @@ class _DirectConversationScreenState
     );
     final localIdentityAsync = ref.watch(localIdentityProvider);
     final mediaState = ref.watch(v2MediaProtocolProvider);
+    final membersAsync = ref.watch(conversationMemberPeersProvider(widget.conversationId));
+    final memberRowsAsync = ref.watch(conversationMembersProvider(widget.conversationId));
 
     return Scaffold(
       backgroundColor: const Color(0xFF121212),
       appBar: AppBar(
-        title: Text(widget.title),
+        title: _ConversationTitle(
+          title: widget.title,
+          conversationType: widget.conversationType,
+          membersAsync: memberRowsAsync,
+        ),
         backgroundColor: Colors.transparent,
         elevation: 0,
-        actions: [
-          IconButton(
-            onPressed: () => _startCall('audio'),
-            icon: const Icon(Icons.call),
-            tooltip: 'Audio call',
-          ),
-          IconButton(
-            onPressed: () => _startCall('video'),
-            icon: const Icon(Icons.videocam),
-            tooltip: 'Video call',
-          ),
-        ],
+        actions: _supportsDirectMedia
+            ? [
+                IconButton(
+                  onPressed: () => _startCall('audio'),
+                  icon: const Icon(Icons.call),
+                  tooltip: 'Audio call',
+                ),
+                IconButton(
+                  onPressed: () => _startCall('video'),
+                  icon: const Icon(Icons.videocam),
+                  tooltip: 'Video call',
+                ),
+              ]
+            : null,
       ),
       body: Column(
         children: [
+          if (_isGroup)
+            const Padding(
+              padding: EdgeInsets.fromLTRB(16, 0, 16, 8),
+              child: Align(
+                alignment: Alignment.centerLeft,
+                child: Text(
+                  'Admin-only group settings. Group calls and file sharing can be added later.',
+                  style: TextStyle(color: Colors.grey, fontSize: 12),
+                ),
+              ),
+            ),
           Expanded(
             child: localIdentityAsync.when(
               data: (localIdentity) => messagesAsync.when(
                 data: (messages) {
                   if (messages.isEmpty) {
-                    return const _EmptyConversationState();
+                    return _EmptyConversationState(isGroup: _isGroup);
                   }
 
                   WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -219,21 +245,37 @@ class _DirectConversationScreenState
                     }
                   });
 
-                  return ListView.builder(
-                    controller: _scrollController,
-                    padding: const EdgeInsets.fromLTRB(16, 16, 16, 24),
-                    itemCount: messages.length,
-                    itemBuilder: (context, index) {
-                      final message = messages[index];
-                      final isMe =
-                          message.senderPeerId == localIdentity?.peerId;
-                      return _ConversationMessageBubble(
-                        message: message,
-                        isMe: isMe,
-                        peerId: widget.peerId,
-                        downloadProgress: mediaState.downloadProgress,
+                  return membersAsync.when(
+                    data: (members) {
+                      final memberNameByPeerId = {
+                        for (final member in members) member.peerId: member.displayName,
+                      };
+
+                      return ListView.builder(
+                        controller: _scrollController,
+                        padding: const EdgeInsets.fromLTRB(16, 16, 16, 24),
+                        itemCount: messages.length,
+                        itemBuilder: (context, index) {
+                          final message = messages[index];
+                          final isMe =
+                              message.senderPeerId == localIdentity?.peerId;
+                          return _ConversationMessageBubble(
+                            message: message,
+                            isMe: isMe,
+                            peerId: widget.peerId,
+                            isGroup: _isGroup,
+                            senderLabel:
+                                memberNameByPeerId[message.senderPeerId] ??
+                                message.senderPeerId,
+                            downloadProgress: mediaState.downloadProgress,
+                          );
+                        },
                       );
                     },
+                    loading: () =>
+                        const Center(child: CircularProgressIndicator()),
+                    error: (error, stackTrace) =>
+                        _ConversationError(message: '$error'),
                   );
                 },
                 loading: () =>
@@ -252,17 +294,19 @@ class _DirectConversationScreenState
               padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
               child: Row(
                 children: [
-                  IconButton.filledTonal(
-                    onPressed: _isPickingFile ? null : _pickAndSendFile,
-                    icon: _isPickingFile
-                        ? const SizedBox(
-                            width: 18,
-                            height: 18,
-                            child: CircularProgressIndicator(strokeWidth: 2),
-                          )
-                        : const Icon(Icons.attach_file),
-                  ),
-                  const SizedBox(width: 8),
+                  if (_supportsDirectMedia) ...[
+                    IconButton.filledTonal(
+                      onPressed: _isPickingFile ? null : _pickAndSendFile,
+                      icon: _isPickingFile
+                          ? const SizedBox(
+                              width: 18,
+                              height: 18,
+                              child: CircularProgressIndicator(strokeWidth: 2),
+                            )
+                          : const Icon(Icons.attach_file),
+                    ),
+                    const SizedBox(width: 8),
+                  ],
                   Expanded(
                     child: TextField(
                       controller: _textController,
@@ -271,7 +315,9 @@ class _DirectConversationScreenState
                       textInputAction: TextInputAction.send,
                       onSubmitted: (_) => _sendMessage(),
                       decoration: InputDecoration(
-                        hintText: 'Type a message',
+                        hintText: _isGroup
+                            ? 'Message the group'
+                            : 'Type a message',
                         filled: true,
                         fillColor: const Color(0xFF1B1B1B),
                         border: OutlineInputBorder(
@@ -307,8 +353,45 @@ class _DirectConversationScreenState
   }
 }
 
+class _ConversationTitle extends StatelessWidget {
+  final String title;
+  final String conversationType;
+  final AsyncValue<List<ConversationMemberRow>> membersAsync;
+
+  const _ConversationTitle({
+    required this.title,
+    required this.conversationType,
+    required this.membersAsync,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final subtitle = conversationType == 'group'
+        ? membersAsync.maybeWhen(
+            data: (members) => '${members.length} members',
+            orElse: () => 'Group chat',
+          )
+        : 'Direct conversation';
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Text(title),
+        const SizedBox(height: 2),
+        Text(
+          subtitle,
+          style: const TextStyle(fontSize: 12, color: Colors.grey),
+        ),
+      ],
+    );
+  }
+}
+
 class _EmptyConversationState extends StatelessWidget {
-  const _EmptyConversationState();
+  final bool isGroup;
+
+  const _EmptyConversationState({required this.isGroup});
 
   @override
   Widget build(BuildContext context) {
@@ -317,18 +400,24 @@ class _EmptyConversationState extends StatelessWidget {
         padding: const EdgeInsets.symmetric(horizontal: 28),
         child: Column(
           mainAxisSize: MainAxisSize.min,
-          children: const [
-            Icon(Icons.forum_outlined, size: 48, color: Colors.blueAccent),
-            SizedBox(height: 16),
-            Text(
-              'No messages yet',
-              style: TextStyle(fontSize: 20, fontWeight: FontWeight.w800),
+          children: [
+            Icon(
+              isGroup ? Icons.groups_2_outlined : Icons.forum_outlined,
+              size: 48,
+              color: isGroup ? Colors.amber : Colors.blueAccent,
             ),
-            SizedBox(height: 8),
+            const SizedBox(height: 16),
             Text(
-              'Send the first message or share a file to start this conversation.',
+              isGroup ? 'No group messages yet' : 'No messages yet',
+              style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w800),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              isGroup
+                  ? 'When invited members accept, this thread becomes your shared group chat.'
+                  : 'Send the first message or share a file to start this conversation.',
               textAlign: TextAlign.center,
-              style: TextStyle(color: Colors.grey),
+              style: const TextStyle(color: Colors.grey),
             ),
           ],
         ),
@@ -360,18 +449,41 @@ class _ConversationError extends StatelessWidget {
 class _ConversationMessageBubble extends ConsumerWidget {
   final MessageRow message;
   final bool isMe;
-  final String peerId;
+  final String? peerId;
+  final bool isGroup;
+  final String senderLabel;
   final Map<String, List<int>> downloadProgress;
 
   const _ConversationMessageBubble({
     required this.message,
     required this.isMe,
     required this.peerId,
+    required this.isGroup,
+    required this.senderLabel,
     required this.downloadProgress,
   });
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    if (message.type == 'system') {
+      return Padding(
+        padding: const EdgeInsets.only(bottom: 14),
+        child: Center(
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+            decoration: BoxDecoration(
+              color: const Color(0xFF1B1B1B),
+              borderRadius: BorderRadius.circular(999),
+            ),
+            child: Text(
+              message.textBody ?? '',
+              style: const TextStyle(color: Colors.grey, fontSize: 12),
+            ),
+          ),
+        ),
+      );
+    }
+
     final attachmentsAsync = ref.watch(messageAttachmentsProvider(message.id));
 
     return Padding(
@@ -389,6 +501,18 @@ class _ConversationMessageBubble extends ConsumerWidget {
           return Column(
             crossAxisAlignment: alignment,
             children: [
+              if (isGroup && !isMe)
+                Padding(
+                  padding: const EdgeInsets.only(left: 4, bottom: 4),
+                  child: Text(
+                    senderLabel,
+                    style: const TextStyle(
+                      color: Colors.amber,
+                      fontSize: 12,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                ),
               Container(
                 constraints: const BoxConstraints(maxWidth: 320),
                 padding: const EdgeInsets.symmetric(
@@ -526,7 +650,7 @@ class _TextLikeMessageContent extends StatelessWidget {
 
 class _AttachmentMessageContent extends ConsumerWidget {
   final AttachmentRow attachment;
-  final String peerId;
+  final String? peerId;
   final bool isMe;
   final Map<String, List<int>> downloadProgress;
 
@@ -612,13 +736,22 @@ class _AttachmentMessageContent extends ConsumerWidget {
   }
 
   List<Widget> _buildActions(BuildContext context, WidgetRef ref) {
+    if (peerId == null) {
+      return const [
+        Text(
+          'Direct-chat only for file transfers right now.',
+          style: TextStyle(color: Colors.grey, fontSize: 12),
+        ),
+      ];
+    }
+
     if (!isMe && attachment.transferState == 'offered') {
       return [
         _actionButton(
           icon: Icons.download,
           label: 'Download',
           onTap: () => ref.read(mediaActionsProvider).acceptFile(
-                peerId: peerId,
+                peerId: peerId!,
                 attachmentId: attachment.id,
               ),
         ),
@@ -634,7 +767,7 @@ class _AttachmentMessageContent extends ConsumerWidget {
           icon: Icons.close,
           label: 'Cancel',
           onTap: () => ref.read(mediaActionsProvider).cancelFileTransfer(
-                peerId: peerId,
+                peerId: peerId!,
                 attachmentId: attachment.id,
               ),
         ),

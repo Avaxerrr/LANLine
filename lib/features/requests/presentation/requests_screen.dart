@@ -14,7 +14,9 @@ class RequestsScreen extends ConsumerWidget {
     final discoveredAsync = ref.watch(discoveredPeersProvider);
     final incomingAsync = ref.watch(pendingIncomingRequestsProvider);
     final outgoingAsync = ref.watch(pendingOutgoingRequestsProvider);
+    final groupInvitesAsync = ref.watch(pendingGroupInvitesProvider);
     final requestActions = ref.read(requestActionsProvider);
+    final conversationActions = ref.read(conversationActionsProvider);
 
     Future<void> runRequestAction(
       String successMessage,
@@ -132,6 +134,67 @@ class RequestsScreen extends ConsumerWidget {
                                   () => requestActions.blockPeer(
                                     peerId: request.peerId,
                                     requestId: request.id,
+                                  ),
+                                ),
+                              );
+                            },
+                          ),
+                        ],
+                      ),
+                  ],
+                ),
+          loading: () => const _RequestLoading(),
+          error: (error, stackTrace) =>
+              _RequestPlaceholder(icon: Icons.error_outline, text: '$error'),
+        ),
+        const SizedBox(height: 28),
+        const _RequestHeader(
+          title: 'Group Invites',
+          subtitle: 'Accept or decline invitations to join a group chat.',
+        ),
+        const SizedBox(height: 12),
+        groupInvitesAsync.when(
+          data: (conversations) => conversations.isEmpty
+              ? const _RequestPlaceholder(
+                  icon: Icons.groups_2_outlined,
+                  text: 'No pending group invites',
+                )
+              : Column(
+                  children: [
+                    for (final conversation in conversations)
+                      _RequestCard(
+                        title: conversation.title ?? 'Group invite',
+                        subtitle: 'Pending invitation to join this group chat',
+                        accent: Colors.amber,
+                        icon: Icons.group_add_outlined,
+                        statusLabel: 'Invite',
+                        actions: [
+                          _ActionButton(
+                            label: 'Join',
+                            icon: Icons.check_circle_outline,
+                            foreground: Colors.greenAccent,
+                            onPressed: () {
+                              unawaited(
+                                runRequestAction(
+                                  'Joined ${conversation.title ?? 'group'}',
+                                  () => conversationActions.acceptGroupInvite(
+                                    conversation.id,
+                                  ),
+                                ),
+                              );
+                            },
+                          ),
+                          _ActionButton(
+                            label: 'Decline',
+                            icon: Icons.close_outlined,
+                            foreground: Colors.orangeAccent,
+                            outlined: true,
+                            onPressed: () {
+                              unawaited(
+                                runRequestAction(
+                                  'Declined ${conversation.title ?? 'group'}',
+                                  () => conversationActions.declineGroupInvite(
+                                    conversation.id,
                                   ),
                                 ),
                               );

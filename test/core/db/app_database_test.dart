@@ -71,7 +71,7 @@ void main() {
         .watchMessages(conversation.id)
         .first;
     final conversations = await conversationsRepository
-        .watchConversationList()
+        .watchConversationList(localPeerId: 'local-peer')
         .first;
 
     expect(messages, hasLength(1));

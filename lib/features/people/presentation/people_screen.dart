@@ -118,6 +118,7 @@ class PeopleScreen extends ConsumerWidget {
           conversationId: conversation.id,
           peerId: peerId,
           title: title,
+          conversationType: conversation.type,
         ),
       ),
     );

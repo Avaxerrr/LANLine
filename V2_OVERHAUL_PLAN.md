@@ -210,19 +210,21 @@ Exit criteria:
 - core media features work from the new conversation model
 
 ### Phase 6: Group Chat Decision
-Status: Not started
+Status: Complete
 
 Goals:
 
-- decide whether rooms become group conversations or are removed fully
+- evolve group chat into a V2 conversation type instead of reviving room-first UX
 
 Expected deliverables:
 
-- group chat plan or room removal plan
+- group conversation creation flow
+- group invitations and acceptance flow
+- group-aware chat list and conversation UI
 
 Exit criteria:
 
-- room-first leftovers have a final direction
+- V2 group conversations work from chats, requests, and the conversation screen
 
 ### Phase 7: Cleanup And Hardening
 Status: Not started
@@ -245,12 +247,12 @@ Exit criteria:
 
 ## 7. Immediate Next Step
 
-The next implementation slice should start Phase 6:
+The next implementation slice should start Phase 7:
 
-- decide whether legacy rooms become V2 group chats or are removed
-- define the migration path for old room-specific UI and transport code
-- keep the legacy room path accessible only as long as Phase 6 requires it
-- avoid growing two parallel group-chat concepts
+- remove or quarantine obsolete room-first code that V2 no longer needs
+- harden group/direct protocols and reduce temporary migration shims
+- decide whether direct-only media limits in groups stay temporary or become a planned follow-up
+- keep legacy room access only if it still serves a migration/debug purpose
 
 ## 8. Status Board
 
@@ -265,8 +267,9 @@ Use this section as the live session-by-session tracker.
 - Phase 3 presence and requests: Implemented
 - Phase 4 direct messaging MVP: Implemented
 - Phase 5 calls and file transfer migration: Implemented
+- Phase 6 group conversations: Implemented
 - Implementation: In progress
-- Current focus: Phase 6 group-chat direction
+- Current focus: Phase 7 cleanup and hardening
 
 ### Completed
 
@@ -307,15 +310,19 @@ Use this section as the live session-by-session tracker.
 - call summaries are now persisted in V2 conversations
 - file-transfer buffering now keys by attachment/session ID instead of filename
 - Phase 5 tests added for outbound file offers, inbound file offers, and incoming call state
+- group conversations now live in the V2 conversation model instead of the old room flow
+- group creation now starts from `Chats` and only uses accepted reachable contacts
+- group invites now appear in `Requests` and require explicit accept/decline
+- group chats now show group-aware list styling and sender labels in-thread
+- Phase 6 tests added for group creation, inbound invites, and group message fan-out
 
 ### In Progress
 
 - V2 overhaul implementation
-- planning Phase 6 group-chat direction
+- planning Phase 7 cleanup and hardening
 
 ### Pending
 
-- Phase 6 group-chat decision
 - Phase 7 cleanup and hardening
 
 ## 9. Decision Log
@@ -334,6 +341,10 @@ Add every major approved change here.
 - decided the old room flow should remain reachable through Settings during migration
 - decided V2 peer presence should start from the app shell instead of waiting for the `People` tab to open
 - decided Phase 5 should keep the existing WebRTC/file engines but move signaling and persistence onto V2 conversations and attachments
+- decided group chat should be a V2 conversation type, not a renamed room mode
+- decided group creation should only use accepted contacts
+- decided invited members must explicitly accept before joining a group
+- decided group metadata changes should be admin-only for now
 
 ## 10. Change Log
 
@@ -365,6 +376,9 @@ Use this as the project history for the overhaul itself.
 - added V2 attachment persistence and attachment repository coverage
 - upgraded the V2 conversation screen with file actions and call actions
 - added app-shell incoming-call handling for V2 conversations
+- implemented Phase 6 V2 group protocol and group conversation repository behavior
+- added group creation UI and pending group invite handling
+- updated the conversation UI and chat list for group chat presentation
 
 ## 11. Open Questions
 
