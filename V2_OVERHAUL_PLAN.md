@@ -47,14 +47,15 @@ Current product shape:
 - app now opens into a new V2 shell
 - `Chats`, `People`, `Requests`, and `Settings` screens exist
 - legacy room flow remains temporarily accessible from Settings
+- V2 peer presence now starts from the shell and updates the local DB
+- `People` and `Requests` now perform real local request/contact actions
 - live DM behavior is not implemented yet
-- presence and requests are not implemented yet
 
 Current project state:
 
 - existing codebase has usable networking and feature foundations
 - architecture direction has been drafted in `V2_ARCHITECTURE.md`
-- Phase 1 foundation has been implemented
+- Phase 1 through Phase 3 foundations are implemented
 
 ## 4. Approved Direction
 
@@ -153,7 +154,7 @@ Exit criteria:
 - old room flow is no longer the primary path
 
 ### Phase 3: Presence And Contact Requests
-Status: Not started
+Status: Complete
 
 Goals:
 
@@ -243,13 +244,12 @@ Exit criteria:
 
 ## 7. Immediate Next Step
 
-The next implementation slice should start Phase 2:
-The next implementation slice should start Phase 3:
+The next implementation slice should start Phase 4:
 
-- implement peer discovery state
-- implement presence semantics and online/offline modeling
-- implement contact request storage and first interaction flows
-- connect `People` and `Requests` to real V2 behavior instead of placeholder empty states
+- create direct conversations from accepted contacts
+- persist direct messages and power the chat list with conversation data
+- replace placeholder `Chats` content with real conversation state
+- keep the Phase 3 discovery/request flows feeding the DM entry path
 
 ## 8. Status Board
 
@@ -261,8 +261,9 @@ Use this section as the live session-by-session tracker.
 - Master plan: Active
 - Phase 1 implementation spec: Implemented
 - Phase 2 app shell: Implemented
+- Phase 3 presence and requests: Implemented
 - Implementation: In progress
-- Current focus: Phase 3 presence and contact request implementation
+- Current focus: Phase 4 direct messaging MVP
 
 ### Completed
 
@@ -278,15 +279,21 @@ Use this section as the live session-by-session tracker.
 - new V2 app shell added
 - app entry moved to `Chats`, `People`, `Requests`, `Settings`
 - legacy room flow moved behind Settings
+- legacy room discovery kept intact while V2 peer presence was added
+- V2 peer presence broadcasts/listening added to discovery service
+- V2 presence controller added and started from the app shell
+- `People` screen connected to discovered peers and contact actions
+- `Requests` screen connected to incoming/outgoing request actions
+- request repository now updates peer relationship state
+- Phase 3 tests added for discovery parsing, presence controller writes, and request actions
 
 ### In Progress
 
 - V2 overhaul implementation
-- planning Phase 3 presence and request behavior
+- planning Phase 4 DM messaging flow
 
 ### Pending
 
-- Phase 3 presence and requests
 - Phase 4 DM messaging flow
 - Phase 5 calls and transfers migration
 
@@ -304,6 +311,7 @@ Add every major approved change here.
 - decided to create a concrete Phase 1 implementation spec before code changes
 - decided to keep the old room-first UI intact while V2 foundation is built beside it
 - decided the old room flow should remain reachable through Settings during migration
+- decided V2 peer presence should start from the app shell instead of waiting for the `People` tab to open
 
 ## 10. Change Log
 
@@ -318,6 +326,10 @@ Use this as the project history for the overhaul itself.
 - implemented local identity bootstrap on app startup
 - added V2 repositories/providers for identity, peers, requests, conversations, and messages
 - added Phase 1 tests for DB and identity bootstrap
+- implemented Phase 2 V2 shell and legacy-room access path
+- implemented Phase 3 peer presence/discovery updates
+- implemented Phase 3 request actions in `People` and `Requests`
+- added Phase 3 tests for discovery parsing, presence persistence, and request repository flows
 - implemented Phase 2 app shell
 - replaced the old main menu as the default entry point
 - added temporary legacy access to rooms, join flow, and downloads from Settings

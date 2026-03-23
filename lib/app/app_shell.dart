@@ -1,18 +1,20 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../core/providers/v2_presence_discovery_provider.dart';
 import '../features/chats/presentation/chats_screen.dart';
 import '../features/people/presentation/people_screen.dart';
 import '../features/requests/presentation/requests_screen.dart';
 import '../features/settings/presentation/settings_screen.dart';
 
-class AppShell extends StatefulWidget {
+class AppShell extends ConsumerStatefulWidget {
   const AppShell({super.key});
 
   @override
-  State<AppShell> createState() => _AppShellState();
+  ConsumerState<AppShell> createState() => _AppShellState();
 }
 
-class _AppShellState extends State<AppShell> {
+class _AppShellState extends ConsumerState<AppShell> {
   int _selectedIndex = 0;
 
   void _goToPeople() {
@@ -21,6 +23,8 @@ class _AppShellState extends State<AppShell> {
 
   @override
   Widget build(BuildContext context) {
+    ref.watch(v2PresenceDiscoveryControllerProvider);
+
     final screens = <Widget>[
       ChatsScreen(onGoToPeople: _goToPeople),
       const PeopleScreen(),
