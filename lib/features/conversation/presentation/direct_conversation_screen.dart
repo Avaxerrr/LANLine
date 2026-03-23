@@ -4,12 +4,15 @@ import 'dart:io';
 
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_linkify/flutter_linkify.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:open_filex/open_filex.dart';
 import 'package:path/path.dart' as p;
 import 'package:share_plus/share_plus.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import '../../../core/db/app_database.dart';
+import '../../../core/models/chat_message.dart';
 import '../../../core/providers/v2_data_providers.dart';
 import '../../../core/providers/v2_identity_provider.dart';
 import '../../../core/providers/v2_media_protocol_provider.dart';
@@ -250,6 +253,10 @@ class _DirectConversationScreenState
                       final memberNameByPeerId = {
                         for (final member in members) member.peerId: member.displayName,
                       };
+                      final latestOutgoingMessageId = _latestOutgoingMessageId(
+                        messages,
+                        localIdentity?.peerId,
+                      );
 
                       return ListView.builder(
                         controller: _scrollController,
@@ -268,6 +275,7 @@ class _DirectConversationScreenState
                                 memberNameByPeerId[message.senderPeerId] ??
                                 message.senderPeerId,
                             downloadProgress: mediaState.downloadProgress,
+                            showStatus: isMe && message.id == latestOutgoingMessageId,
                           );
                         },
                       );
@@ -446,6 +454,20 @@ class _ConversationError extends StatelessWidget {
   }
 }
 
+String? _latestOutgoingMessageId(
+  List<MessageRow> messages,
+  String? localPeerId,
+) {
+  if (localPeerId == null) return null;
+  for (var index = messages.length - 1; index >= 0; index--) {
+    final message = messages[index];
+    if (message.senderPeerId == localPeerId && message.type != 'system') {
+      return message.id;
+    }
+  }
+  return null;
+}
+
 class _ConversationMessageBubble extends ConsumerWidget {
   final MessageRow message;
   final bool isMe;
@@ -453,6 +475,7 @@ class _ConversationMessageBubble extends ConsumerWidget {
   final bool isGroup;
   final String senderLabel;
   final Map<String, List<int>> downloadProgress;
+  final bool showStatus;
 
   const _ConversationMessageBubble({
     required this.message,
@@ -461,6 +484,7 @@ class _ConversationMessageBubble extends ConsumerWidget {
     required this.isGroup,
     required this.senderLabel,
     required this.downloadProgress,
+    required this.showStatus,
   });
 
   @override
@@ -535,15 +559,17 @@ class _ConversationMessageBubble extends ConsumerWidget {
                         textAlign: textAlign,
                       ),
               ),
-              const SizedBox(height: 4),
-              Text(
-                _statusLabel(
-                  message: message,
-                  attachment: attachment,
-                  isMe: isMe,
+              if (showStatus) ...[
+                const SizedBox(height: 4),
+                Text(
+                  _statusLabel(
+                    message: message,
+                    attachment: attachment,
+                    isMe: isMe,
+                  ),
+                  style: const TextStyle(fontSize: 12, color: Colors.grey),
                 ),
-                style: const TextStyle(fontSize: 12, color: Colors.grey),
-              ),
+              ],
             ],
           );
         },
@@ -582,10 +608,6 @@ class _ConversationMessageBubble extends ConsumerWidget {
 
     if (message.type == 'call_summary') {
       return 'Call summary';
-    }
-
-    if (!isMe) {
-      return 'Received';
     }
 
     switch (message.status) {
@@ -640,10 +662,30 @@ class _TextLikeMessageContent extends StatelessWidget {
       );
     }
 
-    return Text(
-      message.textBody ?? '',
+    final text = message.textBody ?? '';
+    if (isEmojiOnly(text)) {
+      return Text(
+        text,
+        textAlign: textAlign,
+        style: const TextStyle(fontSize: 42, height: 1.0),
+      );
+    }
+
+    return Linkify(
+      text: text,
       textAlign: textAlign,
-      style: const TextStyle(height: 1.35),
+      style: const TextStyle(color: Colors.white, fontSize: 15, height: 1.35),
+      linkStyle: const TextStyle(
+        color: Colors.lightBlueAccent,
+        decoration: TextDecoration.underline,
+        fontSize: 15,
+      ),
+      onOpen: (link) async {
+        final uri = Uri.tryParse(link.url);
+        if (uri != null && await canLaunchUrl(uri)) {
+          await launchUrl(uri, mode: LaunchMode.externalApplication);
+        }
+      },
     );
   }
 }
@@ -667,10 +709,42 @@ class _AttachmentMessageContent extends ConsumerWidget {
     final progressValue = progress == null || progress[1] == 0
         ? null
         : progress[0] / progress[1];
+    final hasImagePreview =
+        attachment.kind == 'image' &&
+        attachment.localPath != null &&
+        File(attachment.localPath!).existsSync();
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
+        if (hasImagePreview) ...[
+          ClipRRect(
+            borderRadius: BorderRadius.circular(12),
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxHeight: 250),
+              child: Image.file(
+                File(attachment.localPath!),
+                fit: BoxFit.cover,
+                errorBuilder: (context, error, stackTrace) => Container(
+                  padding: const EdgeInsets.all(16),
+                  color: Colors.white.withValues(alpha: 0.06),
+                  child: const Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(Icons.broken_image_outlined, color: Colors.grey),
+                      SizedBox(width: 8),
+                      Text(
+                        'Could not preview image',
+                        style: TextStyle(color: Colors.grey),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          ),
+          const SizedBox(height: 10),
+        ],
         Row(
           mainAxisSize: MainAxisSize.min,
           children: [
@@ -801,16 +875,16 @@ class _AttachmentMessageContent extends ConsumerWidget {
       ];
     }
 
-    if (attachment.transferState == 'cancelled') {
-      return const [
-        Text(
-          'Transfer cancelled',
-          style: TextStyle(color: Colors.redAccent, fontSize: 12),
-        ),
-      ];
-    }
+        if (attachment.transferState == 'cancelled') {
+          return const [
+            Text(
+              'Transfer cancelled',
+              style: TextStyle(color: Colors.redAccent, fontSize: 12),
+            ),
+          ];
+        }
 
-    return const [];
+        return const [];
   }
 
   Widget _actionButton({
@@ -845,7 +919,7 @@ class _AttachmentMessageContent extends ConsumerWidget {
   IconData _iconForKind(String kind) {
     switch (kind) {
       case 'image':
-        return Icons.image;
+        return Icons.image_outlined;
       case 'audio':
         return Icons.audiotrack;
       case 'video':
