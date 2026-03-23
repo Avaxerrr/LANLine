@@ -194,7 +194,7 @@ Exit criteria:
 - the app works as a local messenger for direct chats
 
 ### Phase 5: Calls And File Transfer Migration
-Status: Not started
+Status: Complete
 
 Goals:
 
@@ -245,12 +245,12 @@ Exit criteria:
 
 ## 7. Immediate Next Step
 
-The next implementation slice should start Phase 5:
+The next implementation slice should start Phase 6:
 
-- rebind calls to direct conversations instead of the legacy room model
-- rebind file transfers and attachments to conversation/message records
-- make media actions available from the V2 conversation screen
-- keep the new DM data model as the source of truth for media events
+- decide whether legacy rooms become V2 group chats or are removed
+- define the migration path for old room-specific UI and transport code
+- keep the legacy room path accessible only as long as Phase 6 requires it
+- avoid growing two parallel group-chat concepts
 
 ## 8. Status Board
 
@@ -264,8 +264,9 @@ Use this section as the live session-by-session tracker.
 - Phase 2 app shell: Implemented
 - Phase 3 presence and requests: Implemented
 - Phase 4 direct messaging MVP: Implemented
+- Phase 5 calls and file transfer migration: Implemented
 - Implementation: In progress
-- Current focus: Phase 5 calls and file transfer migration
+- Current focus: Phase 6 group-chat direction
 
 ### Completed
 
@@ -298,15 +299,24 @@ Use this section as the live session-by-session tracker.
 - chat list now opens real V2 conversations backed by the local database
 - message persistence, previews, unread counts, and delivery status are live
 - Phase 4 tests added for outbound send and inbound direct-message handling
+- attachment repository added on top of the V2 attachments table
+- file transfers now create attachment records tied to V2 message records
+- direct conversations now support file send/download actions from the V2 UI
+- incoming calls now surface through the V2 app shell instead of the legacy room screen
+- direct conversations now start audio/video calls through a V2 media protocol
+- call summaries are now persisted in V2 conversations
+- file-transfer buffering now keys by attachment/session ID instead of filename
+- Phase 5 tests added for outbound file offers, inbound file offers, and incoming call state
 
 ### In Progress
 
 - V2 overhaul implementation
-- planning Phase 5 media migration
+- planning Phase 6 group-chat direction
 
 ### Pending
 
-- Phase 5 calls and transfers migration
+- Phase 6 group-chat decision
+- Phase 7 cleanup and hardening
 
 ## 9. Decision Log
 
@@ -323,6 +333,7 @@ Add every major approved change here.
 - decided to keep the old room-first UI intact while V2 foundation is built beside it
 - decided the old room flow should remain reachable through Settings during migration
 - decided V2 peer presence should start from the app shell instead of waiting for the `People` tab to open
+- decided Phase 5 should keep the existing WebRTC/file engines but move signaling and persistence onto V2 conversations and attachments
 
 ## 10. Change Log
 
@@ -350,6 +361,10 @@ Use this as the project history for the overhaul itself.
 - implemented Phase 2 app shell
 - replaced the old main menu as the default entry point
 - added temporary legacy access to rooms, join flow, and downloads from Settings
+- implemented Phase 5 V2 media protocol for file transfer and direct calls
+- added V2 attachment persistence and attachment repository coverage
+- upgraded the V2 conversation screen with file actions and call actions
+- added app-shell incoming-call handling for V2 conversations
 
 ## 11. Open Questions
 

@@ -30,6 +30,12 @@ class MessagesRepository {
         .getSingleOrNull();
   }
 
+  Future<MessageRow?> getMessageById(String messageId) {
+    return (_database.select(
+      _database.messagesTable,
+    )..where((tbl) => tbl.id.equals(messageId))).getSingleOrNull();
+  }
+
   Future<MessageRow> insertMessage({
     required String conversationId,
     required String senderPeerId,

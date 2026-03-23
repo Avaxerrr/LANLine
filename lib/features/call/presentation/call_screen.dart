@@ -10,6 +10,7 @@ import '../../../core/network/webrtc_call_service.dart';
 class CallScreen extends ConsumerStatefulWidget {
   final String callId;
   final String myName;
+  final String? remoteDisplayName;
   final String callType; // 'audio' or 'video'
   final bool isInitiator;
   final void Function(String message) sendSignal;
@@ -18,6 +19,7 @@ class CallScreen extends ConsumerStatefulWidget {
     super.key,
     required this.callId,
     required this.myName,
+    this.remoteDisplayName,
     required this.callType,
     required this.isInitiator,
     required this.sendSignal,
@@ -505,6 +507,17 @@ class _CallScreenState extends ConsumerState<CallScreen>
                   fontWeight: FontWeight.w700,
                 ),
               ),
+              if (widget.remoteDisplayName != null) ...[
+                const SizedBox(height: 8),
+                Text(
+                  widget.remoteDisplayName!,
+                  style: TextStyle(
+                    color: Colors.grey.shade300,
+                    fontSize: 18,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ],
               const SizedBox(height: 8),
               Text(
                 _callStarted
@@ -584,6 +597,17 @@ class _CallScreenState extends ConsumerState<CallScreen>
                         fontWeight: FontWeight.w700,
                       ),
                     ),
+                    if (widget.remoteDisplayName != null) ...[
+                      const SizedBox(height: 8),
+                      Text(
+                        widget.remoteDisplayName!,
+                        style: TextStyle(
+                          color: Colors.grey.shade300,
+                          fontSize: 18,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ],
                     const SizedBox(height: 8),
                     Text(
                       _callStarted
@@ -725,6 +749,11 @@ class _CallScreenState extends ConsumerState<CallScreen>
 
   Widget _buildParticipantList() {
     if (_participants.isNotEmpty) {
+      final remoteParticipants = widget.remoteDisplayName == null
+          ? _participants.map((p) => _buildParticipantAvatar(p))
+          : [
+              _buildParticipantAvatar(widget.remoteDisplayName!),
+            ];
       return Column(
         children: [
           const Text(
@@ -743,7 +772,7 @@ class _CallScreenState extends ConsumerState<CallScreen>
             alignment: WrapAlignment.center,
             children: [
               _buildParticipantAvatar(widget.myName, isYou: true),
-              ..._participants.map((p) => _buildParticipantAvatar(p)),
+              ...remoteParticipants,
             ],
           ),
         ],

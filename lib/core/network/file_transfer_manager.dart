@@ -12,7 +12,19 @@ class FileTransferManager {
   static const int chunkSize = 1024 * 256;
   final Map<String, BytesBuilder> _incomingFiles = {};
 
-  Future<List<String>> splitFileIntoChunks(File file, String sender, {String? offerId}) async {
+  Future<List<String>> splitFileIntoChunks(
+    File file,
+    String sender, {
+    String? offerId,
+    String? attachmentId,
+    String? messageId,
+    String? clientGeneratedId,
+    String? senderPeerId,
+    String? senderDisplayName,
+    String? mimeType,
+    String? kind,
+    int? sentAt,
+  }) async {
     final filename = p.basename(file.path);
     final bytes = await file.readAsBytes();
     final totalChunks = (bytes.length / chunkSize).ceil();
@@ -32,6 +44,18 @@ class FileTransferManager {
         'data': base64Encode(chunkBytes),
       };
       if (offerId != null) payloadMap['offer_id'] = offerId;
+      if (attachmentId != null) payloadMap['attachmentId'] = attachmentId;
+      if (messageId != null) payloadMap['messageId'] = messageId;
+      if (clientGeneratedId != null) {
+        payloadMap['clientGeneratedId'] = clientGeneratedId;
+      }
+      if (senderPeerId != null) payloadMap['senderPeerId'] = senderPeerId;
+      if (senderDisplayName != null) {
+        payloadMap['senderDisplayName'] = senderDisplayName;
+      }
+      if (mimeType != null) payloadMap['mimeType'] = mimeType;
+      if (kind != null) payloadMap['kind'] = kind;
+      if (sentAt != null) payloadMap['sentAt'] = sentAt;
       payloads.add(jsonEncode(payloadMap));
     }
     return payloads;
@@ -45,12 +69,16 @@ class FileTransferManager {
     final totalChunks = data['total_chunks'] as int;
     final chunkIndex = data['chunk_index'] as int;
     final base64Data = data['data'] as String;
+    final bufferKey =
+        data['attachmentId']?.toString() ??
+        data['offer_id']?.toString() ??
+        filename;
 
-    _incomingFiles.putIfAbsent(filename, () => BytesBuilder());
-    _incomingFiles[filename]!.add(base64Decode(base64Data));
+    _incomingFiles.putIfAbsent(bufferKey, () => BytesBuilder());
+    _incomingFiles[bufferKey]!.add(base64Decode(base64Data));
 
     if (chunkIndex == totalChunks - 1) {
-      final completeBytes = _incomingFiles.remove(filename)!.takeBytes();
+      final completeBytes = _incomingFiles.remove(bufferKey)!.takeBytes();
       return await _saveFile(filename, completeBytes, customSavePath: customTestSavePath);
     }
     return null;

@@ -1,5 +1,6 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../repositories/attachments_repository.dart';
 import '../repositories/conversations_repository.dart';
 import '../repositories/identity_repository.dart';
 import '../repositories/messages_repository.dart';
@@ -23,6 +24,10 @@ final conversationsRepositoryProvider = Provider<ConversationsRepository>((
   ref,
 ) {
   return ConversationsRepository(ref.read(appDatabaseProvider));
+});
+
+final attachmentsRepositoryProvider = Provider<AttachmentsRepository>((ref) {
+  return AttachmentsRepository(ref.read(appDatabaseProvider));
 });
 
 final messagesRepositoryProvider = Provider<MessagesRepository>((ref) {

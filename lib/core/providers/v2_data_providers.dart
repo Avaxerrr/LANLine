@@ -3,6 +3,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../db/app_database.dart';
 import 'v2_direct_message_protocol_provider.dart';
 import 'v2_identity_provider.dart';
+import 'v2_media_protocol_provider.dart';
+import 'v2_navigation_state_provider.dart';
 import 'v2_presence_discovery_provider.dart';
 import 'v2_request_protocol_provider.dart';
 import 'v2_repository_providers.dart';
@@ -35,6 +37,13 @@ final conversationMessagesProvider = StreamProvider.family<
 >((ref, conversationId) {
   return ref.read(messagesRepositoryProvider).watchMessages(conversationId);
 });
+
+final messageAttachmentsProvider =
+    StreamProvider.family<List<AttachmentRow>, String>((ref, messageId) {
+      return ref
+          .read(attachmentsRepositoryProvider)
+          .watchAttachmentsForMessage(messageId);
+    });
 
 final directConversationPeerProvider = FutureProvider.family<PeerRow?, String>((
   ref,
@@ -83,8 +92,9 @@ final requestActionsProvider = Provider<RequestActions>((ref) {
 
 class ConversationActions {
   final V2DirectMessageProtocolController _controller;
+  final Ref _ref;
 
-  ConversationActions(this._controller);
+  ConversationActions(this._controller, this._ref);
 
   Future<ConversationRow> openDirectConversation({
     required String peerId,
@@ -108,11 +118,109 @@ class ConversationActions {
   }
 
   Future<void> setActiveConversation(String? conversationId) {
+    _ref.read(activeConversationIdProvider.notifier).set(conversationId);
     return _controller.setActiveConversation(conversationId);
   }
 }
 
 final conversationActionsProvider = Provider<ConversationActions>((ref) {
   ref.watch(v2DirectMessageProtocolControllerProvider);
-  return ConversationActions(ref.read(v2DirectMessageProtocolControllerProvider));
+  return ConversationActions(
+    ref.read(v2DirectMessageProtocolControllerProvider),
+    ref,
+  );
+});
+
+class MediaActions {
+  final V2MediaProtocolNotifier _notifier;
+
+  MediaActions(this._notifier);
+
+  Future<void> sendFile({
+    required String peerId,
+    required String conversationId,
+    required String conversationTitle,
+    required String filePath,
+  }) {
+    return _notifier.sendFile(
+      peerId: peerId,
+      conversationId: conversationId,
+      conversationTitle: conversationTitle,
+      filePath: filePath,
+    );
+  }
+
+  Future<void> acceptFile({
+    required String peerId,
+    required String attachmentId,
+  }) {
+    return _notifier.acceptFile(peerId: peerId, attachmentId: attachmentId);
+  }
+
+  Future<void> cancelFileTransfer({
+    required String peerId,
+    required String attachmentId,
+  }) {
+    return _notifier.cancelFileTransfer(
+      peerId: peerId,
+      attachmentId: attachmentId,
+    );
+  }
+
+  Future<void> prepareOutgoingCall({
+    required String peerId,
+    required String conversationId,
+    required String conversationTitle,
+    required String callType,
+  }) {
+    return _notifier.prepareOutgoingCall(
+      peerId: peerId,
+      conversationId: conversationId,
+      conversationTitle: conversationTitle,
+      callType: callType,
+    );
+  }
+
+  Future<void> addLocalCallSummary({
+    required String conversationId,
+    required String callType,
+    required int durationSeconds,
+  }) {
+    return _notifier.addLocalCallSummary(
+      conversationId: conversationId,
+      callType: callType,
+      durationSeconds: durationSeconds,
+    );
+  }
+
+  Future<void> clearIncomingCall() {
+    return _notifier.clearIncomingCall();
+  }
+
+  Future<void> declineIncomingCall(V2IncomingCall call) {
+    return _notifier.declineIncomingCall(call);
+  }
+
+  Future<void> clearNotice() {
+    return _notifier.clearNotice();
+  }
+
+  Future<void> sendCallSignal({
+    required String peerId,
+    String? conversationId,
+    String? conversationTitle,
+    required String payload,
+  }) {
+    return _notifier.sendCallSignal(
+      peerId: peerId,
+      conversationId: conversationId,
+      conversationTitle: conversationTitle,
+      payload: payload,
+    );
+  }
+}
+
+final mediaActionsProvider = Provider<MediaActions>((ref) {
+  ref.watch(v2MediaProtocolProvider);
+  return MediaActions(ref.read(v2MediaProtocolProvider.notifier));
 });
