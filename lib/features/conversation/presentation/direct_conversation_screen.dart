@@ -39,6 +39,7 @@ class _DirectConversationScreenState
     with WidgetsBindingObserver {
   final TextEditingController _textController = TextEditingController();
   final FocusNode _composerFocusNode = FocusNode();
+  final GlobalKey _composerKey = GlobalKey();
   final ScrollController _scrollController = ScrollController();
   bool _isSending = false;
   bool _isPickingFile = false;
@@ -48,6 +49,7 @@ class _DirectConversationScreenState
   int _lastObservedMessageCount = 0;
   bool _isLoadingOlder = false;
   double _lastKeyboardInset = 0;
+  double _measuredComposerHeight = 0;
 
   bool get _isGroup => widget.conversationType == 'group';
   bool get _supportsDirectMedia => !_isGroup && widget.peerId != null;
@@ -69,6 +71,9 @@ class _DirectConversationScreenState
       await ref
           .read(conversationActionsProvider)
           .setActiveConversation(widget.conversationId);
+    });
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _updateComposerHeight();
     });
   }
 
@@ -95,6 +100,7 @@ class _DirectConversationScreenState
   @override
   void didChangeMetrics() {
     super.didChangeMetrics();
+    _updateComposerHeight();
     if (!_composerFocusNode.hasFocus) return;
     _scheduleKeepLatestVisible();
   }
@@ -251,6 +257,20 @@ class _DirectConversationScreenState
     Future<void>.delayed(const Duration(milliseconds: 80), _scrollToBottom);
     Future<void>.delayed(const Duration(milliseconds: 180), _scrollToBottom);
     Future<void>.delayed(const Duration(milliseconds: 300), _scrollToBottom);
+  }
+
+  void _updateComposerHeight() {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      final renderObject = _composerKey.currentContext?.findRenderObject();
+      if (renderObject is! RenderBox) return;
+      final nextHeight = renderObject.size.height;
+      if ((nextHeight - _measuredComposerHeight).abs() < 1) return;
+      setState(() => _measuredComposerHeight = nextHeight);
+      if (_composerFocusNode.hasFocus) {
+        _scheduleKeepLatestVisible();
+      }
+    });
   }
 
   void _handleComposerFocus() {
@@ -486,9 +506,11 @@ class _DirectConversationScreenState
     if (keyboardInset != _lastKeyboardInset) {
       _lastKeyboardInset = keyboardInset;
     }
-    final composerHeight = _replyingToMessage == null ? 116.0 : 196.0;
-    final composerBottomInset =
-        mediaQuery.padding.bottom + composerHeight + keyboardInset + 6;
+    final fallbackComposerHeight = _replyingToMessage == null ? 116.0 : 196.0;
+    final composerHeight = _measuredComposerHeight > 0
+        ? _measuredComposerHeight
+        : fallbackComposerHeight;
+    final composerBottomInset = composerHeight + keyboardInset + 12;
     final messagesAsync = ref.watch(
       conversationMessagesProvider(widget.conversationId),
     );
@@ -586,6 +608,7 @@ class _DirectConversationScreenState
                       if (!_didInitialAutoScroll && messages.isNotEmpty) {
                         _jumpToBottom();
                       }
+                      _updateComposerHeight();
 
                       return membersAsync.when(
                         data: (members) {
@@ -718,6 +741,7 @@ class _DirectConversationScreenState
             duration: const Duration(milliseconds: 180),
             curve: Curves.easeOutCubic,
             child: ConversationInputBar(
+              key: _composerKey,
               supportsDirectMedia: _supportsDirectMedia,
               isPickingFile: _isPickingFile,
               isSending: _isSending,
