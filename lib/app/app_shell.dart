@@ -318,9 +318,10 @@ class _FloatingShellNav extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final palette = context.appPalette;
-    final enableBlur =
-        defaultTargetPlatform != TargetPlatform.android &&
-        defaultTargetPlatform != TargetPlatform.iOS;
+    final isMobile =
+        defaultTargetPlatform == TargetPlatform.android ||
+        defaultTargetPlatform == TargetPlatform.iOS;
+    final enableBlur = !isMobile;
     final navigationBar = NavigationBarTheme(
       data: NavigationBarThemeData(
         backgroundColor: Colors.transparent,
@@ -380,12 +381,128 @@ class _FloatingShellNav extends StatelessWidget {
         ),
         child: ClipRRect(
           borderRadius: BorderRadius.circular(26),
-          child: enableBlur
+          child: isMobile
+              ? _CompactMobileNavBar(
+                  selectedIndex: selectedIndex,
+                  onDestinationSelected: onDestinationSelected,
+                )
+              : enableBlur
               ? BackdropFilter(
                   filter: ImageFilter.blur(sigmaX: 18, sigmaY: 18),
                   child: navigationBar,
                 )
               : navigationBar,
+        ),
+      ),
+    );
+  }
+}
+
+class _CompactMobileNavBar extends StatelessWidget {
+  final int selectedIndex;
+  final ValueChanged<int> onDestinationSelected;
+
+  const _CompactMobileNavBar({
+    required this.selectedIndex,
+    required this.onDestinationSelected,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    const items = <({IconData icon, IconData selectedIcon, String label})>[
+      (
+        icon: Icons.chat_bubble_outline,
+        selectedIcon: Icons.chat_bubble,
+        label: 'Chats',
+      ),
+      (icon: Icons.people_outline, selectedIcon: Icons.people, label: 'People'),
+      (
+        icon: Icons.inbox_outlined,
+        selectedIcon: Icons.inbox,
+        label: 'Requests',
+      ),
+      (
+        icon: Icons.settings_outlined,
+        selectedIcon: Icons.settings,
+        label: 'Settings',
+      ),
+    ];
+
+    final palette = context.appPalette;
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(10, 8, 10, 8),
+      child: Row(
+        children: [
+          for (var i = 0; i < items.length; i++)
+            Expanded(
+              child: _CompactMobileNavItem(
+                label: items[i].label,
+                icon: i == selectedIndex
+                    ? items[i].selectedIcon
+                    : items[i].icon,
+                selected: i == selectedIndex,
+                onTap: () => onDestinationSelected(i),
+                palette: palette,
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+}
+
+class _CompactMobileNavItem extends StatelessWidget {
+  final String label;
+  final IconData icon;
+  final bool selected;
+  final VoidCallback onTap;
+  final AppThemePalette palette;
+
+  const _CompactMobileNavItem({
+    required this.label,
+    required this.icon,
+    required this.selected,
+    required this.onTap,
+    required this.palette,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(18),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 6),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            AnimatedContainer(
+              duration: const Duration(milliseconds: 180),
+              curve: Curves.easeOutCubic,
+              padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 10),
+              decoration: BoxDecoration(
+                color: selected
+                    ? palette.brand.withValues(alpha: 0.16)
+                    : Colors.transparent,
+                borderRadius: BorderRadius.circular(16),
+              ),
+              child: Icon(
+                icon,
+                size: 24,
+                color: selected ? Colors.white : palette.textMuted,
+              ),
+            ),
+            const SizedBox(height: 6),
+            Text(
+              label,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: Theme.of(context).textTheme.labelMedium?.copyWith(
+                fontWeight: FontWeight.w700,
+                color: selected ? Colors.white : palette.textMuted,
+              ),
+            ),
+          ],
         ),
       ),
     );

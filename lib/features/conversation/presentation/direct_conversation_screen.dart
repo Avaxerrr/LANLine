@@ -465,6 +465,7 @@ class _DirectConversationScreenState
 
     return Scaffold(
       backgroundColor: palette.background,
+      resizeToAvoidBottomInset: false,
       appBar: AppBar(
         title: ConversationTitle(
           title: widget.title,
