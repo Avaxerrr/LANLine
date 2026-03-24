@@ -201,13 +201,6 @@ class _AppShellState extends ConsumerState<AppShell> {
     ];
 
     final titles = ['Chats', 'People', 'Requests', 'Settings'];
-    final icons = [
-      Icons.chat_bubble_outline,
-      Icons.people_outline,
-      Icons.inbox_outlined,
-      Icons.settings_outlined,
-    ];
-
     return Container(
       decoration: const BoxDecoration(color: Color(0xFF091018)),
       child: Scaffold(
@@ -219,14 +212,24 @@ class _AppShellState extends ConsumerState<AppShell> {
               child: Column(
                 children: [
                   Padding(
-                    padding: const EdgeInsets.fromLTRB(16, 8, 16, 6),
-                    child: _ShellHeader(
-                      title: titles[_selectedIndex],
-                      icon: icons[_selectedIndex],
+                    padding: const EdgeInsets.fromLTRB(20, 10, 20, 4),
+                    child: Align(
+                      alignment: Alignment.centerLeft,
+                      child: Text(
+                        titles[_selectedIndex],
+                        style: const TextStyle(
+                          fontSize: 24,
+                          fontWeight: FontWeight.w900,
+                          letterSpacing: -0.35,
+                        ),
+                      ),
                     ),
                   ),
                   Expanded(
-                    child: IndexedStack(index: _selectedIndex, children: screens),
+                    child: IndexedStack(
+                      index: _selectedIndex,
+                      children: screens,
+                    ),
                   ),
                 ],
               ),
@@ -344,69 +347,6 @@ class _ShellBackdrop extends StatelessWidget {
               ),
             ),
           ],
-        ),
-      ),
-    );
-  }
-}
-
-class _ShellHeader extends StatelessWidget {
-  final String title;
-  final IconData icon;
-
-  const _ShellHeader({required this.title, required this.icon});
-
-  @override
-  Widget build(BuildContext context) {
-    return ClipRRect(
-      borderRadius: BorderRadius.circular(24),
-      child: BackdropFilter(
-        filter: ImageFilter.blur(sigmaX: 18, sigmaY: 18),
-        child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-          decoration: BoxDecoration(
-            gradient: LinearGradient(
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-              colors: [
-                Colors.white.withValues(alpha: 0.09),
-                Colors.white.withValues(alpha: 0.04),
-              ],
-            ),
-            borderRadius: BorderRadius.circular(24),
-            border: Border.all(color: Colors.white.withValues(alpha: 0.06)),
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withValues(alpha: 0.18),
-                blurRadius: 18,
-                offset: const Offset(0, 8),
-              ),
-            ],
-          ),
-          child: Row(
-            children: [
-              Container(
-                width: 42,
-                height: 42,
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  color: Colors.white.withValues(alpha: 0.08),
-                ),
-                child: Icon(icon, color: Colors.white, size: 20),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Text(
-                  title,
-                  style: const TextStyle(
-                    fontSize: 23,
-                    fontWeight: FontWeight.w900,
-                    letterSpacing: -0.35,
-                  ),
-                ),
-              ),
-            ],
-          ),
         ),
       ),
     );
