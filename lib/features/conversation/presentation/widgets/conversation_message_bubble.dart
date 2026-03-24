@@ -118,7 +118,9 @@ class _ConversationMessageBubbleState
       child: attachmentsAsync.when(
         data: (attachments) {
           final attachment = attachments.isEmpty ? null : attachments.first;
-          final desktopActionsVisible = _supportsHover && _isHovered;
+          final actionsVisible = _supportsHover
+              ? _isHovered
+              : widget.showInlineActions;
           final bubbleColor = widget.isMe
               ? Colors.blueAccent.withValues(alpha: 0.22)
               : const Color(0xFF1F1F1F);
@@ -126,6 +128,8 @@ class _ConversationMessageBubbleState
               ? CrossAxisAlignment.end
               : CrossAxisAlignment.start;
           final textAlign = widget.isMe ? TextAlign.right : TextAlign.left;
+          final showCopy =
+              (widget.message.textBody?.trim().isNotEmpty ?? false);
 
           return MouseRegion(
             onEnter: _supportsHover
@@ -149,9 +153,21 @@ class _ConversationMessageBubbleState
                       ),
                     ),
                   ),
-                Stack(
-                  clipBehavior: Clip.none,
+                Row(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.center,
                   children: [
+                    if (widget.isMe)
+                      _MessageMenuSlot(
+                        visible: actionsVisible,
+                        message: widget.message,
+                        isPinned: widget.isPinned,
+                        showCopy: showCopy,
+                        onReply: widget.onReply,
+                        onForward: widget.onForward,
+                        onTogglePin: widget.onTogglePin,
+                        onDelete: widget.onDelete,
+                      ),
                     GestureDetector(
                       onTap: _supportsHover ? null : widget.onToggleActions,
                       child: Container(
@@ -179,85 +195,16 @@ class _ConversationMessageBubbleState
                               ),
                       ),
                     ),
-                    if (_supportsHover)
-                      Positioned.fill(
-                        child: AnimatedOpacity(
-                          opacity: desktopActionsVisible ? 1 : 0,
-                          duration: const Duration(milliseconds: 120),
-                          child: IgnorePointer(
-                            ignoring: !desktopActionsVisible,
-                            child: OverflowBox(
-                              minWidth: 0,
-                              minHeight: 0,
-                              maxWidth: 480,
-                              maxHeight: 200,
-                              alignment: widget.isMe
-                                  ? Alignment.centerLeft
-                                  : Alignment.centerRight,
-                              child: Align(
-                                alignment: widget.isMe
-                                    ? Alignment.centerLeft
-                                    : Alignment.centerRight,
-                                child: Transform.translate(
-                                  offset: Offset(widget.isMe ? -92 : 92, 0),
-                                  child: _DesktopMessageActionsRail(
-                                    message: widget.message,
-                                    isPinned: widget.isPinned,
-                                    showCopy:
-                                        (widget.message.textBody
-                                            ?.trim()
-                                            .isNotEmpty ??
-                                        false),
-                                    onReply: widget.onReply,
-                                    onForward: widget.onForward,
-                                    onTogglePin: widget.onTogglePin,
-                                    onDelete: widget.onDelete,
-                                  ),
-                                ),
-                              ),
-                            ),
-                          ),
-                        ),
-                      ),
-                    if (!_supportsHover)
-                      Positioned.fill(
-                        child: AnimatedOpacity(
-                          opacity: widget.showInlineActions ? 1 : 0,
-                          duration: const Duration(milliseconds: 120),
-                          child: IgnorePointer(
-                            ignoring: !widget.showInlineActions,
-                            child: OverflowBox(
-                              minWidth: 0,
-                              minHeight: 0,
-                              maxWidth: 160,
-                              maxHeight: 120,
-                              alignment: widget.isMe
-                                  ? Alignment.centerLeft
-                                  : Alignment.centerRight,
-                              child: Align(
-                                alignment: widget.isMe
-                                    ? Alignment.centerLeft
-                                    : Alignment.centerRight,
-                                child: Transform.translate(
-                                  offset: Offset(widget.isMe ? -28 : 28, 0),
-                                  child: _MobileMessageMenuButton(
-                                    message: widget.message,
-                                    isPinned: widget.isPinned,
-                                    showCopy:
-                                        (widget.message.textBody
-                                            ?.trim()
-                                            .isNotEmpty ??
-                                        false),
-                                    onReply: widget.onReply,
-                                    onForward: widget.onForward,
-                                    onTogglePin: widget.onTogglePin,
-                                    onDelete: widget.onDelete,
-                                  ),
-                                ),
-                              ),
-                            ),
-                          ),
-                        ),
+                    if (!widget.isMe)
+                      _MessageMenuSlot(
+                        visible: actionsVisible,
+                        message: widget.message,
+                        isPinned: widget.isPinned,
+                        showCopy: showCopy,
+                        onReply: widget.onReply,
+                        onForward: widget.onForward,
+                        onTogglePin: widget.onTogglePin,
+                        onDelete: widget.onDelete,
                       ),
                   ],
                 ),
@@ -328,7 +275,8 @@ class _ConversationMessageBubbleState
 
 enum _MessageMenuAction { reply, copy, forward, pin, delete }
 
-class _DesktopMessageActionsRail extends StatelessWidget {
+class _MessageMenuSlot extends StatelessWidget {
+  final bool visible;
   final MessageRow message;
   final bool isPinned;
   final bool showCopy;
@@ -337,7 +285,8 @@ class _DesktopMessageActionsRail extends StatelessWidget {
   final ValueChanged<MessageRow>? onTogglePin;
   final ValueChanged<MessageRow>? onDelete;
 
-  const _DesktopMessageActionsRail({
+  const _MessageMenuSlot({
+    required this.visible,
     required this.message,
     required this.isPinned,
     required this.showCopy,
@@ -349,88 +298,110 @@ class _DesktopMessageActionsRail extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final text = message.textBody?.trim() ?? '';
-
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 4),
-      decoration: BoxDecoration(
-        color: const Color(0xFF1B1B1B),
-        borderRadius: BorderRadius.circular(999),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.22),
-            blurRadius: 12,
-            offset: const Offset(0, 4),
-          ),
-        ],
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          _ActionIconButton(
-            tooltip: 'Reply',
-            icon: Icons.reply_outlined,
-            onPressed: () => onReply?.call(message),
-          ),
-          if (showCopy)
-            _ActionIconButton(
-              tooltip: 'Copy text',
-              icon: Icons.copy_all_outlined,
-              onPressed: () async {
-                await Clipboard.setData(ClipboardData(text: text));
-                if (!context.mounted) return;
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text('Copied to clipboard')),
-                );
-              },
-            ),
-          PopupMenuButton<_MessageMenuAction>(
-            tooltip: 'More',
-            color: const Color(0xFF1E1E1E),
-            icon: Container(
-              width: 28,
-              height: 28,
-              decoration: BoxDecoration(
-                color: Colors.white.withValues(alpha: 0.08),
-                borderRadius: BorderRadius.circular(999),
-              ),
-              child: const Icon(Icons.more_horiz, size: 16),
-            ),
-            onSelected: (action) => _handleOverflowAction(
-              context,
-              action: action,
+    return SizedBox(
+      width: 36,
+      child: AnimatedOpacity(
+        opacity: visible ? 1 : 0,
+        duration: const Duration(milliseconds: 120),
+        child: IgnorePointer(
+          ignoring: !visible,
+          child: Align(
+            child: _MessageMenuButton(
               message: message,
+              isPinned: isPinned,
+              showCopy: showCopy,
+              onReply: onReply,
+              onForward: onForward,
+              onTogglePin: onTogglePin,
+              onDelete: onDelete,
             ),
-            itemBuilder: (context) => [
-              if (showCopy)
-                const PopupMenuItem<_MessageMenuAction>(
-                  value: _MessageMenuAction.forward,
-                  child: _OverflowMenuLabel(
-                    icon: Icons.forward_outlined,
-                    label: 'Forward',
-                    color: Colors.amber,
-                  ),
-                ),
-              PopupMenuItem<_MessageMenuAction>(
-                value: _MessageMenuAction.pin,
-                child: _OverflowMenuLabel(
-                  icon: isPinned ? Icons.push_pin : Icons.push_pin_outlined,
-                  label: isPinned ? 'Unpin' : 'Pin',
-                  color: Colors.amber,
-                ),
-              ),
-              const PopupMenuItem<_MessageMenuAction>(
-                value: _MessageMenuAction.delete,
-                child: _OverflowMenuLabel(
-                  icon: Icons.delete_outline,
-                  label: 'Delete from this device',
-                  color: Colors.redAccent,
-                ),
-              ),
-            ],
           ),
-        ],
+        ),
       ),
+    );
+  }
+}
+
+class _MessageMenuButton extends StatelessWidget {
+  final MessageRow message;
+  final bool isPinned;
+  final bool showCopy;
+  final ValueChanged<MessageRow>? onReply;
+  final ValueChanged<MessageRow>? onForward;
+  final ValueChanged<MessageRow>? onTogglePin;
+  final ValueChanged<MessageRow>? onDelete;
+
+  const _MessageMenuButton({
+    required this.message,
+    required this.isPinned,
+    required this.showCopy,
+    required this.onReply,
+    required this.onForward,
+    required this.onTogglePin,
+    required this.onDelete,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return PopupMenuButton<_MessageMenuAction>(
+      tooltip: 'Message actions',
+      color: const Color(0xFF1E1E1E),
+      icon: Container(
+        width: 28,
+        height: 28,
+        decoration: BoxDecoration(
+          color: const Color(0xFF1B1B1B),
+          borderRadius: BorderRadius.circular(999),
+          border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
+        ),
+        child: const Icon(Icons.more_horiz, size: 16),
+      ),
+      onSelected: (action) =>
+          _handleOverflowAction(context, action: action, message: message),
+      itemBuilder: (context) => [
+        const PopupMenuItem<_MessageMenuAction>(
+          value: _MessageMenuAction.reply,
+          child: _OverflowMenuLabel(
+            icon: Icons.reply_outlined,
+            label: 'Reply',
+            color: Colors.greenAccent,
+          ),
+        ),
+        if (showCopy)
+          const PopupMenuItem<_MessageMenuAction>(
+            value: _MessageMenuAction.copy,
+            child: _OverflowMenuLabel(
+              icon: Icons.copy_all_outlined,
+              label: 'Copy text',
+              color: Colors.blueAccent,
+            ),
+          ),
+        if (showCopy)
+          const PopupMenuItem<_MessageMenuAction>(
+            value: _MessageMenuAction.forward,
+            child: _OverflowMenuLabel(
+              icon: Icons.forward_outlined,
+              label: 'Forward',
+              color: Colors.amber,
+            ),
+          ),
+        PopupMenuItem<_MessageMenuAction>(
+          value: _MessageMenuAction.pin,
+          child: _OverflowMenuLabel(
+            icon: isPinned ? Icons.push_pin : Icons.push_pin_outlined,
+            label: isPinned ? 'Unpin' : 'Pin',
+            color: Colors.amber,
+          ),
+        ),
+        const PopupMenuItem<_MessageMenuAction>(
+          value: _MessageMenuAction.delete,
+          child: _OverflowMenuLabel(
+            icon: Icons.delete_outline,
+            label: 'Delete from this device',
+            color: Colors.redAccent,
+          ),
+        ),
+      ],
     );
   }
 
@@ -486,132 +457,6 @@ class _DesktopMessageActionsRail extends StatelessWidget {
         }
         return;
     }
-  }
-}
-
-class _MobileMessageMenuButton extends StatelessWidget {
-  final MessageRow message;
-  final bool isPinned;
-  final bool showCopy;
-  final ValueChanged<MessageRow>? onReply;
-  final ValueChanged<MessageRow>? onForward;
-  final ValueChanged<MessageRow>? onTogglePin;
-  final ValueChanged<MessageRow>? onDelete;
-
-  const _MobileMessageMenuButton({
-    required this.message,
-    required this.isPinned,
-    required this.showCopy,
-    required this.onReply,
-    required this.onForward,
-    required this.onTogglePin,
-    required this.onDelete,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return PopupMenuButton<_MessageMenuAction>(
-      tooltip: 'Message actions',
-      color: const Color(0xFF1E1E1E),
-      icon: Container(
-        width: 28,
-        height: 28,
-        decoration: BoxDecoration(
-          color: const Color(0xFF1B1B1B),
-          borderRadius: BorderRadius.circular(999),
-          border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
-        ),
-        child: const Icon(Icons.more_horiz, size: 16),
-      ),
-      onSelected: (action) => _DesktopMessageActionsRail(
-        message: message,
-        isPinned: isPinned,
-        showCopy: showCopy,
-        onReply: onReply,
-        onForward: onForward,
-        onTogglePin: onTogglePin,
-        onDelete: onDelete,
-      )._handleOverflowAction(context, action: action, message: message),
-      itemBuilder: (context) => [
-        const PopupMenuItem<_MessageMenuAction>(
-          value: _MessageMenuAction.reply,
-          child: _OverflowMenuLabel(
-            icon: Icons.reply_outlined,
-            label: 'Reply',
-            color: Colors.greenAccent,
-          ),
-        ),
-        if (showCopy)
-          const PopupMenuItem<_MessageMenuAction>(
-            value: _MessageMenuAction.copy,
-            child: _OverflowMenuLabel(
-              icon: Icons.copy_all_outlined,
-              label: 'Copy text',
-              color: Colors.blueAccent,
-            ),
-          ),
-        if (showCopy)
-          const PopupMenuItem<_MessageMenuAction>(
-            value: _MessageMenuAction.forward,
-            child: _OverflowMenuLabel(
-              icon: Icons.forward_outlined,
-              label: 'Forward',
-              color: Colors.amber,
-            ),
-          ),
-        PopupMenuItem<_MessageMenuAction>(
-          value: _MessageMenuAction.pin,
-          child: _OverflowMenuLabel(
-            icon: isPinned ? Icons.push_pin : Icons.push_pin_outlined,
-            label: isPinned ? 'Unpin' : 'Pin',
-            color: Colors.amber,
-          ),
-        ),
-        const PopupMenuItem<_MessageMenuAction>(
-          value: _MessageMenuAction.delete,
-          child: _OverflowMenuLabel(
-            icon: Icons.delete_outline,
-            label: 'Delete from this device',
-            color: Colors.redAccent,
-          ),
-        ),
-      ],
-    );
-  }
-}
-
-class _ActionIconButton extends StatelessWidget {
-  final String tooltip;
-  final IconData icon;
-  final VoidCallback onPressed;
-
-  const _ActionIconButton({
-    required this.tooltip,
-    required this.icon,
-    required this.onPressed,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.only(right: 6),
-      child: Material(
-        color: Colors.transparent,
-        child: InkWell(
-          onTap: onPressed,
-          borderRadius: BorderRadius.circular(999),
-          child: Container(
-            width: 28,
-            height: 28,
-            decoration: BoxDecoration(
-              color: Colors.white.withValues(alpha: 0.08),
-              borderRadius: BorderRadius.circular(999),
-            ),
-            child: Icon(icon, size: 15, color: Colors.white),
-          ),
-        ),
-      ),
-    );
   }
 }
 
