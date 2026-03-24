@@ -20,6 +20,7 @@ import 'v2_navigation_state_provider.dart';
 import 'v2_repository_providers.dart';
 
 const _noChange = Object();
+const _autoAcceptFileThresholdBytes = 4 * 1024 * 1024;
 
 class V2IncomingCall {
   final String peerId;
@@ -93,7 +94,8 @@ class V2MediaProtocolNotifier extends Notifier<V2MediaProtocolState> {
       ref.read(messagesRepositoryProvider);
   AttachmentsRepository get _attachmentsRepository =>
       ref.read(attachmentsRepositoryProvider);
-  FileTransferManager get _fileTransferManager => ref.read(fileTransferProvider);
+  FileTransferManager get _fileTransferManager =>
+      ref.read(fileTransferProvider);
   V2RequestSignalingService get _signalingService =>
       ref.read(v2RequestSignalingServiceProvider);
 
@@ -308,10 +310,7 @@ class V2MediaProtocolNotifier extends Notifier<V2MediaProtocolState> {
     await sendCallSignal(
       peerId: call.peerId,
       conversationId: call.conversationId,
-      payload: jsonEncode({
-        'type': 'call_decline',
-        'callId': call.callId,
-      }),
+      payload: jsonEncode({'type': 'call_decline', 'callId': call.callId}),
     );
     await clearIncomingCall();
   }
@@ -359,8 +358,7 @@ class V2MediaProtocolNotifier extends Notifier<V2MediaProtocolState> {
         return;
       }
 
-      final action =
-          data['action']?.toString() ?? data['type']?.toString();
+      final action = data['action']?.toString() ?? data['type']?.toString();
       if (action == null) return;
 
       switch (action) {
@@ -406,7 +404,9 @@ class V2MediaProtocolNotifier extends Notifier<V2MediaProtocolState> {
           break;
       }
     } catch (error) {
-      debugPrint('[V2MediaProtocolNotifier] Failed to handle media event: $error');
+      debugPrint(
+        '[V2MediaProtocolNotifier] Failed to handle media event: $error',
+      );
     }
   }
 
@@ -433,9 +433,8 @@ class V2MediaProtocolNotifier extends Notifier<V2MediaProtocolState> {
     );
 
     final activeConversationId = ref.read(activeConversationIdProvider);
-    final existingMessage = await _messagesRepository.getMessageByClientGeneratedId(
-      clientGeneratedId,
-    );
+    final existingMessage = await _messagesRepository
+        .getMessageByClientGeneratedId(clientGeneratedId);
 
     if (existingMessage == null) {
       await _messagesRepository.insertMessage(
@@ -472,6 +471,24 @@ class V2MediaProtocolNotifier extends Notifier<V2MediaProtocolState> {
         transferState: 'offered',
       );
     }
+
+    final fileSize = data['fileSize'] as int? ?? 0;
+    final senderPresence = await _peersRepository.getPresenceByPeerId(
+      senderPeerId,
+    );
+    if (fileSize > 0 &&
+        fileSize <= _autoAcceptFileThresholdBytes &&
+        senderPresence != null &&
+        senderPresence.isReachable &&
+        senderPresence.host != null) {
+      try {
+        await acceptFile(peerId: senderPeerId, attachmentId: attachmentId);
+      } catch (error) {
+        debugPrint(
+          '[V2MediaProtocolNotifier] Failed to auto-accept small file: $error',
+        );
+      }
+    }
   }
 
   Future<void> _handleIncomingFileAccept(Map<String, dynamic> data) async {
@@ -483,7 +500,9 @@ class V2MediaProtocolNotifier extends Notifier<V2MediaProtocolState> {
     );
     if (attachment == null || attachment.localPath == null) return;
 
-    final message = await _messagesRepository.getMessageById(attachment.messageId);
+    final message = await _messagesRepository.getMessageById(
+      attachment.messageId,
+    );
     if (message == null) return;
 
     final file = File(attachment.localPath!);
@@ -551,9 +570,8 @@ class V2MediaProtocolNotifier extends Notifier<V2MediaProtocolState> {
       conversationTitle: data['conversationTitle']?.toString(),
     );
 
-    final existingMessage = await _messagesRepository.getMessageByClientGeneratedId(
-      clientGeneratedId,
-    );
+    final existingMessage = await _messagesRepository
+        .getMessageByClientGeneratedId(clientGeneratedId);
     if (existingMessage == null) {
       await _messagesRepository.insertMessage(
         id: messageId,
@@ -568,7 +586,9 @@ class V2MediaProtocolNotifier extends Notifier<V2MediaProtocolState> {
       );
     }
 
-    final attachment = await _attachmentsRepository.getAttachmentById(attachmentId);
+    final attachment = await _attachmentsRepository.getAttachmentById(
+      attachmentId,
+    );
     if (attachment == null) {
       await _attachmentsRepository.insertAttachment(
         id: attachmentId,
@@ -665,10 +685,7 @@ class V2MediaProtocolNotifier extends Notifier<V2MediaProtocolState> {
       await sendCallSignal(
         peerId: senderPeerId,
         conversationId: conversation.id,
-        payload: jsonEncode({
-          'type': 'call_busy',
-          'callId': callId,
-        }),
+        payload: jsonEncode({'type': 'call_busy', 'callId': callId}),
       );
       return;
     }

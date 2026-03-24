@@ -1,5 +1,7 @@
-import 'package:flutter/material.dart';
 import 'dart:ui';
+
+import 'package:flutter/foundation.dart';
+import 'package:flutter/material.dart';
 
 import '../../../../core/theme/app_theme.dart';
 
@@ -32,6 +34,96 @@ class ConversationInputBar extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final palette = context.appPalette;
+    final enableBlur =
+        defaultTargetPlatform != TargetPlatform.android &&
+        defaultTargetPlatform != TargetPlatform.iOS;
+    final composerShell = Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
+      decoration: BoxDecoration(
+        color: palette.navGlass.withValues(alpha: 0.64),
+        borderRadius: BorderRadius.circular(28),
+        border: Border.all(color: palette.border.withValues(alpha: 0.18)),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.28),
+            blurRadius: 22,
+            offset: const Offset(0, 10),
+          ),
+        ],
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.center,
+        children: [
+          if (supportsDirectMedia) ...[
+            _ComposerCircleButton(
+              onPressed: isPickingFile ? null : onPickFile,
+              child: isPickingFile
+                  ? const SizedBox(
+                      width: 18,
+                      height: 18,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    )
+                  : const Icon(Icons.attach_file),
+            ),
+            const SizedBox(width: 10),
+          ],
+          Expanded(
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(minHeight: 48),
+              child: TextField(
+                controller: textController,
+                minLines: 1,
+                maxLines: 5,
+                textInputAction: TextInputAction.send,
+                onSubmitted: (_) => onSendMessage(),
+                textAlignVertical: TextAlignVertical.center,
+                style: const TextStyle(color: Colors.white),
+                decoration: InputDecoration(
+                  hintText: isGroup ? 'Message the group' : 'Type a message',
+                  hintStyle: TextStyle(
+                    color: palette.textMuted.withValues(alpha: 0.8),
+                  ),
+                  filled: true,
+                  fillColor: palette.inputFill.withValues(alpha: 0.9),
+                  contentPadding: const EdgeInsets.symmetric(
+                    horizontal: 16,
+                    vertical: 14,
+                  ),
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(18),
+                    borderSide: BorderSide.none,
+                  ),
+                  enabledBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(18),
+                    borderSide: BorderSide(
+                      color: palette.border.withValues(alpha: 0.16),
+                    ),
+                  ),
+                  focusedBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(18),
+                    borderSide: BorderSide(
+                      color: palette.brand.withValues(alpha: 0.24),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ),
+          const SizedBox(width: 10),
+          _ComposerCircleButton(
+            onPressed: isSending ? null : onSendMessage,
+            filled: true,
+            child: isSending
+                ? const SizedBox(
+                    width: 18,
+                    height: 18,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  )
+                : const Icon(Icons.send),
+          ),
+        ],
+      ),
+    );
     return SafeArea(
       top: false,
       child: Padding(
@@ -110,109 +202,12 @@ class ConversationInputBar extends StatelessWidget {
             ],
             ClipRRect(
               borderRadius: BorderRadius.circular(28),
-              child: BackdropFilter(
-                filter: ImageFilter.blur(sigmaX: 18, sigmaY: 18),
-                child: Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 10,
-                    vertical: 10,
-                  ),
-                  decoration: BoxDecoration(
-                    color: palette.navGlass.withValues(alpha: 0.64),
-                    borderRadius: BorderRadius.circular(28),
-                    border: Border.all(
-                      color: palette.border.withValues(alpha: 0.18),
-                    ),
-                    boxShadow: [
-                      BoxShadow(
-                        color: Colors.black.withValues(alpha: 0.28),
-                        blurRadius: 22,
-                        offset: const Offset(0, 10),
-                      ),
-                    ],
-                  ),
-                  child: Row(
-                    crossAxisAlignment: CrossAxisAlignment.center,
-                    children: [
-                      if (supportsDirectMedia) ...[
-                        _ComposerCircleButton(
-                          onPressed: isPickingFile ? null : onPickFile,
-                          child: isPickingFile
-                              ? const SizedBox(
-                                  width: 18,
-                                  height: 18,
-                                  child: CircularProgressIndicator(
-                                    strokeWidth: 2,
-                                  ),
-                                )
-                              : const Icon(Icons.attach_file),
-                        ),
-                        const SizedBox(width: 10),
-                      ],
-                      Expanded(
-                        child: ConstrainedBox(
-                          constraints: const BoxConstraints(minHeight: 48),
-                          child: TextField(
-                            controller: textController,
-                            minLines: 1,
-                            maxLines: 5,
-                            textInputAction: TextInputAction.send,
-                            onSubmitted: (_) => onSendMessage(),
-                            textAlignVertical: TextAlignVertical.center,
-                            style: const TextStyle(color: Colors.white),
-                            decoration: InputDecoration(
-                              hintText: isGroup
-                                  ? 'Message the group'
-                                  : 'Type a message',
-                              hintStyle: TextStyle(
-                                color: palette.textMuted.withValues(alpha: 0.8),
-                              ),
-                              filled: true,
-                              fillColor: palette.inputFill.withValues(
-                                alpha: 0.9,
-                              ),
-                              contentPadding: const EdgeInsets.symmetric(
-                                horizontal: 16,
-                                vertical: 14,
-                              ),
-                              border: OutlineInputBorder(
-                                borderRadius: BorderRadius.circular(18),
-                                borderSide: BorderSide.none,
-                              ),
-                              enabledBorder: OutlineInputBorder(
-                                borderRadius: BorderRadius.circular(18),
-                                borderSide: BorderSide(
-                                  color: palette.border.withValues(alpha: 0.16),
-                                ),
-                              ),
-                              focusedBorder: OutlineInputBorder(
-                                borderRadius: BorderRadius.circular(18),
-                                borderSide: BorderSide(
-                                  color: palette.brand.withValues(alpha: 0.24),
-                                ),
-                              ),
-                            ),
-                          ),
-                        ),
-                      ),
-                      const SizedBox(width: 10),
-                      _ComposerCircleButton(
-                        onPressed: isSending ? null : onSendMessage,
-                        filled: true,
-                        child: isSending
-                            ? const SizedBox(
-                                width: 18,
-                                height: 18,
-                                child: CircularProgressIndicator(
-                                  strokeWidth: 2,
-                                ),
-                              )
-                            : const Icon(Icons.send),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
+              child: enableBlur
+                  ? BackdropFilter(
+                      filter: ImageFilter.blur(sigmaX: 18, sigmaY: 18),
+                      child: composerShell,
+                    )
+                  : composerShell,
             ),
           ],
         ),

@@ -86,8 +86,13 @@ class _DirectConversationScreenState
   Future<void> _sendMessage() async {
     final text = _textController.text.trim();
     if (text.isEmpty || _isSending) return;
+    final previousReply = _replyingToMessage;
 
-    setState(() => _isSending = true);
+    setState(() {
+      _isSending = true;
+      _textController.clear();
+      _replyingToMessage = null;
+    });
     try {
       await ref
           .read(conversationActionsProvider)
@@ -96,13 +101,17 @@ class _DirectConversationScreenState
             text: text,
             conversationId: widget.conversationId,
             conversationTitle: widget.title,
-            replyToMessageId: _replyingToMessage?.id,
+            replyToMessageId: previousReply?.id,
           );
-      _textController.clear();
-      _clearReply();
       _scrollToBottom();
     } catch (error) {
       if (!mounted) return;
+      setState(() {
+        if (_textController.text.isEmpty) {
+          _textController.text = text;
+        }
+        _replyingToMessage = previousReply;
+      });
       ScaffoldMessenger.of(
         context,
       ).showSnackBar(SnackBar(content: Text('$error')));
@@ -431,8 +440,10 @@ class _DirectConversationScreenState
   @override
   Widget build(BuildContext context) {
     final mediaQuery = MediaQuery.of(context);
+    final keyboardInset = mediaQuery.viewInsets.bottom;
+    final composerHeight = _replyingToMessage == null ? 132.0 : 212.0;
     final composerBottomInset =
-        mediaQuery.padding.bottom + (_replyingToMessage == null ? 132 : 212);
+        mediaQuery.padding.bottom + composerHeight + keyboardInset;
     final messagesAsync = ref.watch(
       conversationMessagesProvider(widget.conversationId),
     );
@@ -620,11 +631,13 @@ class _DirectConversationScreenState
               ),
             ],
           ),
-          Positioned(
+          AnimatedPositioned(
             left: 0,
             right: 0,
-            bottom: 0,
+            bottom: keyboardInset,
             height: composerBottomInset + 28,
+            duration: const Duration(milliseconds: 180),
+            curve: Curves.easeOutCubic,
             child: IgnorePointer(
               child: DecoratedBox(
                 decoration: BoxDecoration(
@@ -643,10 +656,12 @@ class _DirectConversationScreenState
               ),
             ),
           ),
-          Positioned(
+          AnimatedPositioned(
             left: 0,
             right: 0,
-            bottom: 0,
+            bottom: keyboardInset,
+            duration: const Duration(milliseconds: 180),
+            curve: Curves.easeOutCubic,
             child: ConversationInputBar(
               supportsDirectMedia: _supportsDirectMedia,
               isPickingFile: _isPickingFile,
