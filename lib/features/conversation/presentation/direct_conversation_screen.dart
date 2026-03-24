@@ -230,7 +230,7 @@ class _DirectConversationScreenState
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (_scrollController.hasClients) {
         _scrollController.animateTo(
-          _scrollController.position.maxScrollExtent,
+          0,
           duration: const Duration(milliseconds: 250),
           curve: Curves.easeOut,
         );
@@ -241,7 +241,7 @@ class _DirectConversationScreenState
   void _jumpToBottom() {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (_scrollController.hasClients) {
-        _scrollController.jumpTo(_scrollController.position.maxScrollExtent);
+        _scrollController.jumpTo(0);
       }
     });
   }
@@ -417,10 +417,7 @@ class _DirectConversationScreenState
 
     bool nearBottom = true;
     if (_scrollController.hasClients) {
-      nearBottom =
-          (_scrollController.position.maxScrollExtent -
-              _scrollController.offset) <
-          120;
+      nearBottom = _scrollController.offset <= 120;
     }
 
     final latestIsMine =
@@ -437,10 +434,10 @@ class _DirectConversationScreenState
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!_scrollController.hasClients) return;
       if (shouldInitialScroll) {
-        _scrollController.jumpTo(_scrollController.position.maxScrollExtent);
+        _scrollController.jumpTo(0);
       } else {
         _scrollController.animateTo(
-          _scrollController.position.maxScrollExtent,
+          0,
           duration: const Duration(milliseconds: 220),
           curve: Curves.easeOut,
         );
@@ -491,7 +488,7 @@ class _DirectConversationScreenState
     }
     final composerHeight = _replyingToMessage == null ? 116.0 : 196.0;
     final composerBottomInset =
-        mediaQuery.padding.bottom + composerHeight + keyboardInset;
+        mediaQuery.padding.bottom + composerHeight + keyboardInset + 6;
     final messagesAsync = ref.watch(
       conversationMessagesProvider(widget.conversationId),
     );
@@ -592,6 +589,9 @@ class _DirectConversationScreenState
 
                       return membersAsync.when(
                         data: (members) {
+                          final reversedMessages = messages.reversed.toList(
+                            growable: false,
+                          );
                           final memberNameByPeerId = {
                             for (final member in members)
                               member.peerId: member.displayName,
@@ -606,7 +606,9 @@ class _DirectConversationScreenState
 
                           return NotificationListener<ScrollNotification>(
                             onNotification: (notification) {
-                              if (notification.metrics.pixels <= 80 &&
+                              if (notification.metrics.pixels >=
+                                      notification.metrics.maxScrollExtent -
+                                          80 &&
                                   notification.metrics.axis == Axis.vertical) {
                                 _maybeLoadOlderMessages(
                                   loadedMessageCount: messages.length,
@@ -617,15 +619,16 @@ class _DirectConversationScreenState
                             },
                             child: ListView.builder(
                               controller: _scrollController,
+                              reverse: true,
                               padding: EdgeInsets.fromLTRB(
                                 16,
-                                16,
-                                16,
                                 composerBottomInset,
+                                16,
+                                16,
                               ),
-                              itemCount: messages.length,
+                              itemCount: reversedMessages.length,
                               itemBuilder: (context, index) {
-                                final message = messages[index];
+                                final message = reversedMessages[index];
                                 final isMe =
                                     message.senderPeerId ==
                                     localIdentity?.peerId;

@@ -27,7 +27,7 @@ class AppShell extends ConsumerStatefulWidget {
 }
 
 class _AppShellState extends ConsumerState<AppShell> {
-  static const _navOverlayHeight = 96.0;
+  static const _navOverlayHeight = 104.0;
   int _selectedIndex = 0;
   String? _visibleIncomingCallId;
 
@@ -206,6 +206,10 @@ class _AppShellState extends ConsumerState<AppShell> {
 
     final titles = ['Chats', 'People', 'Requests', 'Settings'];
     final palette = context.appPalette;
+    final mediaQuery = MediaQuery.of(context);
+    final navBottomInset = mediaQuery.padding.bottom > 0
+        ? mediaQuery.padding.bottom + 8
+        : 14.0;
     return Container(
       decoration: BoxDecoration(color: palette.background),
       child: Scaffold(
@@ -240,12 +244,14 @@ class _AppShellState extends ConsumerState<AppShell> {
                 ],
               ),
             ),
-            const Positioned(
+            Positioned(
               left: 0,
               right: 0,
               bottom: 0,
               child: IgnorePointer(
-                child: _BottomFadeOverlay(height: _navOverlayHeight + 44),
+                child: _BottomFadeOverlay(
+                  height: _navOverlayHeight + navBottomInset + 24,
+                ),
               ),
             ),
             Positioned(
@@ -254,6 +260,7 @@ class _AppShellState extends ConsumerState<AppShell> {
               bottom: 0,
               child: _FloatingShellNav(
                 selectedIndex: _selectedIndex,
+                bottomInset: navBottomInset,
                 onDestinationSelected: (index) {
                   setState(() => _selectedIndex = index);
                 },
@@ -308,10 +315,12 @@ class _BottomFadeOverlay extends StatelessWidget {
 
 class _FloatingShellNav extends StatelessWidget {
   final int selectedIndex;
+  final double bottomInset;
   final ValueChanged<int> onDestinationSelected;
 
   const _FloatingShellNav({
     required this.selectedIndex,
+    required this.bottomInset,
     required this.onDestinationSelected,
   });
 
@@ -363,36 +372,33 @@ class _FloatingShellNav extends StatelessWidget {
         ],
       ),
     );
-    return SafeArea(
-      top: false,
-      child: Container(
-        margin: const EdgeInsets.fromLTRB(16, 0, 16, 14),
-        decoration: BoxDecoration(
-          color: palette.navGlass.withValues(alpha: 0.62),
-          borderRadius: BorderRadius.circular(26),
-          border: Border.all(color: palette.border.withValues(alpha: 0.18)),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withValues(alpha: 0.34),
-              blurRadius: 28,
-              offset: const Offset(0, 12),
-            ),
-          ],
-        ),
-        child: ClipRRect(
-          borderRadius: BorderRadius.circular(26),
-          child: isMobile
-              ? _CompactMobileNavBar(
-                  selectedIndex: selectedIndex,
-                  onDestinationSelected: onDestinationSelected,
-                )
-              : enableBlur
-              ? BackdropFilter(
-                  filter: ImageFilter.blur(sigmaX: 18, sigmaY: 18),
-                  child: navigationBar,
-                )
-              : navigationBar,
-        ),
+    return Container(
+      margin: EdgeInsets.fromLTRB(16, 0, 16, bottomInset),
+      decoration: BoxDecoration(
+        color: palette.navGlass.withValues(alpha: 0.62),
+        borderRadius: BorderRadius.circular(26),
+        border: Border.all(color: palette.border.withValues(alpha: 0.18)),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.34),
+            blurRadius: 28,
+            offset: const Offset(0, 12),
+          ),
+        ],
+      ),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(26),
+        child: isMobile
+            ? _CompactMobileNavBar(
+                selectedIndex: selectedIndex,
+                onDestinationSelected: onDestinationSelected,
+              )
+            : enableBlur
+            ? BackdropFilter(
+                filter: ImageFilter.blur(sigmaX: 18, sigmaY: 18),
+                child: navigationBar,
+              )
+            : navigationBar,
       ),
     );
   }
@@ -430,7 +436,7 @@ class _CompactMobileNavBar extends StatelessWidget {
 
     final palette = context.appPalette;
     return Padding(
-      padding: const EdgeInsets.fromLTRB(10, 8, 10, 8),
+      padding: const EdgeInsets.fromLTRB(10, 6, 10, 6),
       child: Row(
         children: [
           for (var i = 0; i < items.length; i++)
