@@ -127,7 +127,7 @@ class ConversationInputBar extends StatelessWidget {
     return SafeArea(
       top: false,
       child: Padding(
-        padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
+        padding: const EdgeInsets.fromLTRB(16, 6, 16, 10),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [

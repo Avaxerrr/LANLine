@@ -45,6 +45,7 @@ class _DirectConversationScreenState
   bool _didInitialAutoScroll = false;
   int _lastObservedMessageCount = 0;
   bool _isLoadingOlder = false;
+  double _lastKeyboardInset = 0;
 
   bool get _isGroup => widget.conversationType == 'group';
   bool get _supportsDirectMedia => !_isGroup && widget.peerId != null;
@@ -222,6 +223,29 @@ class _DirectConversationScreenState
     });
   }
 
+  void _jumpToBottom() {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (_scrollController.hasClients) {
+        _scrollController.jumpTo(_scrollController.position.maxScrollExtent);
+      }
+    });
+  }
+
+  void _handleKeyboardInsetChange(double keyboardInset) {
+    final keyboardOpened = keyboardInset > 0 && _lastKeyboardInset == 0;
+    _lastKeyboardInset = keyboardInset;
+    if (!keyboardOpened) return;
+
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!_scrollController.hasClients) return;
+      _scrollController.animateTo(
+        _scrollController.position.maxScrollExtent,
+        duration: const Duration(milliseconds: 180),
+        curve: Curves.easeOutCubic,
+      );
+    });
+  }
+
   void _setReply(MessageRow message) {
     setState(() {
       _replyingToMessage = message;
@@ -395,11 +419,15 @@ class _DirectConversationScreenState
     _didInitialAutoScroll = true;
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!_scrollController.hasClients) return;
-      _scrollController.animateTo(
-        _scrollController.position.maxScrollExtent,
-        duration: const Duration(milliseconds: 220),
-        curve: Curves.easeOut,
-      );
+      if (shouldInitialScroll) {
+        _scrollController.jumpTo(_scrollController.position.maxScrollExtent);
+      } else {
+        _scrollController.animateTo(
+          _scrollController.position.maxScrollExtent,
+          duration: const Duration(milliseconds: 220),
+          curve: Curves.easeOut,
+        );
+      }
     });
   }
 
@@ -441,6 +469,7 @@ class _DirectConversationScreenState
   Widget build(BuildContext context) {
     final mediaQuery = MediaQuery.of(context);
     final keyboardInset = mediaQuery.viewInsets.bottom;
+    _handleKeyboardInsetChange(keyboardInset);
     final composerHeight = _replyingToMessage == null ? 132.0 : 212.0;
     final composerBottomInset =
         mediaQuery.padding.bottom + composerHeight + keyboardInset;
@@ -538,6 +567,9 @@ class _DirectConversationScreenState
                         return ConversationEmptyState(isGroup: _isGroup);
                       }
                       _maybeAutoScroll(messages, localIdentity?.peerId);
+                      if (!_didInitialAutoScroll && messages.isNotEmpty) {
+                        _jumpToBottom();
+                      }
 
                       return membersAsync.when(
                         data: (members) {
