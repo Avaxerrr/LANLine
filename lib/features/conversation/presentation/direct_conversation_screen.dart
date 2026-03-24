@@ -411,7 +411,7 @@ class _DirectConversationScreenState
     );
 
     return Scaffold(
-      backgroundColor: const Color(0xFF121212),
+      backgroundColor: const Color(0xFF0D1118),
       appBar: AppBar(
         title: ConversationTitle(
           title: widget.title,
@@ -439,7 +439,7 @@ class _DirectConversationScreenState
               ]
             : null,
       ),
-      body: Column(
+      body: Stack(
         children: [
           const Positioned.fill(child: _ConversationBackdrop()),
           Column(
@@ -447,14 +447,15 @@ class _DirectConversationScreenState
               if (_isGroup) const GroupConversationNotice(),
               conversationAsync.when(
                 data: (conversation) {
-                  if (conversation?.pinnedMessageId == null) {
+                  final pinnedMessageId = conversation?.pinnedMessageId;
+                  if (pinnedMessageId == null) {
                     return const SizedBox.shrink();
                   }
                   return messagesAsync.maybeWhen(
                     data: (messages) {
                       MessageRow? pinned;
                       for (final message in messages) {
-                        if (message.id == conversation!.pinnedMessageId) {
+                        if (message.id == pinnedMessageId) {
                           pinned = message;
                           break;
                         }
@@ -506,6 +507,7 @@ class _DirectConversationScreenState
                               final message = messages[index];
                               final isMe =
                                   message.senderPeerId == localIdentity?.peerId;
+                              final replyMessageId = message.replyToMessageId;
                               return ConversationMessageBubble(
                                 message: message,
                                 isMe: isMe,
@@ -517,9 +519,9 @@ class _DirectConversationScreenState
                                 downloadProgress: mediaState.downloadProgress,
                                 showStatus:
                                     isMe && message.id == latestMessageId,
-                                repliedMessage: message.replyToMessageId == null
+                                repliedMessage: replyMessageId == null
                                     ? null
-                                    : messageById[message.replyToMessageId!],
+                                    : messageById[replyMessageId],
                                 onReply: _setReply,
                                 onDelete: _deleteMessage,
                                 onForward: _forwardMessage,

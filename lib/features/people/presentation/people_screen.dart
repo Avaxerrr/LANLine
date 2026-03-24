@@ -218,11 +218,11 @@ class _ContactCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final accent = Colors.greenAccent;
+    final deviceLabel = peer.deviceLabel?.trim();
+    final fingerprint = peer.fingerprint?.trim();
     final subtitleParts = <String>[
-      if (peer.deviceLabel != null && peer.deviceLabel!.trim().isNotEmpty)
-        peer.deviceLabel!.trim(),
-      if (peer.fingerprint != null && peer.fingerprint!.trim().isNotEmpty)
-        peer.fingerprint!.trim(),
+      if (deviceLabel != null && deviceLabel.isNotEmpty) deviceLabel,
+      if (fingerprint != null && fingerprint.isNotEmpty) fingerprint,
     ];
 
     final subtitle = subtitleParts.isEmpty
@@ -232,7 +232,7 @@ class _ContactCard extends StatelessWidget {
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
       decoration: BoxDecoration(
-        color: const Color(0xFF1B1B1B),
+        color: const Color(0xFF151B26),
         borderRadius: BorderRadius.circular(20),
         border: Border.all(color: Colors.white.withValues(alpha: 0.05)),
       ),

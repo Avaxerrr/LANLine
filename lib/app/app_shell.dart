@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:ui';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -160,25 +161,27 @@ class _AppShellState extends ConsumerState<AppShell> {
   @override
   Widget build(BuildContext context) {
     ref.listen<V2MediaProtocolState>(v2MediaProtocolProvider, (previous, next) {
+      final incomingCall = next.incomingCall;
       final incomingChanged =
-          next.incomingCall != null &&
-          next.incomingCall?.callId != previous?.incomingCall?.callId;
+          incomingCall != null &&
+          incomingCall.callId != previous?.incomingCall?.callId;
       if (incomingChanged) {
         WidgetsBinding.instance.addPostFrameCallback((_) {
           if (mounted) {
-            _showIncomingCallDialog(next.incomingCall!);
+            _showIncomingCallDialog(incomingCall);
           }
         });
       }
 
+      final noticeMessage = next.noticeMessage;
       final noticeChanged =
           next.noticeId != null && next.noticeId != previous?.noticeId;
-      if (noticeChanged) {
+      if (noticeChanged && noticeMessage != null) {
         WidgetsBinding.instance.addPostFrameCallback((_) async {
-          if (!mounted || next.noticeMessage == null) return;
+          if (!mounted) return;
           ScaffoldMessenger.of(
             context,
-          ).showSnackBar(SnackBar(content: Text(next.noticeMessage!)));
+          ).showSnackBar(SnackBar(content: Text(noticeMessage)));
           await ref.read(mediaActionsProvider).clearNotice();
         });
       }
@@ -241,7 +244,7 @@ class _AppShellState extends ConsumerState<AppShell> {
           child: Container(
             margin: const EdgeInsets.fromLTRB(16, 0, 16, 14),
             decoration: BoxDecoration(
-              color: const Color(0xFF181818),
+              color: Colors.white.withValues(alpha: 0.06),
               borderRadius: BorderRadius.circular(26),
               border: Border.all(color: Colors.white.withValues(alpha: 0.05)),
               boxShadow: [
@@ -252,45 +255,51 @@ class _AppShellState extends ConsumerState<AppShell> {
                 ),
               ],
             ),
-            child: NavigationBarTheme(
-              data: NavigationBarThemeData(
-                backgroundColor: Colors.transparent,
-                indicatorColor: Colors.blueAccent.withValues(alpha: 0.18),
-                labelTextStyle: WidgetStatePropertyAll(
-                  Theme.of(context).textTheme.labelMedium?.copyWith(
-                    fontWeight: FontWeight.w700,
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(26),
+              child: BackdropFilter(
+                filter: ImageFilter.blur(sigmaX: 18, sigmaY: 18),
+                child: NavigationBarTheme(
+                  data: NavigationBarThemeData(
+                    backgroundColor: Colors.transparent,
+                    indicatorColor: Colors.blueAccent.withValues(alpha: 0.18),
+                    labelTextStyle: WidgetStatePropertyAll(
+                      Theme.of(context).textTheme.labelMedium?.copyWith(
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                  ),
+                  child: NavigationBar(
+                    selectedIndex: _selectedIndex,
+                    backgroundColor: Colors.transparent,
+                    elevation: 0,
+                    onDestinationSelected: (index) {
+                      setState(() => _selectedIndex = index);
+                    },
+                    destinations: const [
+                      NavigationDestination(
+                        icon: Icon(Icons.chat_bubble_outline),
+                        selectedIcon: Icon(Icons.chat_bubble),
+                        label: 'Chats',
+                      ),
+                      NavigationDestination(
+                        icon: Icon(Icons.people_outline),
+                        selectedIcon: Icon(Icons.people),
+                        label: 'People',
+                      ),
+                      NavigationDestination(
+                        icon: Icon(Icons.inbox_outlined),
+                        selectedIcon: Icon(Icons.inbox),
+                        label: 'Requests',
+                      ),
+                      NavigationDestination(
+                        icon: Icon(Icons.settings_outlined),
+                        selectedIcon: Icon(Icons.settings),
+                        label: 'Settings',
+                      ),
+                    ],
                   ),
                 ),
-              ),
-              child: NavigationBar(
-                selectedIndex: _selectedIndex,
-                backgroundColor: Colors.transparent,
-                elevation: 0,
-                onDestinationSelected: (index) {
-                  setState(() => _selectedIndex = index);
-                },
-                destinations: const [
-                  NavigationDestination(
-                    icon: Icon(Icons.chat_bubble_outline),
-                    selectedIcon: Icon(Icons.chat_bubble),
-                    label: 'Chats',
-                  ),
-                  NavigationDestination(
-                    icon: Icon(Icons.people_outline),
-                    selectedIcon: Icon(Icons.people),
-                    label: 'People',
-                  ),
-                  NavigationDestination(
-                    icon: Icon(Icons.inbox_outlined),
-                    selectedIcon: Icon(Icons.inbox),
-                    label: 'Requests',
-                  ),
-                  NavigationDestination(
-                    icon: Icon(Icons.settings_outlined),
-                    selectedIcon: Icon(Icons.settings),
-                    label: 'Settings',
-                  ),
-                ],
               ),
             ),
           ),

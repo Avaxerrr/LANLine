@@ -151,7 +151,7 @@ class GroupConversationNotice extends StatelessWidget {
         width: double.infinity,
         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
         decoration: BoxDecoration(
-          color: const Color(0xFF1B1B1B),
+          color: const Color(0xFF151B26),
           borderRadius: BorderRadius.circular(18),
         ),
         child: const Row(
@@ -193,7 +193,7 @@ class PinnedMessageBanner extends StatelessWidget {
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
         decoration: BoxDecoration(
-          color: const Color(0xFF1B1B1B),
+          color: const Color(0xFF151B26),
           borderRadius: BorderRadius.circular(18),
           border: Border(
             left: BorderSide(

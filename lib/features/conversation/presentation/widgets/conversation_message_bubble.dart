@@ -97,7 +97,7 @@ class _ConversationMessageBubbleState
           child: Container(
             padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
             decoration: BoxDecoration(
-              color: const Color(0xFF1B1B1B),
+              color: const Color(0xFF151B26),
               borderRadius: BorderRadius.circular(999),
             ),
             child: Text(
@@ -123,7 +123,7 @@ class _ConversationMessageBubbleState
               : widget.showInlineActions;
           final bubbleColor = widget.isMe
               ? Colors.blueAccent.withValues(alpha: 0.22)
-              : const Color(0xFF1F1F1F);
+              : const Color(0xFF151B26);
           final alignment = widget.isMe
               ? CrossAxisAlignment.end
               : CrossAxisAlignment.start;

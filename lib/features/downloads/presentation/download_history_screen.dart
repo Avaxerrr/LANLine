@@ -166,13 +166,13 @@ class DownloadHistoryScreen extends ConsumerWidget {
     final history = ref.watch(downloadHistoryProvider);
 
     return Scaffold(
-      backgroundColor: const Color(0xFF141414),
+      backgroundColor: const Color(0xFF0D1118),
       appBar: AppBar(
         title: const Text(
           'Downloads',
           style: TextStyle(fontWeight: FontWeight.w800),
         ),
-        backgroundColor: const Color(0xFF141414),
+        backgroundColor: Colors.transparent,
         elevation: 0,
         actions: [
           if (history.isNotEmpty)
@@ -273,7 +273,7 @@ class _SummaryCard extends StatelessWidget {
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
         gradient: const LinearGradient(
-          colors: [Color(0xFF18243B), Color(0xFF161616)],
+          colors: [Color(0xFF1A2333), Color(0xFF151B26)],
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
         ),
@@ -345,7 +345,7 @@ class _EmptyDownloadsCard extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(24),
       decoration: BoxDecoration(
-        color: const Color(0xFF1B1B1B),
+        color: const Color(0xFF151B26),
         borderRadius: BorderRadius.circular(22),
         border: Border.all(color: Colors.white.withValues(alpha: 0.04)),
       ),
@@ -426,7 +426,7 @@ class _DownloadHistoryItem extends StatelessWidget {
       child: Container(
         margin: const EdgeInsets.only(bottom: 12),
         decoration: BoxDecoration(
-          color: const Color(0xFF1B1B1B),
+          color: const Color(0xFF151B26),
           borderRadius: BorderRadius.circular(20),
           border: Border.all(color: Colors.white.withValues(alpha: 0.04)),
         ),

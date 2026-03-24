@@ -222,10 +222,11 @@ class _SurfaceCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final trailingWidget = trailing;
     return Container(
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
-        color: const Color(0xFF1B1B1B),
+        color: const Color(0xFF151B26),
         borderRadius: BorderRadius.circular(22),
         border: Border.all(color: Colors.white.withValues(alpha: 0.04)),
       ),
@@ -256,7 +257,7 @@ class _SurfaceCard extends StatelessWidget {
                   ],
                 ),
               ),
-              if (trailing != null) ...[trailing!],
+              ...?(trailingWidget == null ? null : <Widget>[trailingWidget]),
             ],
           ),
           const SizedBox(height: 18),
