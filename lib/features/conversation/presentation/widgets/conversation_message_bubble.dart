@@ -92,17 +92,17 @@ class _ConversationMessageBubbleState
   Widget build(BuildContext context) {
     if (widget.message.type == 'system') {
       return Padding(
-        padding: const EdgeInsets.only(bottom: 14),
+        padding: const EdgeInsets.only(bottom: 12),
         child: Center(
           child: Container(
-            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
             decoration: BoxDecoration(
-              color: const Color(0xFF151B26),
+              color: const Color(0xFF171E29).withValues(alpha: 0.84),
               borderRadius: BorderRadius.circular(999),
             ),
             child: Text(
               widget.message.textBody ?? '',
-              style: const TextStyle(color: Colors.grey, fontSize: 12),
+              style: const TextStyle(color: Colors.white54, fontSize: 12),
             ),
           ),
         ),
@@ -122,8 +122,8 @@ class _ConversationMessageBubbleState
               ? _isHovered
               : widget.showInlineActions;
           final bubbleColor = widget.isMe
-              ? Colors.blueAccent.withValues(alpha: 0.22)
-              : const Color(0xFF151B26);
+              ? const Color(0xFF274061).withValues(alpha: 0.76)
+              : const Color(0xFF171E29).withValues(alpha: 0.92);
           final alignment = widget.isMe
               ? CrossAxisAlignment.end
               : CrossAxisAlignment.start;
@@ -143,13 +143,14 @@ class _ConversationMessageBubbleState
               children: [
                 if (widget.isGroup && !widget.isMe)
                   Padding(
-                    padding: const EdgeInsets.only(left: 4, bottom: 4),
+                    padding: const EdgeInsets.only(left: 4, bottom: 5),
                     child: Text(
                       widget.senderLabel,
-                      style: const TextStyle(
-                        color: Colors.amber,
-                        fontSize: 12,
+                      style: TextStyle(
+                        color: Colors.amber.withValues(alpha: 0.9),
+                        fontSize: 11.5,
                         fontWeight: FontWeight.w700,
+                        letterSpacing: 0.1,
                       ),
                     ),
                   ),
@@ -187,17 +188,26 @@ class _ConversationMessageBubbleState
                             ),
                             decoration: BoxDecoration(
                               color: bubbleColor,
-                              borderRadius: BorderRadius.circular(18),
+                              borderRadius: BorderRadius.only(
+                                topLeft: const Radius.circular(18),
+                                topRight: const Radius.circular(18),
+                                bottomLeft: Radius.circular(
+                                  widget.isMe ? 18 : 8,
+                                ),
+                                bottomRight: Radius.circular(
+                                  widget.isMe ? 8 : 18,
+                                ),
+                              ),
                               border: Border.all(
                                 color: Colors.white.withValues(
-                                  alpha: widget.isMe ? 0.06 : 0.04,
+                                  alpha: widget.isMe ? 0.07 : 0.05,
                                 ),
                               ),
                               boxShadow: [
                                 BoxShadow(
-                                  color: Colors.black.withValues(alpha: 0.16),
-                                  blurRadius: 14,
-                                  offset: const Offset(0, 6),
+                                  color: Colors.black.withValues(alpha: 0.12),
+                                  blurRadius: 12,
+                                  offset: const Offset(0, 5),
                                 ),
                               ],
                             ),
@@ -232,14 +242,18 @@ class _ConversationMessageBubbleState
                   },
                 ),
                 if (widget.showStatus) ...[
-                  const SizedBox(height: 4),
+                  const SizedBox(height: 5),
                   Text(
                     _statusLabel(
                       message: widget.message,
                       attachment: attachment,
                       isMe: widget.isMe,
                     ),
-                    style: const TextStyle(fontSize: 12, color: Colors.grey),
+                    style: const TextStyle(
+                      fontSize: 11.5,
+                      color: Colors.white38,
+                      fontWeight: FontWeight.w600,
+                    ),
                   ),
                 ],
               ],
@@ -377,7 +391,7 @@ class _MessageMenuButton extends StatelessWidget {
             width: 28,
             height: 28,
             decoration: BoxDecoration(
-              color: const Color(0xFF1B1B1B),
+              color: const Color(0xFF1B2431),
               shape: BoxShape.circle,
               border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
             ),
@@ -646,7 +660,7 @@ class ReplyPreview extends StatelessWidget {
       constraints: const BoxConstraints(maxWidth: 260),
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
       decoration: BoxDecoration(
-        color: Colors.white.withValues(alpha: 0.06),
+        color: Colors.white.withValues(alpha: 0.05),
         borderRadius: BorderRadius.circular(12),
         border: Border(
           left: BorderSide(
@@ -684,7 +698,7 @@ class ReplyPreview extends StatelessWidget {
             overflow: TextOverflow.ellipsis,
             textAlign: textAlign,
             style: const TextStyle(
-              color: Colors.grey,
+              color: Colors.white60,
               fontSize: 12,
               height: 1.25,
             ),
@@ -772,46 +786,54 @@ class AttachmentMessageContent extends ConsumerWidget {
               ),
             ),
           ),
-          const SizedBox(height: 10),
+          const SizedBox(height: 12),
         ],
-        Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Container(
-              padding: const EdgeInsets.all(8),
-              decoration: BoxDecoration(
-                color: Colors.white.withValues(alpha: 0.1),
-                borderRadius: BorderRadius.circular(10),
+        Container(
+          padding: const EdgeInsets.all(12),
+          decoration: BoxDecoration(
+            color: Colors.white.withValues(alpha: 0.04),
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(color: Colors.white.withValues(alpha: 0.05)),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: Colors.white.withValues(alpha: 0.08),
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: Icon(
+                  _iconForKind(attachment.kind),
+                  color: Colors.white,
+                  size: 22,
+                ),
               ),
-              child: Icon(
-                _iconForKind(attachment.kind),
-                color: Colors.white,
-                size: 24,
-              ),
-            ),
-            const SizedBox(width: 12),
-            Flexible(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    attachment.fileName,
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(
-                      fontWeight: FontWeight.bold,
-                      fontSize: 14.5,
+              const SizedBox(width: 12),
+              Flexible(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      attachment.fileName,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        fontWeight: FontWeight.bold,
+                        fontSize: 14.5,
+                      ),
                     ),
-                  ),
-                  const SizedBox(height: 2),
-                  Text(
-                    _formatFileSize(attachment.fileSize),
-                    style: const TextStyle(color: Colors.grey, fontSize: 12),
-                  ),
-                ],
+                    const SizedBox(height: 2),
+                    Text(
+                      _formatFileSize(attachment.fileSize),
+                      style: const TextStyle(color: Colors.grey, fontSize: 12),
+                    ),
+                  ],
+                ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
         if (attachment.transferState == 'downloading' &&
             progressValue != null) ...[
@@ -922,7 +944,7 @@ class AttachmentMessageContent extends ConsumerWidget {
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
         decoration: BoxDecoration(
-          color: Colors.white.withValues(alpha: 0.1),
+          color: Colors.white.withValues(alpha: 0.08),
           borderRadius: BorderRadius.circular(8),
         ),
         child: Row(

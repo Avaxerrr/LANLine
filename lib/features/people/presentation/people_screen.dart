@@ -142,10 +142,17 @@ class _SectionHeader extends StatelessWidget {
       children: [
         Text(
           title,
-          style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w800),
+          style: const TextStyle(
+            fontSize: 17,
+            fontWeight: FontWeight.w800,
+            letterSpacing: -0.2,
+          ),
         ),
         const SizedBox(height: 4),
-        Text(subtitle, style: const TextStyle(color: Colors.white60)),
+        Text(
+          subtitle,
+          style: const TextStyle(color: Colors.white60, fontSize: 13),
+        ),
       ],
     );
   }
@@ -160,9 +167,9 @@ class _SectionPlaceholder extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.all(18),
+      padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: const Color(0xFF1B1B1B),
+        color: const Color(0xFF151B26).withValues(alpha: 0.84),
         borderRadius: BorderRadius.circular(20),
         border: Border.all(color: Colors.white.withValues(alpha: 0.04)),
       ),
@@ -217,69 +224,92 @@ class _ContactCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final accent = Colors.greenAccent;
+    final accent = const Color(0xFF4DE1A7);
     final deviceLabel = peer.deviceLabel?.trim();
     final fingerprint = peer.fingerprint?.trim();
     final subtitleParts = <String>[
       if (deviceLabel != null && deviceLabel.isNotEmpty) deviceLabel,
-      if (fingerprint != null && fingerprint.isNotEmpty) fingerprint,
+      if (peer.lastSeenAt != null)
+        _formatLastSeen(peer.lastSeenAt!)
+      else if (fingerprint != null && fingerprint.isNotEmpty)
+        fingerprint,
     ];
 
     final subtitle = subtitleParts.isEmpty
-        ? 'Tap to open chat'
-        : subtitleParts.join(' | ');
+        ? 'Ready to chat'
+        : subtitleParts.join('  •  ');
 
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
       decoration: BoxDecoration(
-        color: const Color(0xFF151B26),
-        borderRadius: BorderRadius.circular(20),
+        color: const Color(0xFF151B26).withValues(alpha: 0.84),
+        borderRadius: BorderRadius.circular(22),
         border: Border.all(color: Colors.white.withValues(alpha: 0.05)),
       ),
       child: Material(
         color: Colors.transparent,
         child: InkWell(
           onTap: onTap,
-          borderRadius: BorderRadius.circular(20),
+          borderRadius: BorderRadius.circular(22),
           child: Padding(
-            padding: const EdgeInsets.all(14),
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 13),
             child: Row(
               children: [
-                CircleAvatar(
-                  radius: 24,
-                  backgroundColor: accent.withValues(alpha: 0.16),
-                  child: Text(
-                    _initialsFor(peer.displayName),
-                    style: TextStyle(
-                      color: accent,
-                      fontWeight: FontWeight.w800,
+                Stack(
+                  children: [
+                    CircleAvatar(
+                      radius: 23,
+                      backgroundColor: accent.withValues(alpha: 0.14),
+                      child: Text(
+                        _initialsFor(peer.displayName),
+                        style: TextStyle(
+                          color: accent,
+                          fontWeight: FontWeight.w800,
+                        ),
+                      ),
                     ),
-                  ),
+                    Positioned(
+                      right: 0,
+                      bottom: 0,
+                      child: Container(
+                        width: 11,
+                        height: 11,
+                        decoration: BoxDecoration(
+                          color: peer.lastSeenAt != null
+                              ? accent
+                              : Colors.white24,
+                          shape: BoxShape.circle,
+                          border: Border.all(
+                            color: const Color(0xFF151B26),
+                            width: 2,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
-                const SizedBox(width: 14),
+                const SizedBox(width: 13),
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Row(
-                        children: [
-                          Expanded(
-                            child: Text(
-                              peer.displayName,
-                              style: const TextStyle(
-                                fontWeight: FontWeight.w700,
-                                fontSize: 15,
-                              ),
-                            ),
-                          ),
-                        ],
+                      Text(
+                        peer.displayName,
+                        style: const TextStyle(
+                          fontWeight: FontWeight.w700,
+                          fontSize: 15,
+                          letterSpacing: -0.1,
+                        ),
                       ),
                       const SizedBox(height: 4),
                       Text(
                         subtitle,
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(color: Colors.white60),
+                        style: const TextStyle(
+                          color: Colors.white60,
+                          fontSize: 13,
+                        ),
                       ),
                     ],
                   ),
@@ -287,8 +317,8 @@ class _ContactCard extends StatelessWidget {
                 const SizedBox(width: 8),
                 PopupMenuButton<_ContactMenuAction>(
                   tooltip: 'Contact options',
-                  icon: const Icon(Icons.more_horiz, color: Colors.white54),
-                  color: const Color(0xFF252525),
+                  icon: const Icon(Icons.more_horiz, color: Colors.white38),
+                  color: const Color(0xFF202734),
                   onSelected: onSelected,
                   itemBuilder: (context) => const [
                     PopupMenuItem(
@@ -349,4 +379,14 @@ class _ContactMenuRow extends StatelessWidget {
       ],
     );
   }
+}
+
+String _formatLastSeen(int timestamp) {
+  final difference = DateTime.now().difference(
+    DateTime.fromMillisecondsSinceEpoch(timestamp),
+  );
+  if (difference.inMinutes < 2) return 'Online recently';
+  if (difference.inHours < 1) return '${difference.inMinutes}m ago';
+  if (difference.inDays < 1) return '${difference.inHours}h ago';
+  return '${difference.inDays}d ago';
 }

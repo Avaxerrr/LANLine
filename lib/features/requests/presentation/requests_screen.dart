@@ -78,7 +78,7 @@ class RequestsScreen extends ConsumerWidget {
                 _EmptyState(icon: Icons.error_outline, text: '$error'),
           ),
         ),
-        const SizedBox(height: 18),
+        const SizedBox(height: 20),
         _RequestSection(
           title: 'Incoming requests',
           subtitle: 'Approve, decline, or block people who want to connect.',
@@ -157,7 +157,7 @@ class RequestsScreen extends ConsumerWidget {
                 _EmptyState(icon: Icons.error_outline, text: '$error'),
           ),
         ),
-        const SizedBox(height: 18),
+        const SizedBox(height: 20),
         _RequestSection(
           title: 'Group invites',
           subtitle: 'Join or decline invitations to group chats.',
@@ -216,7 +216,7 @@ class RequestsScreen extends ConsumerWidget {
                 _EmptyState(icon: Icons.error_outline, text: '$error'),
           ),
         ),
-        const SizedBox(height: 18),
+        const SizedBox(height: 20),
         _RequestSection(
           title: 'Outgoing requests',
           subtitle: 'Track requests you already sent.',
@@ -297,21 +297,13 @@ class _RequestSection extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(18),
-      decoration: BoxDecoration(
-        color: const Color(0xFF151B26),
-        borderRadius: BorderRadius.circular(22),
-        border: Border.all(color: Colors.white.withValues(alpha: 0.04)),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          _SectionTitle(title: title, subtitle: subtitle),
-          const SizedBox(height: 14),
-          child,
-        ],
-      ),
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _SectionTitle(title: title, subtitle: subtitle),
+        const SizedBox(height: 12),
+        child,
+      ],
     );
   }
 }
@@ -329,10 +321,17 @@ class _SectionTitle extends StatelessWidget {
       children: [
         Text(
           title,
-          style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w800),
+          style: const TextStyle(
+            fontSize: 16.5,
+            fontWeight: FontWeight.w800,
+            letterSpacing: -0.15,
+          ),
         ),
         const SizedBox(height: 4),
-        Text(subtitle, style: const TextStyle(color: Colors.white60)),
+        Text(
+          subtitle,
+          style: const TextStyle(color: Colors.white60, fontSize: 13),
+        ),
       ],
     );
   }
@@ -350,8 +349,9 @@ class _EmptyState extends StatelessWidget {
       width: double.infinity,
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: Colors.white.withValues(alpha: 0.03),
+        color: const Color(0xFF151B26).withValues(alpha: 0.78),
         borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.045)),
       ),
       child: Row(
         children: [
@@ -411,26 +411,39 @@ class _NearbyPeerCard extends StatelessWidget {
 
     final subtitle = subtitleParts.isEmpty
         ? 'Reachable right now'
-        : subtitleParts.join(' | ');
+        : subtitleParts.join('  •  ');
 
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
-      padding: const EdgeInsets.all(14),
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 13),
       decoration: BoxDecoration(
-        color: const Color(0xFF151B26),
-        borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: Colors.white.withValues(alpha: 0.04)),
+        color: const Color(0xFF151B26).withValues(alpha: 0.84),
+        borderRadius: BorderRadius.circular(22),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.05)),
       ),
       child: Row(
         children: [
-          CircleAvatar(
-            radius: 22,
-            backgroundColor: Colors.cyanAccent.withValues(alpha: 0.14),
-            child: Text(
-              _initialsFor(peer.displayName),
-              style: const TextStyle(
-                color: Colors.cyanAccent,
-                fontWeight: FontWeight.w800,
+          Container(
+            width: 46,
+            height: 46,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              gradient: LinearGradient(
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+                colors: [
+                  Colors.cyanAccent.withValues(alpha: 0.16),
+                  Colors.cyanAccent.withValues(alpha: 0.05),
+                ],
+              ),
+            ),
+            child: Center(
+              child: Text(
+                _initialsFor(peer.displayName),
+                style: const TextStyle(
+                  color: Colors.cyanAccent,
+                  fontWeight: FontWeight.w800,
+                ),
               ),
             ),
           ),
@@ -444,6 +457,7 @@ class _NearbyPeerCard extends StatelessWidget {
                   style: const TextStyle(
                     fontWeight: FontWeight.w700,
                     fontSize: 15,
+                    letterSpacing: -0.1,
                   ),
                 ),
                 const SizedBox(height: 4),
@@ -451,7 +465,7 @@ class _NearbyPeerCard extends StatelessWidget {
                   subtitle,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(color: Colors.white60),
+                  style: const TextStyle(color: Colors.white60, fontSize: 13),
                 ),
               ],
             ),
@@ -460,15 +474,16 @@ class _NearbyPeerCard extends StatelessWidget {
           FilledButton(
             onPressed: onConnect,
             style: FilledButton.styleFrom(
-              backgroundColor: Colors.greenAccent.withValues(alpha: 0.18),
+              backgroundColor: Colors.greenAccent.withValues(alpha: 0.16),
               foregroundColor: Colors.greenAccent,
-              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+              minimumSize: const Size(0, 42),
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 0),
             ),
             child: const Text('Connect'),
           ),
           PopupMenuButton<_NearbyMenuAction>(
             tooltip: 'More actions',
-            color: const Color(0xFF252525),
+            color: const Color(0xFF202734),
             onSelected: (action) {
               if (action == _NearbyMenuAction.block) {
                 onBlock();
@@ -514,11 +529,11 @@ class _PendingRequestCard extends StatelessWidget {
   Widget build(BuildContext context) {
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
-      padding: const EdgeInsets.all(14),
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
       decoration: BoxDecoration(
-        color: const Color(0xFF151B26),
-        borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: Colors.white.withValues(alpha: 0.04)),
+        color: const Color(0xFF151B26).withValues(alpha: 0.84),
+        borderRadius: BorderRadius.circular(22),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.05)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -527,11 +542,11 @@ class _PendingRequestCard extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Container(
-                width: 46,
-                height: 46,
+                width: 44,
+                height: 44,
                 decoration: BoxDecoration(
                   color: accent.withValues(alpha: 0.14),
-                  borderRadius: BorderRadius.circular(14),
+                  borderRadius: BorderRadius.circular(16),
                 ),
                 child: Icon(icon, color: accent),
               ),
@@ -545,6 +560,7 @@ class _PendingRequestCard extends StatelessWidget {
                       style: const TextStyle(
                         fontWeight: FontWeight.w700,
                         fontSize: 15,
+                        letterSpacing: -0.1,
                       ),
                     ),
                     const SizedBox(height: 4),
@@ -553,6 +569,7 @@ class _PendingRequestCard extends StatelessWidget {
                       style: const TextStyle(
                         color: Colors.white60,
                         height: 1.35,
+                        fontSize: 13,
                       ),
                     ),
                   ],
@@ -623,7 +640,11 @@ class _ActionButton extends StatelessWidget {
     if (outlined) {
       return OutlinedButton(
         onPressed: onPressed,
-        style: OutlinedButton.styleFrom(foregroundColor: foreground),
+        style: OutlinedButton.styleFrom(
+          foregroundColor: foreground,
+          minimumSize: const Size(0, 40),
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 0),
+        ),
         child: child,
       );
     }
@@ -633,6 +654,8 @@ class _ActionButton extends StatelessWidget {
       style: FilledButton.styleFrom(
         backgroundColor: foreground.withValues(alpha: 0.16),
         foregroundColor: foreground,
+        minimumSize: const Size(0, 40),
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 0),
       ),
       child: child,
     );

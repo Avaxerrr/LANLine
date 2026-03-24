@@ -4,8 +4,8 @@ class AppTheme {
   static const _brand = Color(0xFF5B8CFF);
   static const _darkBackground = Color(0xFF0D1118);
   static const _darkSurface = Color(0xFF151B26);
-  static const _darkSurfaceAlt = Color(0xFF1B2431);
-  static const _darkBorder = Color(0xFF273244);
+  static const _darkSurfaceAlt = Color(0xFF1A2432);
+  static const _darkBorder = Color(0xFF243244);
   static const _darkTextMuted = Color(0xFF98A4B8);
 
   static final ThemeData lightTheme = ThemeData(
@@ -41,11 +41,11 @@ class AppTheme {
       iconTheme: IconThemeData(color: Colors.white),
     ),
     cardTheme: CardThemeData(
-      color: _darkSurface,
+      color: _darkSurface.withValues(alpha: 0.9),
       elevation: 0,
       margin: EdgeInsets.zero,
       shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(24),
+        borderRadius: BorderRadius.circular(22),
         side: const BorderSide(color: _darkBorder),
       ),
     ),
@@ -56,7 +56,7 @@ class AppTheme {
     ),
     navigationBarTheme: NavigationBarThemeData(
       backgroundColor: _darkSurface,
-      indicatorColor: _brand.withValues(alpha: 0.18),
+      indicatorColor: _brand.withValues(alpha: 0.16),
       labelTextStyle: WidgetStateProperty.resolveWith((states) {
         final selected = states.contains(WidgetState.selected);
         return TextStyle(
@@ -69,7 +69,7 @@ class AppTheme {
         final selected = states.contains(WidgetState.selected);
         return IconThemeData(
           color: selected ? _brand : _darkTextMuted,
-          size: 22,
+          size: 21,
         );
       }),
       labelBehavior: NavigationDestinationLabelBehavior.alwaysShow,

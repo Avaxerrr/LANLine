@@ -24,12 +24,12 @@ class ChatsScreen extends ConsumerWidget {
               conversationCount: conversations.length,
               onCreateGroup: () => _openCreateGroup(context),
             ),
-            const SizedBox(height: 12),
+            const SizedBox(height: 14),
             if (conversations.isEmpty)
               _EmptyChatsState(onGoToRequests: onGoToRequests)
             else ...[
               for (var index = 0; index < conversations.length; index++) ...[
-                _ConversationCard(
+                _ConversationRow(
                   conversation: conversations[index],
                   onTap: () => _openConversation(
                     context,
@@ -38,7 +38,7 @@ class ChatsScreen extends ConsumerWidget {
                   ),
                 ),
                 if (index != conversations.length - 1)
-                  const SizedBox(height: 12),
+                  const SizedBox(height: 10),
               ],
             ],
           ],
@@ -102,16 +102,18 @@ class _ChatsSummary extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Row(
+      crossAxisAlignment: CrossAxisAlignment.end,
       children: [
         Expanded(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(
-                conversationCount == 0 ? 'No conversations yet' : 'Recent',
+                conversationCount == 0 ? 'Chats' : 'Recent',
                 style: const TextStyle(
-                  fontSize: 16,
+                  fontSize: 17,
                   fontWeight: FontWeight.w800,
+                  letterSpacing: -0.2,
                 ),
               ),
               const SizedBox(height: 4),
@@ -119,13 +121,21 @@ class _ChatsSummary extends StatelessWidget {
                 conversationCount == 0
                     ? 'Connect from Requests to start a conversation.'
                     : '$conversationCount active conversation${conversationCount == 1 ? '' : 's'}',
-                style: const TextStyle(color: Colors.white60, height: 1.3),
+                style: const TextStyle(
+                  color: Colors.white60,
+                  height: 1.3,
+                  fontSize: 13,
+                ),
               ),
             ],
           ),
         ),
         if (onCreateGroup != null)
-          TextButton(onPressed: onCreateGroup, child: const Text('New Group')),
+          TextButton.icon(
+            onPressed: onCreateGroup,
+            icon: const Icon(Icons.groups_2_outlined, size: 18),
+            label: const Text('New group'),
+          ),
       ],
     );
   }
@@ -140,16 +150,16 @@ class _TypePill extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
       decoration: BoxDecoration(
-        color: accent.withValues(alpha: 0.14),
+        color: accent.withValues(alpha: 0.13),
         borderRadius: BorderRadius.circular(999),
       ),
       child: Text(
         label,
         style: TextStyle(
           color: accent,
-          fontSize: 11,
+          fontSize: 10.5,
           fontWeight: FontWeight.w800,
         ),
       ),
@@ -157,11 +167,11 @@ class _TypePill extends StatelessWidget {
   }
 }
 
-class _ConversationCard extends StatelessWidget {
+class _ConversationRow extends StatelessWidget {
   final ConversationRow conversation;
   final VoidCallback onTap;
 
-  const _ConversationCard({required this.conversation, required this.onTap});
+  const _ConversationRow({required this.conversation, required this.onTap});
 
   @override
   Widget build(BuildContext context) {
@@ -177,44 +187,56 @@ class _ConversationCard extends StatelessWidget {
       color: Colors.transparent,
       child: InkWell(
         onTap: onTap,
-        borderRadius: BorderRadius.circular(20),
+        borderRadius: BorderRadius.circular(22),
         child: Ink(
           decoration: BoxDecoration(
-            color: const Color(0xFF151B26),
-            borderRadius: BorderRadius.circular(20),
-            border: Border.all(color: Colors.white.withValues(alpha: 0.05)),
+            color: const Color(0xFF151B26).withValues(alpha: 0.84),
+            borderRadius: BorderRadius.circular(22),
+            border: Border.all(color: Colors.white.withValues(alpha: 0.055)),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withValues(alpha: 0.08),
+                blurRadius: 18,
+                offset: const Offset(0, 8),
+              ),
+            ],
           ),
           child: Padding(
-            padding: const EdgeInsets.all(16),
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
             child: Row(
               children: [
                 Container(
-                  width: 52,
-                  height: 52,
+                  width: 48,
+                  height: 48,
                   decoration: BoxDecoration(
+                    shape: BoxShape.circle,
                     gradient: LinearGradient(
                       begin: Alignment.topLeft,
                       end: Alignment.bottomRight,
                       colors: [
-                        accent.withValues(alpha: 0.22),
-                        Colors.white.withValues(alpha: 0.05),
+                        accent.withValues(alpha: 0.18),
+                        accent.withValues(alpha: 0.04),
                       ],
                     ),
-                    shape: BoxShape.circle,
+                    border: Border.all(
+                      color: Colors.white.withValues(alpha: 0.05),
+                    ),
                   ),
                   child: Icon(
                     conversation.type == 'group'
                         ? Icons.groups_2_outlined
                         : Icons.chat_bubble_outline,
                     color: accent,
+                    size: 21,
                   ),
                 ),
-                const SizedBox(width: 14),
+                const SizedBox(width: 13),
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Expanded(
                             child: Text(
@@ -222,24 +244,48 @@ class _ConversationCard extends StatelessWidget {
                               maxLines: 1,
                               overflow: TextOverflow.ellipsis,
                               style: const TextStyle(
-                                fontSize: 16,
+                                fontSize: 15.5,
                                 fontWeight: FontWeight.w800,
+                                letterSpacing: -0.15,
                               ),
                             ),
                           ),
-                          if (conversation.type == 'group')
-                            _TypePill(label: 'Group', accent: accent),
+                          if (conversation.lastMessageAt != null)
+                            Padding(
+                              padding: const EdgeInsets.only(left: 8, top: 1),
+                              child: Text(
+                                _formatConversationTime(
+                                  conversation.lastMessageAt!,
+                                ),
+                                style: const TextStyle(
+                                  color: Colors.white38,
+                                  fontSize: 11.5,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                            ),
                         ],
                       ),
-                      const SizedBox(height: 6),
-                      Text(
-                        preview,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(
-                          color: Colors.white70,
-                          height: 1.3,
-                        ),
+                      const SizedBox(height: 5),
+                      Row(
+                        children: [
+                          if (conversation.type == 'group') ...[
+                            _TypePill(label: 'Group', accent: accent),
+                            const SizedBox(width: 8),
+                          ],
+                          Expanded(
+                            child: Text(
+                              preview,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: const TextStyle(
+                                color: Colors.white60,
+                                height: 1.32,
+                                fontSize: 13.5,
+                              ),
+                            ),
+                          ),
+                        ],
                       ),
                     ],
                   ),
@@ -247,10 +293,10 @@ class _ConversationCard extends StatelessWidget {
                 const SizedBox(width: 12),
                 if (conversation.unreadCount > 0)
                   Container(
-                    constraints: const BoxConstraints(minWidth: 24),
+                    constraints: const BoxConstraints(minWidth: 22),
                     padding: const EdgeInsets.symmetric(
                       horizontal: 8,
-                      vertical: 6,
+                      vertical: 5,
                     ),
                     decoration: BoxDecoration(
                       color: Colors.blueAccent,
@@ -269,7 +315,8 @@ class _ConversationCard extends StatelessWidget {
                 else
                   Icon(
                     Icons.chevron_right,
-                    color: Colors.white.withValues(alpha: 0.35),
+                    size: 20,
+                    color: Colors.white.withValues(alpha: 0.28),
                   ),
               ],
             ),
@@ -289,27 +336,27 @@ class _EmptyChatsState extends StatelessWidget {
   Widget build(BuildContext context) {
     return Container(
       width: double.infinity,
-      padding: const EdgeInsets.all(24),
+      padding: const EdgeInsets.all(22),
       decoration: BoxDecoration(
-        color: const Color(0xFF151B26),
+        color: const Color(0xFF151B26).withValues(alpha: 0.88),
         borderRadius: BorderRadius.circular(24),
-        border: Border.all(color: Colors.white.withValues(alpha: 0.05)),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.055)),
       ),
       child: Column(
         children: [
           Container(
-            padding: const EdgeInsets.all(22),
+            padding: const EdgeInsets.all(18),
             decoration: BoxDecoration(
               color: Colors.blueAccent.withValues(alpha: 0.12),
               shape: BoxShape.circle,
             ),
             child: const Icon(
               Icons.forum_outlined,
-              size: 48,
+              size: 42,
               color: Colors.blueAccent,
             ),
           ),
-          const SizedBox(height: 20),
+          const SizedBox(height: 18),
           const Text(
             'No chats yet',
             style: TextStyle(fontSize: 22, fontWeight: FontWeight.w900),
@@ -320,18 +367,11 @@ class _EmptyChatsState extends StatelessWidget {
             textAlign: TextAlign.center,
             style: TextStyle(color: Colors.white70, height: 1.45),
           ),
-          const SizedBox(height: 20),
-          Wrap(
-            spacing: 12,
-            runSpacing: 12,
-            alignment: WrapAlignment.center,
-            children: [
-              FilledButton.icon(
-                onPressed: onGoToRequests,
-                icon: const Icon(Icons.inbox_outlined),
-                label: const Text('Open Requests'),
-              ),
-            ],
+          const SizedBox(height: 18),
+          FilledButton.icon(
+            onPressed: onGoToRequests,
+            icon: const Icon(Icons.inbox_outlined),
+            label: const Text('Open Requests'),
           ),
         ],
       ),
@@ -370,4 +410,21 @@ class _ErrorState extends StatelessWidget {
       ),
     );
   }
+}
+
+String _formatConversationTime(int timestamp) {
+  final now = DateTime.now();
+  final value = DateTime.fromMillisecondsSinceEpoch(timestamp);
+  final difference = now.difference(value);
+  if (difference.inDays >= 7) {
+    const weekdays = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+    return weekdays[value.weekday - 1];
+  }
+  if (difference.inDays >= 1) {
+    return difference.inDays == 1 ? 'Yesterday' : '${difference.inDays}d';
+  }
+  final hour = value.hour % 12 == 0 ? 12 : value.hour % 12;
+  final minute = value.minute.toString().padLeft(2, '0');
+  final suffix = value.hour >= 12 ? 'PM' : 'AM';
+  return '$hour:$minute $suffix';
 }
