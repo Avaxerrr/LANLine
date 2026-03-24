@@ -153,60 +153,71 @@ class _ConversationMessageBubbleState
                       ),
                     ),
                   ),
-                Row(
-                  mainAxisSize: MainAxisSize.min,
-                  crossAxisAlignment: CrossAxisAlignment.center,
-                  children: [
-                    if (widget.isMe)
-                      _MessageMenuSlot(
-                        visible: actionsVisible,
-                        message: widget.message,
-                        isPinned: widget.isPinned,
-                        showCopy: showCopy,
-                        onReply: widget.onReply,
-                        onForward: widget.onForward,
-                        onTogglePin: widget.onTogglePin,
-                        onDelete: widget.onDelete,
-                      ),
-                    GestureDetector(
-                      onTap: _supportsHover ? null : widget.onToggleActions,
-                      child: Container(
-                        constraints: const BoxConstraints(maxWidth: 320),
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 14,
-                          vertical: 12,
+                LayoutBuilder(
+                  builder: (context, constraints) {
+                    final maxBubbleWidth = (constraints.maxWidth - 40).clamp(
+                      140.0,
+                      320.0,
+                    );
+
+                    return Row(
+                      mainAxisSize: MainAxisSize.min,
+                      crossAxisAlignment: CrossAxisAlignment.center,
+                      children: [
+                        if (widget.isMe)
+                          _MessageMenuSlot(
+                            visible: actionsVisible,
+                            message: widget.message,
+                            isPinned: widget.isPinned,
+                            showCopy: showCopy,
+                            onReply: widget.onReply,
+                            onForward: widget.onForward,
+                            onTogglePin: widget.onTogglePin,
+                            onDelete: widget.onDelete,
+                          ),
+                        GestureDetector(
+                          onTap: _supportsHover ? null : widget.onToggleActions,
+                          child: Container(
+                            constraints: BoxConstraints(
+                              maxWidth: maxBubbleWidth,
+                            ),
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 14,
+                              vertical: 12,
+                            ),
+                            decoration: BoxDecoration(
+                              color: bubbleColor,
+                              borderRadius: BorderRadius.circular(18),
+                            ),
+                            child: attachment != null
+                                ? AttachmentMessageContent(
+                                    attachment: attachment,
+                                    peerId: widget.peerId,
+                                    isMe: widget.isMe,
+                                    downloadProgress: widget.downloadProgress,
+                                    repliedMessage: widget.repliedMessage,
+                                  )
+                                : TextLikeMessageContent(
+                                    message: widget.message,
+                                    textAlign: textAlign,
+                                    repliedMessage: widget.repliedMessage,
+                                  ),
+                          ),
                         ),
-                        decoration: BoxDecoration(
-                          color: bubbleColor,
-                          borderRadius: BorderRadius.circular(18),
-                        ),
-                        child: attachment != null
-                            ? AttachmentMessageContent(
-                                attachment: attachment,
-                                peerId: widget.peerId,
-                                isMe: widget.isMe,
-                                downloadProgress: widget.downloadProgress,
-                                repliedMessage: widget.repliedMessage,
-                              )
-                            : TextLikeMessageContent(
-                                message: widget.message,
-                                textAlign: textAlign,
-                                repliedMessage: widget.repliedMessage,
-                              ),
-                      ),
-                    ),
-                    if (!widget.isMe)
-                      _MessageMenuSlot(
-                        visible: actionsVisible,
-                        message: widget.message,
-                        isPinned: widget.isPinned,
-                        showCopy: showCopy,
-                        onReply: widget.onReply,
-                        onForward: widget.onForward,
-                        onTogglePin: widget.onTogglePin,
-                        onDelete: widget.onDelete,
-                      ),
-                  ],
+                        if (!widget.isMe)
+                          _MessageMenuSlot(
+                            visible: actionsVisible,
+                            message: widget.message,
+                            isPinned: widget.isPinned,
+                            showCopy: showCopy,
+                            onReply: widget.onReply,
+                            onForward: widget.onForward,
+                            onTogglePin: widget.onTogglePin,
+                            onDelete: widget.onDelete,
+                          ),
+                      ],
+                    );
+                  },
                 ),
                 if (widget.showStatus) ...[
                   const SizedBox(height: 4),
@@ -346,10 +357,9 @@ class _MessageMenuButton extends StatelessWidget {
     return PopupMenuButton<_MessageMenuAction>(
       tooltip: 'Message actions',
       padding: EdgeInsets.zero,
-      splashRadius: 16,
-      constraints: const BoxConstraints.tightFor(width: 28, height: 28),
       color: const Color(0xFF1E1E1E),
-      icon: Container(
+      offset: const Offset(0, 8),
+      child: Container(
         width: 28,
         height: 28,
         decoration: BoxDecoration(
@@ -359,8 +369,6 @@ class _MessageMenuButton extends StatelessWidget {
         ),
         child: const Center(child: Icon(Icons.more_horiz, size: 16)),
       ),
-      onSelected: (action) =>
-          _handleOverflowAction(context, action: action, message: message),
       itemBuilder: (context) => [
         const PopupMenuItem<_MessageMenuAction>(
           value: _MessageMenuAction.reply,
@@ -405,6 +413,8 @@ class _MessageMenuButton extends StatelessWidget {
           ),
         ),
       ],
+      onSelected: (action) =>
+          _handleOverflowAction(context, action: action, message: message),
     );
   }
 
