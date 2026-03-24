@@ -24,7 +24,7 @@ class ChatsScreen extends ConsumerWidget {
               children: [
                 _ChatsSummary(
                   conversationCount: conversations.length,
-                  onGoToRequests: onGoToRequests,
+                  onCreateGroup: () => _openCreateGroup(context),
                 ),
                 const SizedBox(height: 12),
                 if (conversations.isEmpty)
@@ -114,11 +114,11 @@ class ChatsScreen extends ConsumerWidget {
 
 class _ChatsSummary extends StatelessWidget {
   final int conversationCount;
-  final VoidCallback? onGoToRequests;
+  final VoidCallback? onCreateGroup;
 
   const _ChatsSummary({
     required this.conversationCount,
-    required this.onGoToRequests,
+    required this.onCreateGroup,
   });
 
   @override
@@ -146,8 +146,8 @@ class _ChatsSummary extends StatelessWidget {
             ],
           ),
         ),
-        if (onGoToRequests != null)
-          TextButton(onPressed: onGoToRequests, child: const Text('Requests')),
+        if (onCreateGroup != null)
+          TextButton(onPressed: onCreateGroup, child: const Text('New Group')),
       ],
     );
   }

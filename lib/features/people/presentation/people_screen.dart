@@ -272,11 +272,6 @@ class _ContactCard extends StatelessWidget {
                               ),
                             ),
                           ),
-                          const Icon(
-                            Icons.chevron_right,
-                            color: Colors.white38,
-                            size: 20,
-                          ),
                         ],
                       ),
                       const SizedBox(height: 4),
