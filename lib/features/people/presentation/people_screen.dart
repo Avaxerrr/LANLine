@@ -149,11 +149,12 @@ class _SectionPlaceholder extends StatelessWidget {
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
           colors: [
-            const Color(0xFF1A2432).withValues(alpha: 0.88),
-            const Color(0xFF151D28).withValues(alpha: 0.8),
+            const Color(0xFF202C3D).withValues(alpha: 0.9),
+            const Color(0xFF182230).withValues(alpha: 0.84),
           ],
         ),
         borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.03)),
         boxShadow: [
           BoxShadow(
             color: Colors.black.withValues(alpha: 0.1),
@@ -235,11 +236,12 @@ class _ContactCard extends StatelessWidget {
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
           colors: [
-            const Color(0xFF1A2432).withValues(alpha: 0.88),
-            const Color(0xFF151D28).withValues(alpha: 0.8),
+            const Color(0xFF202C3D).withValues(alpha: 0.9),
+            const Color(0xFF182230).withValues(alpha: 0.84),
           ],
         ),
         borderRadius: BorderRadius.circular(22),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.03)),
         boxShadow: [
           BoxShadow(
             color: Colors.black.withValues(alpha: 0.12),

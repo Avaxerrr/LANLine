@@ -166,7 +166,7 @@ class DownloadHistoryScreen extends ConsumerWidget {
     final history = ref.watch(downloadHistoryProvider);
 
     return Scaffold(
-      backgroundColor: const Color(0xFF0D1118),
+      backgroundColor: Colors.transparent,
       appBar: AppBar(
         title: const Text(
           'Downloads',
@@ -273,11 +273,12 @@ class _SummaryCard extends StatelessWidget {
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
         gradient: const LinearGradient(
-          colors: [Color(0xFF1A2434), Color(0xFF151D28)],
+          colors: [Color(0xFF202C3F), Color(0xFF182230)],
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
         ),
         borderRadius: BorderRadius.circular(24),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.03)),
         boxShadow: [
           BoxShadow(
             color: Colors.black.withValues(alpha: 0.12),
@@ -354,11 +355,12 @@ class _EmptyDownloadsCard extends StatelessWidget {
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
           colors: [
-            const Color(0xFF1A2432).withValues(alpha: 0.88),
-            const Color(0xFF151D28).withValues(alpha: 0.8),
+            const Color(0xFF202C3D).withValues(alpha: 0.9),
+            const Color(0xFF182230).withValues(alpha: 0.84),
           ],
         ),
         borderRadius: BorderRadius.circular(22),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.03)),
         boxShadow: [
           BoxShadow(
             color: Colors.black.withValues(alpha: 0.1),
@@ -448,11 +450,12 @@ class _DownloadHistoryItem extends StatelessWidget {
             begin: Alignment.topLeft,
             end: Alignment.bottomRight,
             colors: [
-              const Color(0xFF1A2432).withValues(alpha: 0.88),
-              const Color(0xFF151D28).withValues(alpha: 0.8),
+              const Color(0xFF202C3D).withValues(alpha: 0.9),
+              const Color(0xFF182230).withValues(alpha: 0.84),
             ],
           ),
           borderRadius: BorderRadius.circular(20),
+          border: Border.all(color: Colors.white.withValues(alpha: 0.03)),
           boxShadow: [
             BoxShadow(
               color: Colors.black.withValues(alpha: 0.1),

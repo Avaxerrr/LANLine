@@ -201,30 +201,36 @@ class _AppShellState extends ConsumerState<AppShell> {
     ];
 
     final titles = ['Chats', 'People', 'Requests', 'Settings'];
+    final icons = [
+      Icons.chat_bubble_outline,
+      Icons.people_outline,
+      Icons.inbox_outlined,
+      Icons.settings_outlined,
+    ];
 
     return Container(
-      decoration: const BoxDecoration(color: Color(0xFF0B1017)),
+      decoration: const BoxDecoration(color: Color(0xFF091018)),
       child: Scaffold(
         backgroundColor: Colors.transparent,
-        appBar: AppBar(
-          toolbarHeight: 58,
-          titleSpacing: 20,
-          title: Text(
-            titles[_selectedIndex],
-            style: const TextStyle(
-              fontSize: 24,
-              fontWeight: FontWeight.w900,
-              letterSpacing: -0.45,
-            ),
-          ),
-          backgroundColor: Colors.transparent,
-          elevation: 0,
-          centerTitle: false,
-        ),
         body: Stack(
           children: [
             const Positioned.fill(child: _ShellBackdrop()),
-            IndexedStack(index: _selectedIndex, children: screens),
+            SafeArea(
+              child: Column(
+                children: [
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(16, 8, 16, 6),
+                    child: _ShellHeader(
+                      title: titles[_selectedIndex],
+                      icon: icons[_selectedIndex],
+                    ),
+                  ),
+                  Expanded(
+                    child: IndexedStack(index: _selectedIndex, children: screens),
+                  ),
+                ],
+              ),
+            ),
           ],
         ),
         bottomNavigationBar: SafeArea(
@@ -308,7 +314,7 @@ class _ShellBackdrop extends StatelessWidget {
           gradient: LinearGradient(
             begin: Alignment.topLeft,
             end: Alignment.bottomCenter,
-            colors: [Color(0xFF131C2B), Color(0xFF0B1017)],
+            colors: [Color(0xFF0F1826), Color(0xFF091018)],
           ),
         ),
         child: Stack(
@@ -321,7 +327,7 @@ class _ShellBackdrop extends StatelessWidget {
                 height: 220,
                 decoration: BoxDecoration(
                   shape: BoxShape.circle,
-                  color: Colors.blueAccent.withValues(alpha: 0.08),
+                  color: Colors.blueAccent.withValues(alpha: 0.09),
                 ),
               ),
             ),
@@ -333,11 +339,74 @@ class _ShellBackdrop extends StatelessWidget {
                 height: 180,
                 decoration: BoxDecoration(
                   shape: BoxShape.circle,
-                  color: Colors.amber.withValues(alpha: 0.05),
+                  color: Colors.amber.withValues(alpha: 0.04),
                 ),
               ),
             ),
           ],
+        ),
+      ),
+    );
+  }
+}
+
+class _ShellHeader extends StatelessWidget {
+  final String title;
+  final IconData icon;
+
+  const _ShellHeader({required this.title, required this.icon});
+
+  @override
+  Widget build(BuildContext context) {
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(24),
+      child: BackdropFilter(
+        filter: ImageFilter.blur(sigmaX: 18, sigmaY: 18),
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+              colors: [
+                Colors.white.withValues(alpha: 0.09),
+                Colors.white.withValues(alpha: 0.04),
+              ],
+            ),
+            borderRadius: BorderRadius.circular(24),
+            border: Border.all(color: Colors.white.withValues(alpha: 0.06)),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withValues(alpha: 0.18),
+                blurRadius: 18,
+                offset: const Offset(0, 8),
+              ),
+            ],
+          ),
+          child: Row(
+            children: [
+              Container(
+                width: 42,
+                height: 42,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: Colors.white.withValues(alpha: 0.08),
+                ),
+                child: Icon(icon, color: Colors.white, size: 20),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Text(
+                  title,
+                  style: const TextStyle(
+                    fontSize: 23,
+                    fontWeight: FontWeight.w900,
+                    letterSpacing: -0.35,
+                  ),
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );
