@@ -34,11 +34,14 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase({QueryExecutor? executor}) : super(executor ?? _openConnection());
 
   @override
-  int get schemaVersion => 2;
+  int get schemaVersion => 3;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
-    onCreate: (m) async => m.createAll(),
+    onCreate: (m) async {
+      await m.createAll();
+      await _createPerformanceIndexes();
+    },
     onUpgrade: (m, from, to) async {
       if (from < 2) {
         await m.addColumn(
@@ -46,8 +49,46 @@ class AppDatabase extends _$AppDatabase {
           conversationsTable.pinnedMessageId,
         );
       }
+      if (from < 3) {
+        await _createPerformanceIndexes();
+      }
     },
   );
+
+  Future<void> _createPerformanceIndexes() async {
+    await customStatement(
+      'CREATE INDEX IF NOT EXISTS idx_presence_peer_reachable '
+      'ON presence_table (peer_id, is_reachable, updated_at)',
+    );
+    await customStatement(
+      'CREATE INDEX IF NOT EXISTS idx_peers_relationship_display '
+      'ON peers_table (relationship_state, display_name)',
+    );
+    await customStatement(
+      'CREATE INDEX IF NOT EXISTS idx_requests_peer_status_updated '
+      'ON contact_requests_table (peer_id, status, updated_at)',
+    );
+    await customStatement(
+      'CREATE INDEX IF NOT EXISTS idx_conversations_recent '
+      'ON conversations_table (last_message_at, updated_at)',
+    );
+    await customStatement(
+      'CREATE INDEX IF NOT EXISTS idx_conversation_members_conversation '
+      'ON conversation_members_table (conversation_id)',
+    );
+    await customStatement(
+      'CREATE INDEX IF NOT EXISTS idx_messages_conversation_created '
+      'ON messages_table (conversation_id, created_locally_at)',
+    );
+    await customStatement(
+      'CREATE INDEX IF NOT EXISTS idx_attachments_message '
+      'ON attachments_table (message_id)',
+    );
+    await customStatement(
+      'CREATE INDEX IF NOT EXISTS idx_outbox_peer_created '
+      'ON outbox_table (peer_id, created_at)',
+    );
+  }
 }
 
 LazyDatabase _openConnection() {

@@ -4,6 +4,8 @@ import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import 'protocol_validation.dart';
+
 final v2RequestSignalingServiceProvider = Provider<V2RequestSignalingService>((
   ref,
 ) {
@@ -19,7 +21,10 @@ class V2RequestSignalingService {
 
   Stream<String> get onMessageReceived => _messageController.stream;
 
-  Future<void> startServer({int port = defaultPort, String? bindAddress}) async {
+  Future<void> startServer({
+    int port = defaultPort,
+    String? bindAddress,
+  }) async {
     if (_server != null) return;
 
     try {
@@ -38,8 +43,17 @@ class V2RequestSignalingService {
         final socket = await WebSocketTransformer.upgrade(request);
         socket.listen(
           (message) {
+            final text = switch (message) {
+              String value => value,
+              List<int> value => String.fromCharCodes(value),
+              _ => null,
+            };
+            if (text == null || text.length > kMaxProtocolPayloadBytes) {
+              unawaited(socket.close(WebSocketStatus.messageTooBig));
+              return;
+            }
             if (!_messageController.isClosed) {
-              _messageController.add(message.toString());
+              _messageController.add(text);
             }
           },
           onError: (Object error) {
@@ -62,10 +76,21 @@ class V2RequestSignalingService {
     int port = defaultPort,
     required String payload,
   }) async {
+    final normalizedHost = host.trim();
+    if (normalizedHost.isEmpty) {
+      throw StateError('Host must not be empty.');
+    }
+    if (!isValidProtocolPort(port)) {
+      throw StateError('Port $port is outside the valid TCP range.');
+    }
+    if (payload.length > kMaxProtocolPayloadBytes) {
+      throw StateError('Payload exceeds the signaling size limit.');
+    }
+
     WebSocket? socket;
 
     try {
-      socket = await WebSocket.connect('ws://$host:$port');
+      socket = await WebSocket.connect('ws://$normalizedHost:$port');
       socket.add(payload);
       await socket.close();
     } finally {

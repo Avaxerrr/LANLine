@@ -50,6 +50,21 @@ void main() {
     expect(names, contains('outbox_table'));
   });
 
+  test('performance indexes are created for active V2 tables', () async {
+    final indexes = await database
+        .customSelect("SELECT name FROM sqlite_master WHERE type = 'index'")
+        .get();
+
+    final names = indexes
+        .map((row) => row.data['name'] as String?)
+        .whereType<String>()
+        .toSet();
+
+    expect(names, contains('idx_messages_conversation_created'));
+    expect(names, contains('idx_presence_peer_reachable'));
+    expect(names, contains('idx_requests_peer_status_updated'));
+  });
+
   test('can create direct conversation and persist messages locally', () async {
     await peersRepository.upsertPeer(
       peerId: 'peer-bob',

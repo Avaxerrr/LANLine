@@ -6,6 +6,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../db/app_database.dart';
 import '../identity/identity_service.dart';
+import '../network/protocol_validation.dart';
 import '../network/v2_request_signaling_service.dart';
 import '../repositories/conversations_repository.dart';
 import '../repositories/messages_repository.dart';
@@ -62,6 +63,12 @@ class V2GroupProtocolController {
     final trimmedTitle = title.trim();
     if (trimmedTitle.isEmpty) {
       throw StateError('Group name cannot be empty.');
+    }
+    if (!isValidOptionalProtocolText(
+      trimmedTitle,
+      maxLength: kMaxProtocolGroupTitleLength,
+    )) {
+      throw StateError('Group name is too long.');
     }
     if (invitedPeerIds.isEmpty) {
       throw StateError('Select at least one contact to create a group.');
@@ -238,6 +245,12 @@ class V2GroupProtocolController {
     if (trimmed.isEmpty) {
       throw StateError('Cannot send an empty message.');
     }
+    if (!isValidOptionalProtocolText(
+      trimmed,
+      maxLength: kMaxProtocolTextLength,
+    )) {
+      throw StateError('Message is too long.');
+    }
 
     final conversation = await _conversationsRepository.getConversationById(
       conversationId,
@@ -303,12 +316,12 @@ class V2GroupProtocolController {
         return;
       }
 
-      final senderPeerId = data['senderPeerId']?.toString();
-      if (senderPeerId == null ||
-          (_localIdentity != null && senderPeerId == _localIdentity!.peerId)) {
+      final rawSenderPeerId = data['senderPeerId']?.toString();
+      if (!isValidProtocolIdentifier(rawSenderPeerId) ||
+          (_localIdentity != null &&
+              rawSenderPeerId == _localIdentity!.peerId)) {
         return;
       }
-
       switch (data['action']) {
         case 'group_invite':
           await _handleIncomingInvite(data);
@@ -331,32 +344,69 @@ class V2GroupProtocolController {
   }
 
   Future<void> _handleIncomingInvite(Map<String, dynamic> data) async {
-    final conversationId = data['conversationId']?.toString();
+    final rawConversationId = data['conversationId']?.toString();
     final title = data['title']?.toString();
     final members = data['members'];
-    if (conversationId == null || title == null || members is! List) return;
+    final rawSenderPeerId = data['senderPeerId']?.toString();
+    if (!isValidProtocolIdentifier(rawConversationId) ||
+        !isValidOptionalProtocolText(
+          title,
+          maxLength: kMaxProtocolGroupTitleLength,
+        ) ||
+        !isValidProtocolIdentifier(rawSenderPeerId) ||
+        members is! List) {
+      return;
+    }
+    final conversationId = rawConversationId!.trim();
+    final senderPeerId = rawSenderPeerId!.trim();
+    final normalizedTitle = title!.trim();
+
+    final senderPeer = await _peersRepository.getPeerByPeerId(senderPeerId);
+    final isTrustedSender =
+        senderPeer != null &&
+        !senderPeer.isBlocked &&
+        (senderPeer.relationshipState == 'accepted' ||
+            senderPeer.relationshipState == 'pending_outgoing');
+    if (!isTrustedSender) {
+      debugPrint(
+        '[V2GroupProtocolController] Ignored group invite from untrusted peer '
+        '$senderPeerId.',
+      );
+      return;
+    }
 
     final seeds = <GroupConversationMemberSeed>[];
     for (final member in members) {
       if (member is! Map) continue;
-      final peerId = member['peerId']?.toString();
-      if (peerId == null) continue;
-      final displayName = member['displayName']?.toString() ?? peerId;
+      final rawPeerId = member['peerId']?.toString();
+      if (!isValidProtocolIdentifier(rawPeerId)) continue;
+      final peerId = rawPeerId!.trim();
+      final displayName =
+          isValidProtocolDisplayName(member['displayName']?.toString())
+          ? member['displayName']!.toString().trim()
+          : peerId;
+      final existingPeer = await _peersRepository.getPeerByPeerId(peerId);
       await _peersRepository.upsertPeer(
         peerId: peerId,
         displayName: displayName,
-        deviceLabel: member['deviceLabel']?.toString(),
-        fingerprint: member['fingerprint']?.toString(),
+        deviceLabel:
+            isValidOptionalProtocolText(
+              member['deviceLabel']?.toString(),
+              maxLength: kMaxProtocolDeviceLabelLength,
+            )
+            ? member['deviceLabel']?.toString().trim()
+            : existingPeer?.deviceLabel,
+        fingerprint:
+            isValidOptionalProtocolText(
+              member['fingerprint']?.toString(),
+              maxLength: kMaxProtocolFingerprintLength,
+            )
+            ? member['fingerprint']?.toString().trim()
+            : existingPeer?.fingerprint,
         relationshipState:
-            (await _peersRepository.getPeerByPeerId(
-              peerId,
-            ))?.relationshipState ??
-            (peerId == data['senderPeerId']?.toString()
-                ? 'accepted'
-                : 'discovered'),
-        isBlocked:
-            (await _peersRepository.getPeerByPeerId(peerId))?.isBlocked ??
-            false,
+            existingPeer?.relationshipState ??
+            (peerId == senderPeerId ? 'accepted' : 'discovered'),
+        isBlocked: existingPeer?.isBlocked ?? false,
       );
       seeds.add(
         GroupConversationMemberSeed(
@@ -379,18 +429,30 @@ class V2GroupProtocolController {
 
     await _conversationsRepository.upsertIncomingGroupConversation(
       conversationId: conversationId,
-      title: title,
+      title: normalizedTitle,
       members: seeds,
     );
   }
 
   Future<void> _handleIncomingInviteResponse(Map<String, dynamic> data) async {
-    final conversationId = data['conversationId']?.toString();
+    final rawConversationId = data['conversationId']?.toString();
     final response = data['response']?.toString();
-    final senderPeerId = data['senderPeerId']?.toString();
+    final rawSenderPeerId = data['senderPeerId']?.toString();
     final senderDisplayName =
-        data['senderDisplayName']?.toString() ?? senderPeerId;
-    if (conversationId == null || response == null || senderPeerId == null) {
+        data['senderDisplayName']?.toString() ?? rawSenderPeerId;
+    if (!isValidProtocolIdentifier(rawConversationId) ||
+        response == null ||
+        !isValidProtocolIdentifier(rawSenderPeerId)) {
+      return;
+    }
+    final conversationId = rawConversationId!.trim();
+    final senderPeerId = rawSenderPeerId!.trim();
+
+    final senderMembership = await _conversationsRepository.getMembership(
+      conversationId: conversationId,
+      peerId: senderPeerId,
+    );
+    if (senderMembership == null || senderMembership.role != 'invited') {
       return;
     }
 
@@ -430,12 +492,29 @@ class V2GroupProtocolController {
   }
 
   Future<void> _handleIncomingMemberUpdate(Map<String, dynamic> data) async {
-    final conversationId = data['conversationId']?.toString();
-    final memberPeerId = data['memberPeerId']?.toString();
+    final rawConversationId = data['conversationId']?.toString();
+    final rawSenderPeerId = data['senderPeerId']?.toString();
+    final rawMemberPeerId = data['memberPeerId']?.toString();
     final role = data['role']?.toString();
     final memberDisplayName =
-        data['memberDisplayName']?.toString() ?? memberPeerId;
-    if (conversationId == null || memberPeerId == null || role == null) return;
+        data['memberDisplayName']?.toString() ?? rawMemberPeerId;
+    if (!isValidProtocolIdentifier(rawConversationId) ||
+        !isValidProtocolIdentifier(rawSenderPeerId) ||
+        !isValidProtocolIdentifier(rawMemberPeerId) ||
+        role == null) {
+      return;
+    }
+    final conversationId = rawConversationId!.trim();
+    final senderPeerId = rawSenderPeerId!.trim();
+    final memberPeerId = rawMemberPeerId!.trim();
+
+    final senderMembership = await _conversationsRepository.getMembership(
+      conversationId: conversationId,
+      peerId: senderPeerId,
+    );
+    if (senderMembership?.role != 'admin') {
+      return;
+    }
 
     if (role == 'removed') {
       if (memberPeerId == _localIdentity!.peerId) {
@@ -468,14 +547,19 @@ class V2GroupProtocolController {
   }
 
   Future<void> _handleIncomingGroupMessage(Map<String, dynamic> data) async {
-    final conversationId = data['conversationId']?.toString();
-    final senderPeerId = data['senderPeerId']?.toString();
-    final clientGeneratedId = data['clientGeneratedId']?.toString();
-    if (conversationId == null ||
-        senderPeerId == null ||
-        clientGeneratedId == null) {
+    final rawConversationId = data['conversationId']?.toString();
+    final rawSenderPeerId = data['senderPeerId']?.toString();
+    final rawClientGeneratedId = data['clientGeneratedId']?.toString();
+    final text = data['text']?.toString();
+    if (!isValidProtocolIdentifier(rawConversationId) ||
+        !isValidProtocolIdentifier(rawSenderPeerId) ||
+        !isValidProtocolIdentifier(rawClientGeneratedId) ||
+        !isValidOptionalProtocolText(text, maxLength: kMaxProtocolTextLength)) {
       return;
     }
+    final conversationId = rawConversationId!.trim();
+    final senderPeerId = rawSenderPeerId!.trim();
+    final clientGeneratedId = rawClientGeneratedId!.trim();
 
     final membership = await _conversationsRepository.getMembership(
       conversationId: conversationId,
@@ -485,16 +569,45 @@ class V2GroupProtocolController {
       return;
     }
 
-    final senderDisplayName =
-        data['senderDisplayName']?.toString() ?? senderPeerId;
     final existingPeer = await _peersRepository.getPeerByPeerId(senderPeerId);
+    final senderMembership = await _conversationsRepository.getMembership(
+      conversationId: conversationId,
+      peerId: senderPeerId,
+    );
+    final isTrustedSender =
+        existingPeer != null &&
+        !existingPeer.isBlocked &&
+        (existingPeer.relationshipState == 'accepted' ||
+            existingPeer.relationshipState == 'pending_outgoing') &&
+        senderMembership != null &&
+        senderMembership.role != 'invited';
+    if (!isTrustedSender) {
+      return;
+    }
+
+    final senderDisplayName =
+        isValidProtocolDisplayName(data['senderDisplayName']?.toString())
+        ? data['senderDisplayName']!.toString().trim()
+        : existingPeer.displayName;
     await _peersRepository.upsertPeer(
       peerId: senderPeerId,
       displayName: senderDisplayName,
-      deviceLabel: data['senderDeviceLabel']?.toString(),
-      fingerprint: data['senderFingerprint']?.toString(),
-      relationshipState: existingPeer?.relationshipState ?? 'accepted',
-      isBlocked: existingPeer?.isBlocked ?? false,
+      deviceLabel:
+          isValidOptionalProtocolText(
+            data['senderDeviceLabel']?.toString(),
+            maxLength: kMaxProtocolDeviceLabelLength,
+          )
+          ? data['senderDeviceLabel']?.toString().trim()
+          : existingPeer.deviceLabel,
+      fingerprint:
+          isValidOptionalProtocolText(
+            data['senderFingerprint']?.toString(),
+            maxLength: kMaxProtocolFingerprintLength,
+          )
+          ? data['senderFingerprint']?.toString().trim()
+          : existingPeer.fingerprint,
+      relationshipState: existingPeer.relationshipState,
+      isBlocked: existingPeer.isBlocked,
     );
 
     final existingMessage = await _messagesRepository
@@ -507,7 +620,7 @@ class V2GroupProtocolController {
       senderPeerId: senderPeerId,
       clientGeneratedId: clientGeneratedId,
       type: data['type']?.toString() ?? 'text',
-      textBody: data['text']?.toString(),
+      textBody: text,
       status: activeConversationId == conversationId ? 'read' : 'delivered',
       replyToMessageId: data['replyToMessageId']?.toString(),
       sentAt: data['sentAt'] as int?,

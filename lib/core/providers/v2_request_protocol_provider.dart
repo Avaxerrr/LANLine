@@ -7,6 +7,7 @@ import 'package:uuid/uuid.dart';
 
 import '../db/app_database.dart';
 import '../identity/identity_service.dart';
+import '../network/protocol_validation.dart';
 import '../network/v2_request_signaling_service.dart';
 import '../repositories/peers_repository.dart';
 import '../repositories/requests_repository.dart';
@@ -55,6 +56,12 @@ class V2RequestProtocolController {
     String? message,
   }) async {
     await start();
+    if (!isValidOptionalProtocolText(
+      message,
+      maxLength: kMaxProtocolRequestMessageLength,
+    )) {
+      throw StateError('Request message is too long.');
+    }
     final peer = await _requirePeer(peerId);
     final presence = await _requireReachablePresence(peerId);
     final requestId = _uuid.v4();
@@ -172,29 +179,68 @@ class V2RequestProtocolController {
         return;
       }
 
-      final senderPeerId = data['senderPeerId']?.toString();
-      if (senderPeerId == null ||
-          (_localIdentity != null && senderPeerId == _localIdentity!.peerId)) {
+      final rawSenderPeerId = data['senderPeerId']?.toString();
+      final rawRequestId = data['requestId']?.toString();
+      final action = data['action']?.toString();
+      if (!isValidProtocolIdentifier(rawSenderPeerId) ||
+          !isValidProtocolIdentifier(rawRequestId) ||
+          action == null ||
+          (_localIdentity != null &&
+              rawSenderPeerId == _localIdentity!.peerId)) {
         return;
       }
+      final senderPeerId = rawSenderPeerId!.trim();
+      final requestId = rawRequestId!.trim();
 
-      final displayName = data['senderDisplayName']?.toString() ?? senderPeerId;
-      final deviceLabel = data['senderDeviceLabel']?.toString();
-      final fingerprint = data['senderFingerprint']?.toString();
-      final action = data['action']?.toString();
-      final requestId = data['requestId']?.toString();
-      if (requestId == null || action == null) return;
+      if (action == 'request' &&
+          !isValidOptionalProtocolText(
+            data['message']?.toString(),
+            maxLength: kMaxProtocolRequestMessageLength,
+          )) {
+        return;
+      }
 
       final existingPeer = await _peersRepository.getPeerByPeerId(senderPeerId);
       if (action == 'request' && (existingPeer?.isBlocked ?? false)) {
         return;
       }
+      if (action != 'request') {
+        final existingRequest = await _requestsRepository.getRequestById(
+          requestId,
+        );
+        if (existingRequest == null || existingRequest.peerId != senderPeerId) {
+          debugPrint(
+            '[V2RequestProtocolController] Ignored orphaned request status '
+            '"$action" for $requestId from $senderPeerId.',
+          );
+          return;
+        }
+      }
+
+      final displayName =
+          isValidProtocolDisplayName(data['senderDisplayName']?.toString())
+          ? data['senderDisplayName']!.toString().trim()
+          : (existingPeer?.displayName ?? senderPeerId);
+      final deviceLabel = data['senderDeviceLabel']?.toString();
+      final fingerprint = data['senderFingerprint']?.toString();
 
       await _peersRepository.upsertPeer(
         peerId: senderPeerId,
         displayName: displayName,
-        deviceLabel: deviceLabel,
-        fingerprint: fingerprint,
+        deviceLabel:
+            isValidOptionalProtocolText(
+              deviceLabel,
+              maxLength: kMaxProtocolDeviceLabelLength,
+            )
+            ? deviceLabel?.trim()
+            : existingPeer?.deviceLabel,
+        fingerprint:
+            isValidOptionalProtocolText(
+              fingerprint,
+              maxLength: kMaxProtocolFingerprintLength,
+            )
+            ? fingerprint?.trim()
+            : existingPeer?.fingerprint,
         relationshipState: existingPeer?.relationshipState ?? 'discovered',
         isBlocked: existingPeer?.isBlocked ?? false,
       );

@@ -6,6 +6,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../db/app_database.dart';
 import '../identity/identity_service.dart';
+import '../network/protocol_validation.dart';
 import '../network/v2_request_signaling_service.dart';
 import '../repositories/conversations_repository.dart';
 import '../repositories/messages_repository.dart';
@@ -74,6 +75,12 @@ class V2DirectMessageProtocolController {
     final trimmed = text.trim();
     if (trimmed.isEmpty) {
       throw StateError('Cannot send an empty message.');
+    }
+    if (!isValidOptionalProtocolText(
+      trimmed,
+      maxLength: kMaxProtocolTextLength,
+    )) {
+      throw StateError('Message is too long.');
     }
 
     final peer = await _requirePeer(peerId);
@@ -173,25 +180,60 @@ class V2DirectMessageProtocolController {
   }
 
   Future<void> _handleIncomingTextMessage(Map<String, dynamic> data) async {
-    final senderPeerId = data['senderPeerId']?.toString();
-    final clientGeneratedId = data['clientGeneratedId']?.toString();
-    if (senderPeerId == null || clientGeneratedId == null) return;
+    final rawSenderPeerId = data['senderPeerId']?.toString();
+    final rawClientGeneratedId = data['clientGeneratedId']?.toString();
+    final text = data['text']?.toString();
+    if (!isValidProtocolIdentifier(rawSenderPeerId) ||
+        !isValidProtocolIdentifier(rawClientGeneratedId) ||
+        !isValidOptionalProtocolText(text, maxLength: kMaxProtocolTextLength)) {
+      return;
+    }
+    final senderPeerId = rawSenderPeerId!.trim();
+    final clientGeneratedId = rawClientGeneratedId!.trim();
     if (_localIdentity != null && senderPeerId == _localIdentity!.peerId) {
       return;
     }
 
-    final displayName = data['senderDisplayName']?.toString() ?? senderPeerId;
+    final existingPeer = await _peersRepository.getPeerByPeerId(senderPeerId);
+    final isTrustedPeer =
+        existingPeer != null &&
+        !existingPeer.isBlocked &&
+        (existingPeer.relationshipState == 'accepted' ||
+            existingPeer.relationshipState == 'pending_outgoing');
+    if (!isTrustedPeer) {
+      debugPrint(
+        '[V2DirectMessageProtocolController] Ignored unsolicited message from '
+        '$senderPeerId.',
+      );
+      return;
+    }
+
+    final displayName =
+        isValidProtocolDisplayName(data['senderDisplayName']?.toString())
+        ? data['senderDisplayName']!.toString().trim()
+        : existingPeer.displayName;
     final deviceLabel = data['senderDeviceLabel']?.toString();
     final fingerprint = data['senderFingerprint']?.toString();
-    final existingPeer = await _peersRepository.getPeerByPeerId(senderPeerId);
 
     await _peersRepository.upsertPeer(
       peerId: senderPeerId,
       displayName: displayName,
-      deviceLabel: deviceLabel,
-      fingerprint: fingerprint,
-      relationshipState: existingPeer?.relationshipState ?? 'accepted',
-      isBlocked: existingPeer?.isBlocked ?? false,
+      deviceLabel:
+          isValidOptionalProtocolText(
+            deviceLabel,
+            maxLength: kMaxProtocolDeviceLabelLength,
+          )
+          ? deviceLabel?.trim()
+          : existingPeer.deviceLabel,
+      fingerprint:
+          isValidOptionalProtocolText(
+            fingerprint,
+            maxLength: kMaxProtocolFingerprintLength,
+          )
+          ? fingerprint?.trim()
+          : existingPeer.fingerprint,
+      relationshipState: existingPeer.relationshipState,
+      isBlocked: existingPeer.isBlocked,
     );
 
     final conversation = await _conversationsRepository
@@ -210,7 +252,7 @@ class V2DirectMessageProtocolController {
         senderPeerId: senderPeerId,
         clientGeneratedId: clientGeneratedId,
         type: data['type']?.toString() ?? 'text',
-        textBody: data['text']?.toString(),
+        textBody: text,
         status: _activeConversationId == conversation.id ? 'read' : 'delivered',
         replyToMessageId: data['replyToMessageId']?.toString(),
         sentAt: data['sentAt'] as int?,

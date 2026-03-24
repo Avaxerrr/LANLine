@@ -159,12 +159,19 @@ void main() {
       'incoming invite creates a pending group conversation for the local user',
       () async {
         await container.read(v2GroupProtocolControllerProvider).start();
+        final peersRepository = container.read(peersRepositoryProvider);
         final conversationsRepository = container.read(
           conversationsRepositoryProvider,
         );
         final localIdentity = await container
             .read(identityServiceProvider)
             .bootstrap();
+
+        await peersRepository.upsertPeer(
+          peerId: 'peer-admin',
+          displayName: 'Admin',
+          relationshipState: 'accepted',
+        );
 
         incomingMessages.add(
           jsonEncode({
@@ -333,6 +340,46 @@ void main() {
           );
 
       expect(reply.replyToMessageId, original.id);
+    });
+
+    test('incoming invite from untrusted peer is ignored', () async {
+      await container.read(v2GroupProtocolControllerProvider).start();
+      final conversationsRepository = container.read(
+        conversationsRepositoryProvider,
+      );
+      final localIdentity = await container
+          .read(identityServiceProvider)
+          .bootstrap();
+
+      incomingMessages.add(
+        jsonEncode({
+          'protocol': 'lanline_v2_group',
+          'action': 'group_invite',
+          'conversationId': 'rogue-group',
+          'title': 'Suspicious',
+          'senderPeerId': 'unknown-peer',
+          'senderDisplayName': 'Intruder',
+          'members': [
+            {
+              'peerId': 'unknown-peer',
+              'displayName': 'Intruder',
+              'role': 'admin',
+            },
+            {
+              'peerId': localIdentity.peerId,
+              'displayName': 'Local User',
+              'role': 'invited',
+            },
+          ],
+        }),
+      );
+
+      await Future<void>.delayed(const Duration(milliseconds: 20));
+
+      final conversation = await conversationsRepository.getConversationById(
+        'rogue-group',
+      );
+      expect(conversation, isNull);
     });
   });
 }

@@ -176,6 +176,11 @@ void main() {
       'incoming text message creates a conversation, message, unread count, and ack',
       () async {
         await controller.start();
+        await peersRepository.upsertPeer(
+          peerId: 'peer-remote',
+          displayName: 'Remote Device',
+          relationshipState: 'accepted',
+        );
         await peersRepository.upsertPresence(
           peerId: 'peer-remote',
           status: 'online',
@@ -227,6 +232,11 @@ void main() {
 
     test('incoming text message keeps reply metadata', () async {
       await controller.start();
+      await peersRepository.upsertPeer(
+        peerId: 'peer-remote',
+        displayName: 'Remote Device',
+        relationshipState: 'accepted',
+      );
 
       final conversation = await conversationsRepository
           .findOrCreateDirectConversation(
@@ -272,6 +282,41 @@ void main() {
           .watchMessages(conversation.id)
           .first;
       expect(messages.last.replyToMessageId, original.id);
+    });
+
+    test('ignores unsolicited direct messages from untrusted peers', () async {
+      await controller.start();
+
+      incomingMessages.add(
+        jsonEncode({
+          'protocol': 'lanline_v2_message',
+          'action': 'message',
+          'senderPeerId': 'unknown-peer',
+          'senderDisplayName': 'Intruder',
+          'clientGeneratedId': 'msg-rogue',
+          'type': 'text',
+          'text': 'Injected payload',
+        }),
+      );
+
+      await Future<void>.delayed(const Duration(milliseconds: 20));
+
+      final peer = await peersRepository.getPeerByPeerId('unknown-peer');
+      final conversations = await conversationsRepository
+          .watchConversationList(
+            localPeerId: (await identityService.bootstrap()).peerId,
+          )
+          .first;
+
+      expect(peer, isNull);
+      expect(conversations, isEmpty);
+      verifyNever(
+        () => signalingService.sendMessage(
+          host: any(named: 'host'),
+          port: any(named: 'port'),
+          payload: any(named: 'payload'),
+        ),
+      );
     });
   });
 }
