@@ -35,8 +35,10 @@ class DirectConversationScreen extends ConsumerStatefulWidget {
 }
 
 class _DirectConversationScreenState
-    extends ConsumerState<DirectConversationScreen> {
+    extends ConsumerState<DirectConversationScreen>
+    with WidgetsBindingObserver {
   final TextEditingController _textController = TextEditingController();
+  final FocusNode _composerFocusNode = FocusNode();
   final ScrollController _scrollController = ScrollController();
   bool _isSending = false;
   bool _isPickingFile = false;
@@ -53,6 +55,8 @@ class _DirectConversationScreenState
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
+    _composerFocusNode.addListener(_handleComposerFocusChange);
     Future.microtask(() async {
       ref
               .read(
@@ -70,6 +74,10 @@ class _DirectConversationScreenState
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    _composerFocusNode
+      ..removeListener(_handleComposerFocusChange)
+      ..dispose();
     _textController.dispose();
     _scrollController.dispose();
     ref
@@ -82,6 +90,13 @@ class _DirectConversationScreenState
         50;
     ref.read(conversationActionsProvider).setActiveConversation(null);
     super.dispose();
+  }
+
+  @override
+  void didChangeMetrics() {
+    super.didChangeMetrics();
+    if (!_composerFocusNode.hasFocus) return;
+    _scheduleKeepLatestVisible();
   }
 
   Future<void> _sendMessage() async {
@@ -231,31 +246,21 @@ class _DirectConversationScreenState
     });
   }
 
-  void _handleKeyboardInsetChange(double keyboardInset) {
-    final keyboardOpened = keyboardInset > 0 && _lastKeyboardInset == 0;
-    _lastKeyboardInset = keyboardInset;
-    if (!keyboardOpened) return;
-
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (!_scrollController.hasClients) return;
-      _scrollController.animateTo(
-        _scrollController.position.maxScrollExtent,
-        duration: const Duration(milliseconds: 180),
-        curve: Curves.easeOutCubic,
-      );
-    });
+  void _scheduleKeepLatestVisible() {
+    _scrollToBottom();
+    Future<void>.delayed(const Duration(milliseconds: 80), _scrollToBottom);
+    Future<void>.delayed(const Duration(milliseconds: 180), _scrollToBottom);
+    Future<void>.delayed(const Duration(milliseconds: 300), _scrollToBottom);
   }
 
   void _handleComposerFocus() {
-    _scrollToBottom();
-    Future<void>.delayed(const Duration(milliseconds: 120), () {
-      if (!mounted) return;
-      _scrollToBottom();
-    });
-    Future<void>.delayed(const Duration(milliseconds: 260), () {
-      if (!mounted) return;
-      _scrollToBottom();
-    });
+    _scheduleKeepLatestVisible();
+  }
+
+  void _handleComposerFocusChange() {
+    if (_composerFocusNode.hasFocus) {
+      _scheduleKeepLatestVisible();
+    }
   }
 
   void _setReply(MessageRow message) {
@@ -481,8 +486,10 @@ class _DirectConversationScreenState
   Widget build(BuildContext context) {
     final mediaQuery = MediaQuery.of(context);
     final keyboardInset = mediaQuery.viewInsets.bottom;
-    _handleKeyboardInsetChange(keyboardInset);
-    final composerHeight = _replyingToMessage == null ? 132.0 : 212.0;
+    if (keyboardInset != _lastKeyboardInset) {
+      _lastKeyboardInset = keyboardInset;
+    }
+    final composerHeight = _replyingToMessage == null ? 116.0 : 196.0;
     final composerBottomInset =
         mediaQuery.padding.bottom + composerHeight + keyboardInset;
     final messagesAsync = ref.watch(
@@ -713,6 +720,7 @@ class _DirectConversationScreenState
               isSending: _isSending,
               isGroup: _isGroup,
               textController: _textController,
+              focusNode: _composerFocusNode,
               onPickFile: _pickAndSendFile,
               onSendMessage: _sendMessage,
               onFocusComposer: _handleComposerFocus,

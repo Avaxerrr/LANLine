@@ -11,6 +11,7 @@ class ConversationInputBar extends StatelessWidget {
   final bool isSending;
   final bool isGroup;
   final TextEditingController textController;
+  final FocusNode? focusNode;
   final VoidCallback onPickFile;
   final VoidCallback onSendMessage;
   final VoidCallback? onFocusComposer;
@@ -25,6 +26,7 @@ class ConversationInputBar extends StatelessWidget {
     required this.isSending,
     required this.isGroup,
     required this.textController,
+    this.focusNode,
     required this.onPickFile,
     required this.onSendMessage,
     this.onFocusComposer,
@@ -74,6 +76,7 @@ class ConversationInputBar extends StatelessWidget {
               constraints: const BoxConstraints(minHeight: 48),
               child: TextField(
                 controller: textController,
+                focusNode: focusNode,
                 minLines: 1,
                 maxLines: 5,
                 textInputAction: TextInputAction.send,
