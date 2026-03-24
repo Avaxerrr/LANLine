@@ -571,6 +571,29 @@ class _DirectConversationScreenState
             left: 0,
             right: 0,
             bottom: 0,
+            height: composerBottomInset + 28,
+            child: IgnorePointer(
+              child: DecoratedBox(
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    begin: Alignment.topCenter,
+                    end: Alignment.bottomCenter,
+                    colors: [
+                      const Color(0xFF0D1118).withValues(alpha: 0),
+                      const Color(0xFF0D1118).withValues(alpha: 0.14),
+                      const Color(0xFF0D1118).withValues(alpha: 0.42),
+                      const Color(0xFF0D1118).withValues(alpha: 0.78),
+                    ],
+                    stops: const [0, 0.38, 0.72, 1],
+                  ),
+                ),
+              ),
+            ),
+          ),
+          Positioned(
+            left: 0,
+            right: 0,
+            bottom: 0,
             child: ConversationInputBar(
               supportsDirectMedia: _supportsDirectMedia,
               isPickingFile: _isPickingFile,
