@@ -13,36 +13,7 @@ class ChatsScreen extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final previewEnabled = ref.watch(previewCrowdedUiProvider);
-    final previewConversations = ref.watch(previewConversationListProvider);
     final conversationsAsync = ref.watch(conversationListProvider);
-
-    void showPreviewNotice() {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Preview mode uses mock data only.')),
-      );
-    }
-
-    if (previewEnabled) {
-      return ListView(
-        padding: const EdgeInsets.fromLTRB(16, 16, 16, 138),
-        children: [
-          _ChatsToolbar(
-            conversationCount: previewConversations.length,
-            onCreateGroup: showPreviewNotice,
-          ),
-          const SizedBox(height: 12),
-          for (var index = 0; index < previewConversations.length; index++) ...[
-            _ConversationRow(
-              conversation: previewConversations[index],
-              onTap: showPreviewNotice,
-            ),
-            if (index != previewConversations.length - 1)
-              const SizedBox(height: 10),
-          ],
-        ],
-      );
-    }
 
     return conversationsAsync.when(
       data: (conversations) {
