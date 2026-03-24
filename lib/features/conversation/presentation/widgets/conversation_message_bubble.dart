@@ -186,24 +186,33 @@ class _ConversationMessageBubbleState
                           duration: const Duration(milliseconds: 120),
                           child: IgnorePointer(
                             ignoring: !desktopActionsVisible,
-                            child: Align(
+                            child: OverflowBox(
+                              minWidth: 0,
+                              minHeight: 0,
+                              maxWidth: 480,
+                              maxHeight: 200,
                               alignment: widget.isMe
                                   ? Alignment.centerLeft
                                   : Alignment.centerRight,
-                              child: Transform.translate(
-                                offset: Offset(widget.isMe ? -78 : 78, 0),
-                                child: _DesktopMessageActionsRail(
-                                  message: widget.message,
-                                  isPinned: widget.isPinned,
-                                  showCopy:
-                                      (widget.message.textBody
-                                          ?.trim()
-                                          .isNotEmpty ??
-                                      false),
-                                  onReply: widget.onReply,
-                                  onForward: widget.onForward,
-                                  onTogglePin: widget.onTogglePin,
-                                  onDelete: widget.onDelete,
+                              child: Align(
+                                alignment: widget.isMe
+                                    ? Alignment.centerLeft
+                                    : Alignment.centerRight,
+                                child: Transform.translate(
+                                  offset: Offset(widget.isMe ? -92 : 92, 0),
+                                  child: _DesktopMessageActionsRail(
+                                    message: widget.message,
+                                    isPinned: widget.isPinned,
+                                    showCopy:
+                                        (widget.message.textBody
+                                            ?.trim()
+                                            .isNotEmpty ??
+                                        false),
+                                    onReply: widget.onReply,
+                                    onForward: widget.onForward,
+                                    onTogglePin: widget.onTogglePin,
+                                    onDelete: widget.onDelete,
+                                  ),
                                 ),
                               ),
                             ),
@@ -217,24 +226,33 @@ class _ConversationMessageBubbleState
                           duration: const Duration(milliseconds: 120),
                           child: IgnorePointer(
                             ignoring: !widget.showInlineActions,
-                            child: Align(
+                            child: OverflowBox(
+                              minWidth: 0,
+                              minHeight: 0,
+                              maxWidth: 160,
+                              maxHeight: 120,
                               alignment: widget.isMe
                                   ? Alignment.centerLeft
                                   : Alignment.centerRight,
-                              child: Transform.translate(
-                                offset: Offset(widget.isMe ? -18 : 18, 0),
-                                child: _MobileMessageMenuButton(
-                                  message: widget.message,
-                                  isPinned: widget.isPinned,
-                                  showCopy:
-                                      (widget.message.textBody
-                                          ?.trim()
-                                          .isNotEmpty ??
-                                      false),
-                                  onReply: widget.onReply,
-                                  onForward: widget.onForward,
-                                  onTogglePin: widget.onTogglePin,
-                                  onDelete: widget.onDelete,
+                              child: Align(
+                                alignment: widget.isMe
+                                    ? Alignment.centerLeft
+                                    : Alignment.centerRight,
+                                child: Transform.translate(
+                                  offset: Offset(widget.isMe ? -28 : 28, 0),
+                                  child: _MobileMessageMenuButton(
+                                    message: widget.message,
+                                    isPinned: widget.isPinned,
+                                    showCopy:
+                                        (widget.message.textBody
+                                            ?.trim()
+                                            .isNotEmpty ??
+                                        false),
+                                    onReply: widget.onReply,
+                                    onForward: widget.onForward,
+                                    onTogglePin: widget.onTogglePin,
+                                    onDelete: widget.onDelete,
+                                  ),
                                 ),
                               ),
                             ),
