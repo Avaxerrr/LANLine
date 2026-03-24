@@ -38,13 +38,18 @@ class PeopleScreen extends ConsumerWidget {
           data: (contacts) => Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              _SectionHeader(
-                title: 'Contacts',
-                subtitle: contacts.isEmpty
-                    ? 'No approved contacts yet'
-                    : '${contacts.length} approved contact${contacts.length == 1 ? '' : 's'}',
-              ),
-              const SizedBox(height: 14),
+              if (contacts.isNotEmpty)
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 12),
+                  child: Text(
+                    '${contacts.length} contact${contacts.length == 1 ? '' : 's'}',
+                    style: const TextStyle(
+                      color: Colors.white60,
+                      fontSize: 13,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ),
               contacts.isEmpty
                   ? const _SectionPlaceholder(
                       icon: Icons.people_alt_outlined,
@@ -129,35 +134,6 @@ class PeopleScreen extends ConsumerWidget {
   }
 }
 
-class _SectionHeader extends StatelessWidget {
-  final String title;
-  final String subtitle;
-
-  const _SectionHeader({required this.title, required this.subtitle});
-
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          title,
-          style: const TextStyle(
-            fontSize: 17,
-            fontWeight: FontWeight.w800,
-            letterSpacing: -0.2,
-          ),
-        ),
-        const SizedBox(height: 4),
-        Text(
-          subtitle,
-          style: const TextStyle(color: Colors.white60, fontSize: 13),
-        ),
-      ],
-    );
-  }
-}
-
 class _SectionPlaceholder extends StatelessWidget {
   final IconData icon;
   final String text;
@@ -173,12 +149,18 @@ class _SectionPlaceholder extends StatelessWidget {
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
           colors: [
-            const Color(0xFF182131).withValues(alpha: 0.58),
-            const Color(0xFF101722).withValues(alpha: 0.36),
+            const Color(0xFF1A2432).withValues(alpha: 0.88),
+            const Color(0xFF151D28).withValues(alpha: 0.8),
           ],
         ),
         borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: Colors.white.withValues(alpha: 0.1)),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.1),
+            blurRadius: 16,
+            offset: const Offset(0, 10),
+          ),
+        ],
       ),
       child: Row(
         children: [
@@ -244,7 +226,7 @@ class _ContactCard extends StatelessWidget {
 
     final subtitle = subtitleParts.isEmpty
         ? 'Ready to chat'
-        : subtitleParts.join('  •  ');
+        : subtitleParts.join(' | ');
 
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
@@ -253,12 +235,18 @@ class _ContactCard extends StatelessWidget {
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
           colors: [
-            const Color(0xFF182131).withValues(alpha: 0.58),
-            const Color(0xFF101722).withValues(alpha: 0.36),
+            const Color(0xFF1A2432).withValues(alpha: 0.88),
+            const Color(0xFF151D28).withValues(alpha: 0.8),
           ],
         ),
         borderRadius: BorderRadius.circular(22),
-        border: Border.all(color: Colors.white.withValues(alpha: 0.11)),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.12),
+            blurRadius: 18,
+            offset: const Offset(0, 10),
+          ),
+        ],
       ),
       child: Material(
         color: Colors.transparent,

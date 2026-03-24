@@ -20,11 +20,11 @@ class ChatsScreen extends ConsumerWidget {
         return ListView(
           padding: const EdgeInsets.fromLTRB(16, 16, 16, 32),
           children: [
-            _ChatsSummary(
+            _ChatsToolbar(
               conversationCount: conversations.length,
               onCreateGroup: () => _openCreateGroup(context),
             ),
-            const SizedBox(height: 14),
+            const SizedBox(height: 12),
             if (conversations.isEmpty)
               _EmptyChatsState(onGoToRequests: onGoToRequests)
             else ...[
@@ -90,11 +90,11 @@ class ChatsScreen extends ConsumerWidget {
   }
 }
 
-class _ChatsSummary extends StatelessWidget {
+class _ChatsToolbar extends StatelessWidget {
   final int conversationCount;
   final VoidCallback? onCreateGroup;
 
-  const _ChatsSummary({
+  const _ChatsToolbar({
     required this.conversationCount,
     required this.onCreateGroup,
   });
@@ -102,39 +102,31 @@ class _ChatsSummary extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Row(
-      crossAxisAlignment: CrossAxisAlignment.end,
       children: [
         Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                conversationCount == 0 ? 'Chats' : 'Recent',
-                style: const TextStyle(
-                  fontSize: 17,
-                  fontWeight: FontWeight.w800,
-                  letterSpacing: -0.2,
-                ),
-              ),
-              const SizedBox(height: 4),
-              Text(
-                conversationCount == 0
-                    ? 'Connect from Requests to start a conversation.'
-                    : '$conversationCount active conversation${conversationCount == 1 ? '' : 's'}',
-                style: const TextStyle(
-                  color: Colors.white60,
-                  height: 1.3,
-                  fontSize: 13,
-                ),
-              ),
-            ],
+          child: Text(
+            conversationCount == 0
+                ? 'Start from Requests to create a conversation.'
+                : '$conversationCount conversation${conversationCount == 1 ? '' : 's'}',
+            style: const TextStyle(
+              color: Colors.white60,
+              height: 1.3,
+              fontSize: 13,
+              fontWeight: FontWeight.w600,
+            ),
           ),
         ),
         if (onCreateGroup != null)
-          TextButton.icon(
+          TextButton(
             onPressed: onCreateGroup,
-            icon: const Icon(Icons.groups_2_outlined, size: 18),
-            label: const Text('New group'),
+            style: TextButton.styleFrom(
+              foregroundColor: Colors.white70,
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(999),
+              ),
+            ),
+            child: const Text('New group'),
           ),
       ],
     );
@@ -194,16 +186,15 @@ class _ConversationRow extends StatelessWidget {
               begin: Alignment.topLeft,
               end: Alignment.bottomRight,
               colors: [
-                const Color(0xFF182131).withValues(alpha: 0.58),
-                const Color(0xFF111823).withValues(alpha: 0.38),
+                const Color(0xFF1A2432).withValues(alpha: 0.9),
+                const Color(0xFF151D28).withValues(alpha: 0.82),
               ],
             ),
             borderRadius: BorderRadius.circular(22),
-            border: Border.all(color: Colors.white.withValues(alpha: 0.11)),
             boxShadow: [
               BoxShadow(
                 color: Colors.black.withValues(alpha: 0.12),
-                blurRadius: 20,
+                blurRadius: 18,
                 offset: const Offset(0, 10),
               ),
             ],
@@ -224,9 +215,6 @@ class _ConversationRow extends StatelessWidget {
                         accent.withValues(alpha: 0.18),
                         accent.withValues(alpha: 0.04),
                       ],
-                    ),
-                    border: Border.all(
-                      color: Colors.white.withValues(alpha: 0.05),
                     ),
                   ),
                   child: Icon(
@@ -349,12 +337,18 @@ class _EmptyChatsState extends StatelessWidget {
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
           colors: [
-            const Color(0xFF182131).withValues(alpha: 0.64),
-            const Color(0xFF101722).withValues(alpha: 0.42),
+            const Color(0xFF1A2432).withValues(alpha: 0.9),
+            const Color(0xFF151D28).withValues(alpha: 0.82),
           ],
         ),
         borderRadius: BorderRadius.circular(24),
-        border: Border.all(color: Colors.white.withValues(alpha: 0.12)),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.12),
+            blurRadius: 18,
+            offset: const Offset(0, 10),
+          ),
+        ],
       ),
       child: Column(
         children: [

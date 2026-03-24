@@ -201,71 +201,22 @@ class _AppShellState extends ConsumerState<AppShell> {
     ];
 
     final titles = ['Chats', 'People', 'Requests', 'Settings'];
-    final subtitles = [
-      'Local conversations and groups',
-      'Approved contacts on this network',
-      'Nearby discovery and pending invites',
-      'Profile, identity, and history',
-    ];
 
     return Container(
       decoration: const BoxDecoration(color: Color(0xFF0B1017)),
       child: Scaffold(
         backgroundColor: Colors.transparent,
         appBar: AppBar(
-          toolbarHeight: 74,
+          toolbarHeight: 58,
           titleSpacing: 20,
-          title: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Text(
-                titles[_selectedIndex],
-                style: const TextStyle(
-                  fontSize: 26,
-                  fontWeight: FontWeight.w900,
-                  letterSpacing: -0.45,
-                ),
-              ),
-              const SizedBox(height: 2),
-              Text(
-                subtitles[_selectedIndex],
-                style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                  color: Colors.white54,
-                  fontSize: 12.5,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-            ],
-          ),
-          actions: [
-            Padding(
-              padding: const EdgeInsets.only(right: 16),
-              child: Container(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 12,
-                  vertical: 8,
-                ),
-                decoration: BoxDecoration(
-                  color: Colors.white.withValues(alpha: 0.045),
-                  borderRadius: BorderRadius.circular(999),
-                  border: Border.all(
-                    color: Colors.white.withValues(alpha: 0.08),
-                  ),
-                ),
-                child: Center(
-                  child: Text(
-                    'LANLine',
-                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                      color: Colors.white70,
-                      fontWeight: FontWeight.w800,
-                      letterSpacing: 0.7,
-                    ),
-                  ),
-                ),
-              ),
+          title: Text(
+            titles[_selectedIndex],
+            style: const TextStyle(
+              fontSize: 24,
+              fontWeight: FontWeight.w900,
+              letterSpacing: -0.45,
             ),
-          ],
+          ),
           backgroundColor: Colors.transparent,
           elevation: 0,
           centerTitle: false,

@@ -230,15 +230,14 @@ class _SurfaceCard extends StatelessWidget {
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
           colors: [
-            const Color(0xFF182131).withValues(alpha: 0.58),
-            const Color(0xFF101722).withValues(alpha: 0.36),
+            const Color(0xFF1A2432).withValues(alpha: 0.88),
+            const Color(0xFF151D28).withValues(alpha: 0.8),
           ],
         ),
         borderRadius: BorderRadius.circular(22),
-        border: Border.all(color: Colors.white.withValues(alpha: 0.11)),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withValues(alpha: 0.1),
+            color: Colors.black.withValues(alpha: 0.12),
             blurRadius: 18,
             offset: const Offset(0, 10),
           ),
@@ -339,7 +338,7 @@ class _SettingsActionCard extends StatelessWidget {
       margin: EdgeInsets.zero,
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(18),
-        side: BorderSide(color: Colors.white.withValues(alpha: 0.09)),
+        side: BorderSide(color: Colors.white.withValues(alpha: 0.015)),
       ),
       child: ListTile(
         leading: CircleAvatar(

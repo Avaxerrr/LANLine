@@ -301,7 +301,7 @@ class _RequestSection extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         _SectionTitle(title: title, subtitle: subtitle),
-        const SizedBox(height: 12),
+        const SizedBox(height: 10),
         child,
       ],
     );
@@ -322,15 +322,15 @@ class _SectionTitle extends StatelessWidget {
         Text(
           title,
           style: const TextStyle(
-            fontSize: 16.5,
+            fontSize: 14.5,
             fontWeight: FontWeight.w800,
-            letterSpacing: -0.15,
+            letterSpacing: -0.1,
           ),
         ),
-        const SizedBox(height: 4),
+        const SizedBox(height: 3),
         Text(
           subtitle,
-          style: const TextStyle(color: Colors.white60, fontSize: 13),
+          style: const TextStyle(color: Colors.white54, fontSize: 12.5),
         ),
       ],
     );
@@ -353,12 +353,18 @@ class _EmptyState extends StatelessWidget {
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
           colors: [
-            const Color(0xFF182131).withValues(alpha: 0.5),
-            const Color(0xFF101722).withValues(alpha: 0.32),
+            const Color(0xFF1A2432).withValues(alpha: 0.88),
+            const Color(0xFF151D28).withValues(alpha: 0.8),
           ],
         ),
         borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: Colors.white.withValues(alpha: 0.1)),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.1),
+            blurRadius: 16,
+            offset: const Offset(0, 10),
+          ),
+        ],
       ),
       child: Row(
         children: [
@@ -418,7 +424,7 @@ class _NearbyPeerCard extends StatelessWidget {
 
     final subtitle = subtitleParts.isEmpty
         ? 'Reachable right now'
-        : subtitleParts.join('  •  ');
+        : subtitleParts.join(' | ');
 
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
@@ -428,12 +434,18 @@ class _NearbyPeerCard extends StatelessWidget {
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
           colors: [
-            const Color(0xFF182131).withValues(alpha: 0.58),
-            const Color(0xFF101722).withValues(alpha: 0.36),
+            const Color(0xFF1A2432).withValues(alpha: 0.88),
+            const Color(0xFF151D28).withValues(alpha: 0.8),
           ],
         ),
         borderRadius: BorderRadius.circular(22),
-        border: Border.all(color: Colors.white.withValues(alpha: 0.11)),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.12),
+            blurRadius: 18,
+            offset: const Offset(0, 10),
+          ),
+        ],
       ),
       child: Row(
         children: [
@@ -549,12 +561,18 @@ class _PendingRequestCard extends StatelessWidget {
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
           colors: [
-            const Color(0xFF182131).withValues(alpha: 0.58),
-            const Color(0xFF101722).withValues(alpha: 0.36),
+            const Color(0xFF1A2432).withValues(alpha: 0.88),
+            const Color(0xFF151D28).withValues(alpha: 0.8),
           ],
         ),
         borderRadius: BorderRadius.circular(22),
-        border: Border.all(color: Colors.white.withValues(alpha: 0.11)),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.12),
+            blurRadius: 18,
+            offset: const Offset(0, 10),
+          ),
+        ],
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
