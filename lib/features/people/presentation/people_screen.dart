@@ -258,13 +258,30 @@ class PeopleScreen extends ConsumerWidget {
                               peer: contacts[index],
                               onTap: () =>
                                   unawaited(showContactSheet(contacts[index])),
-                              onMessage: () =>
-                                  unawaited(openConversation(contacts[index])),
+                              onSelected: (action) {
+                                switch (action) {
+                                  case _ContactMenuAction.message:
+                                    unawaited(
+                                      openConversation(contacts[index]),
+                                    );
+                                    break;
+                                  case _ContactMenuAction.block:
+                                    unawaited(
+                                      runPeerAction(
+                                        'Blocked ${contacts[index].displayName}',
+                                        () => requestActions.blockPeer(
+                                          peerId: contacts[index].peerId,
+                                        ),
+                                      ),
+                                    );
+                                    break;
+                                }
+                              },
                             ),
                             if (index != contacts.length - 1)
                               Divider(
                                 height: 1,
-                                indent: 76,
+                                indent: 72,
                                 endIndent: 18,
                                 color: Colors.white.withValues(alpha: 0.05),
                               ),
@@ -351,12 +368,12 @@ class _SectionLoading extends StatelessWidget {
 class _ContactRow extends StatelessWidget {
   final PeerRow peer;
   final VoidCallback onTap;
-  final VoidCallback onMessage;
+  final ValueChanged<_ContactMenuAction> onSelected;
 
   const _ContactRow({
     required this.peer,
     required this.onTap,
-    required this.onMessage,
+    required this.onSelected,
   });
 
   @override
@@ -432,12 +449,28 @@ class _ContactRow extends StatelessWidget {
                   ],
                 ),
               ),
-              const SizedBox(width: 8),
-              IconButton(
-                tooltip: 'Message',
-                onPressed: onMessage,
-                icon: const Icon(Icons.chat_bubble_outline),
-                color: Colors.white60,
+              const SizedBox(width: 4),
+              PopupMenuButton<_ContactMenuAction>(
+                tooltip: 'Contact actions',
+                icon: const Icon(Icons.more_horiz, color: Colors.white38),
+                onSelected: onSelected,
+                itemBuilder: (context) => const [
+                  PopupMenuItem(
+                    value: _ContactMenuAction.message,
+                    child: _ContactMenuItem(
+                      icon: Icons.chat_bubble_outline,
+                      label: 'Message',
+                    ),
+                  ),
+                  PopupMenuItem(
+                    value: _ContactMenuAction.block,
+                    child: _ContactMenuItem(
+                      icon: Icons.block_outlined,
+                      label: 'Block',
+                      color: Colors.redAccent,
+                    ),
+                  ),
+                ],
               ),
             ],
           ),
@@ -456,6 +489,28 @@ class _ContactRow extends StatelessWidget {
         'Saved contact',
     ];
     return parts.join(' | ');
+  }
+}
+
+enum _ContactMenuAction { message, block }
+
+class _ContactMenuItem extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final Color? color;
+
+  const _ContactMenuItem({required this.icon, required this.label, this.color});
+
+  @override
+  Widget build(BuildContext context) {
+    final resolvedColor = color ?? Colors.white;
+    return Row(
+      children: [
+        Icon(icon, size: 18, color: resolvedColor),
+        const SizedBox(width: 10),
+        Text(label, style: TextStyle(color: resolvedColor)),
+      ],
+    );
   }
 }
 
