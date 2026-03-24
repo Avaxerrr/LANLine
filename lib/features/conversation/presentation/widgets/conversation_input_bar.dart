@@ -156,12 +156,18 @@ class ConversationInputBar extends StatelessWidget {
                             textInputAction: TextInputAction.send,
                             onSubmitted: (_) => onSendMessage(),
                             textAlignVertical: TextAlignVertical.center,
+                            style: const TextStyle(color: Colors.white),
                             decoration: InputDecoration(
                               hintText: isGroup
                                   ? 'Message the group'
                                   : 'Type a message',
+                              hintStyle: TextStyle(
+                                color: Colors.white.withValues(alpha: 0.58),
+                              ),
                               filled: true,
-                              fillColor: Colors.white.withValues(alpha: 0.03),
+                              fillColor: const Color(
+                                0xFF121A26,
+                              ).withValues(alpha: 0.86),
                               contentPadding: const EdgeInsets.symmetric(
                                 horizontal: 16,
                                 vertical: 14,
@@ -169,6 +175,20 @@ class ConversationInputBar extends StatelessWidget {
                               border: OutlineInputBorder(
                                 borderRadius: BorderRadius.circular(18),
                                 borderSide: BorderSide.none,
+                              ),
+                              enabledBorder: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(18),
+                                borderSide: BorderSide(
+                                  color: Colors.white.withValues(alpha: 0.05),
+                                ),
+                              ),
+                              focusedBorder: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(18),
+                                borderSide: BorderSide(
+                                  color: Colors.blueAccent.withValues(
+                                    alpha: 0.28,
+                                  ),
+                                ),
                               ),
                             ),
                           ),
