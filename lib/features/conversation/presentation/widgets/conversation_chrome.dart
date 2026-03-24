@@ -21,9 +21,9 @@ class ConversationTitle extends StatelessWidget {
     final subtitle = isGroup
         ? membersAsync.maybeWhen(
             data: (members) => '${members.length} members',
-            orElse: () => 'Group chat',
+            orElse: () => null,
           )
-        : 'Direct conversation';
+        : null;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -35,38 +35,15 @@ class ConversationTitle extends StatelessWidget {
           overflow: TextOverflow.ellipsis,
           style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w800),
         ),
-        const SizedBox(height: 6),
-        Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-              decoration: BoxDecoration(
-                color: isGroup
-                    ? Colors.amber.withValues(alpha: 0.14)
-                    : Colors.blueAccent.withValues(alpha: 0.14),
-                borderRadius: BorderRadius.circular(999),
-              ),
-              child: Text(
-                isGroup ? 'Group' : 'Direct',
-                style: TextStyle(
-                  color: isGroup ? Colors.amber : Colors.blueAccent,
-                  fontSize: 11,
-                  fontWeight: FontWeight.w700,
-                ),
-              ),
-            ),
-            const SizedBox(width: 8),
-            Flexible(
-              child: Text(
-                subtitle,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: const TextStyle(fontSize: 12, color: Colors.grey),
-              ),
-            ),
-          ],
-        ),
+        if (subtitle != null) ...[
+          const SizedBox(height: 6),
+          Text(
+            subtitle,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: const TextStyle(fontSize: 12, color: Colors.grey),
+          ),
+        ],
       ],
     );
   }
