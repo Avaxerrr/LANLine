@@ -395,6 +395,9 @@ class _DirectConversationScreenState
 
   @override
   Widget build(BuildContext context) {
+    final mediaQuery = MediaQuery.of(context);
+    final composerBottomInset =
+        mediaQuery.padding.bottom + (_replyingToMessage == null ? 132 : 212);
     final messagesAsync = ref.watch(
       conversationMessagesProvider(widget.conversationId),
     );
@@ -501,7 +504,12 @@ class _DirectConversationScreenState
 
                           return ListView.builder(
                             controller: _scrollController,
-                            padding: const EdgeInsets.fromLTRB(16, 16, 16, 24),
+                            padding: EdgeInsets.fromLTRB(
+                              16,
+                              16,
+                              16,
+                              composerBottomInset,
+                            ),
                             itemCount: messages.length,
                             itemBuilder: (context, index) {
                               final message = messages[index];
@@ -557,21 +565,26 @@ class _DirectConversationScreenState
                       ConversationError(message: '$error'),
                 ),
               ),
-              ConversationInputBar(
-                supportsDirectMedia: _supportsDirectMedia,
-                isPickingFile: _isPickingFile,
-                isSending: _isSending,
-                isGroup: _isGroup,
-                textController: _textController,
-                onPickFile: _pickAndSendFile,
-                onSendMessage: _sendMessage,
-                replyTitle: _replyingToMessage == null ? null : 'Replying',
-                replyPreview: _replyingToMessage == null
-                    ? null
-                    : _replyPreviewText(_replyingToMessage!),
-                onClearReply: _replyingToMessage == null ? null : _clearReply,
-              ),
             ],
+          ),
+          Positioned(
+            left: 0,
+            right: 0,
+            bottom: 0,
+            child: ConversationInputBar(
+              supportsDirectMedia: _supportsDirectMedia,
+              isPickingFile: _isPickingFile,
+              isSending: _isSending,
+              isGroup: _isGroup,
+              textController: _textController,
+              onPickFile: _pickAndSendFile,
+              onSendMessage: _sendMessage,
+              replyTitle: _replyingToMessage == null ? null : 'Replying',
+              replyPreview: _replyingToMessage == null
+                  ? null
+                  : _replyPreviewText(_replyingToMessage!),
+              onClearReply: _replyingToMessage == null ? null : _clearReply,
+            ),
           ),
         ],
       ),
