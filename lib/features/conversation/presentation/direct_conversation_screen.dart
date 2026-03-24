@@ -40,7 +40,8 @@ class _DirectConversationScreenState
   bool _isSending = false;
   bool _isPickingFile = false;
   MessageRow? _replyingToMessage;
-  String? _activeMessageActionsId;
+  bool _didInitialAutoScroll = false;
+  int _lastObservedMessageCount = 0;
 
   bool get _isGroup => widget.conversationType == 'group';
   bool get _supportsDirectMedia => !_isGroup && widget.peerId != null;
@@ -194,10 +195,7 @@ class _DirectConversationScreenState
   }
 
   void _setReply(MessageRow message) {
-    setState(() {
-      _replyingToMessage = message;
-      _activeMessageActionsId = null;
-    });
+    setState(() => _replyingToMessage = message);
   }
 
   void _clearReply() {
@@ -205,26 +203,9 @@ class _DirectConversationScreenState
     setState(() => _replyingToMessage = null);
   }
 
-  void _toggleMessageActions(String messageId) {
-    setState(() {
-      _activeMessageActionsId = _activeMessageActionsId == messageId
-          ? null
-          : messageId;
-    });
-  }
-
   Future<void> _deleteMessage(MessageRow message) async {
     try {
       await ref.read(conversationActionsProvider).deleteMessage(message.id);
-      if (!mounted) return;
-      setState(() {
-        if (_replyingToMessage?.id == message.id) {
-          _replyingToMessage = null;
-        }
-        if (_activeMessageActionsId == message.id) {
-          _activeMessageActionsId = null;
-        }
-      });
       if (_replyingToMessage?.id == message.id) {
         _clearReply();
       }
@@ -240,7 +221,6 @@ class _DirectConversationScreenState
     final text = message.textBody?.trim();
     if (text == null || text.isEmpty) return;
     if (!mounted) return;
-    setState(() => _activeMessageActionsId = null);
 
     final targetConversation = await showModalBottomSheet<ConversationRow>(
       context: context,
@@ -301,7 +281,6 @@ class _DirectConversationScreenState
 
   Future<void> _togglePin(MessageRow message) async {
     try {
-      setState(() => _activeMessageActionsId = null);
       final conversation = await ref.read(
         conversationStreamProvider(widget.conversationId).future,
       );
@@ -327,6 +306,39 @@ class _DirectConversationScreenState
         context,
       ).showSnackBar(SnackBar(content: Text('Failed to update pin: $error')));
     }
+  }
+
+  void _maybeAutoScroll(List<MessageRow> messages, String? localPeerId) {
+    final shouldInitialScroll = !_didInitialAutoScroll && messages.isNotEmpty;
+    final hasNewMessage = messages.length > _lastObservedMessageCount;
+
+    bool nearBottom = true;
+    if (_scrollController.hasClients) {
+      nearBottom =
+          (_scrollController.position.maxScrollExtent -
+              _scrollController.offset) <
+          120;
+    }
+
+    final latestIsMine =
+        messages.isNotEmpty && messages.last.senderPeerId == localPeerId;
+
+    _lastObservedMessageCount = messages.length;
+
+    if (!(shouldInitialScroll ||
+        (hasNewMessage && (nearBottom || latestIsMine)))) {
+      return;
+    }
+
+    _didInitialAutoScroll = true;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!_scrollController.hasClients) return;
+      _scrollController.animateTo(
+        _scrollController.position.maxScrollExtent,
+        duration: const Duration(milliseconds: 220),
+        curve: Curves.easeOut,
+      );
+    });
   }
 
   String _messagePreviewText(MessageRow message) {
@@ -445,15 +457,7 @@ class _DirectConversationScreenState
                   if (messages.isEmpty) {
                     return ConversationEmptyState(isGroup: _isGroup);
                   }
-
-                  WidgetsBinding.instance.addPostFrameCallback((_) {
-                    if (_scrollController.hasClients &&
-                        _scrollController.position.maxScrollExtent > 0) {
-                      _scrollController.jumpTo(
-                        _scrollController.position.maxScrollExtent,
-                      );
-                    }
-                  });
+                  _maybeAutoScroll(messages, localIdentity?.peerId);
 
                   return membersAsync.when(
                     data: (members) {
@@ -494,10 +498,6 @@ class _DirectConversationScreenState
                             onDelete: _deleteMessage,
                             onForward: _forwardMessage,
                             onTogglePin: _togglePin,
-                            showInlineActions:
-                                _activeMessageActionsId == message.id,
-                            onToggleActions: () =>
-                                _toggleMessageActions(message.id),
                             isPinned: conversationAsync.maybeWhen(
                               data: (conversation) =>
                                   conversation?.pinnedMessageId == message.id,
