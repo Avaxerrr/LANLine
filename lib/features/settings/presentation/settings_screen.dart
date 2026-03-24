@@ -6,6 +6,7 @@ import 'package:qr_flutter/qr_flutter.dart';
 
 import '../../../core/providers/app_metadata_provider.dart';
 import '../../../core/providers/username_provider.dart';
+import '../../../core/providers/v2_data_providers.dart';
 import '../../../core/providers/v2_identity_provider.dart';
 import '../../downloads/presentation/download_history_screen.dart';
 
@@ -55,6 +56,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
   Widget build(BuildContext context) {
     final identityAsync = ref.watch(localIdentityProvider);
     final version = ref.watch(appVersionProvider);
+    final previewEnabled = ref.watch(previewCrowdedUiProvider);
 
     return identityAsync.when(
       data: (identity) {
@@ -167,6 +169,27 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                     ? CrossFadeState.showSecond
                     : CrossFadeState.showFirst,
                 duration: const Duration(milliseconds: 220),
+              ),
+            ),
+            const SizedBox(height: 18),
+            _SurfaceCard(
+              title: 'Preview',
+              subtitle:
+                  'Temporarily fill Chats and People with mock rows to inspect crowded layouts.',
+              child: SwitchListTile(
+                contentPadding: EdgeInsets.zero,
+                value: previewEnabled,
+                onChanged: (value) {
+                  ref.read(previewCrowdedUiProvider.notifier).setEnabled(value);
+                },
+                title: const Text(
+                  'Preview Crowded UI',
+                  style: TextStyle(fontWeight: FontWeight.w700),
+                ),
+                subtitle: const Text(
+                  'Uses sample contacts and conversations only on-screen.',
+                  style: TextStyle(color: Colors.white60),
+                ),
               ),
             ),
             const SizedBox(height: 18),

@@ -12,6 +12,8 @@ class PeopleScreen extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final previewEnabled = ref.watch(previewCrowdedUiProvider);
+    final previewContacts = ref.watch(previewContactsProvider);
     final contactsAsync = ref.watch(contactsProvider);
     final requestActions = ref.read(requestActionsProvider);
     final conversationActions = ref.read(conversationActionsProvider);
@@ -197,6 +199,47 @@ class PeopleScreen extends ConsumerWidget {
             ),
           );
         },
+      );
+    }
+
+    void showPreviewNotice() {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Preview mode uses mock data only.')),
+      );
+    }
+
+    if (previewEnabled) {
+      return ListView(
+        padding: const EdgeInsets.fromLTRB(16, 16, 16, 138),
+        children: [
+          Padding(
+            padding: const EdgeInsets.only(bottom: 14),
+            child: Text(
+              '${previewContacts.length} contacts',
+              style: const TextStyle(
+                color: Colors.white60,
+                fontSize: 13,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ),
+          for (var index = 0; index < previewContacts.length; index++) ...[
+            _ContactRow(
+              peer: previewContacts[index],
+              onTap: showPreviewNotice,
+              onSelected: (_) => showPreviewNotice(),
+            ),
+            if (index != previewContacts.length - 1)
+              Padding(
+                padding: const EdgeInsets.only(left: 72),
+                child: Divider(
+                  height: 1,
+                  thickness: 1,
+                  color: Colors.white.withValues(alpha: 0.05),
+                ),
+              ),
+          ],
+        ],
       );
     }
 

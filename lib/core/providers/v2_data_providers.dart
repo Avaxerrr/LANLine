@@ -12,9 +12,101 @@ import 'v2_presence_discovery_provider.dart';
 import 'v2_request_protocol_provider.dart';
 import 'v2_repository_providers.dart';
 
+class PreviewCrowdedUiNotifier extends Notifier<bool> {
+  @override
+  bool build() => false;
+
+  void setEnabled(bool value) {
+    state = value;
+  }
+}
+
+final previewCrowdedUiProvider =
+    NotifierProvider<PreviewCrowdedUiNotifier, bool>(
+      PreviewCrowdedUiNotifier.new,
+    );
+
 final contactsProvider = StreamProvider((ref) {
   ref.watch(v2PresenceDiscoveryControllerProvider);
   return ref.read(peersRepositoryProvider).watchAcceptedContacts();
+});
+
+final previewContactsProvider = Provider<List<PeerRow>>((ref) {
+  final now = DateTime.now().millisecondsSinceEpoch;
+  return [
+    PeerRow(
+      id: 'mock-peer-1',
+      peerId: 'mock-peer-1',
+      displayName: 'Ken',
+      deviceLabel: 'Ken\'s Phone',
+      fingerprint: 'ABE2-7C',
+      relationshipState: 'accepted',
+      isBlocked: false,
+      lastSeenAt: now - const Duration(minutes: 3).inMilliseconds,
+      createdAt: now,
+      updatedAt: now,
+    ),
+    PeerRow(
+      id: 'mock-peer-2',
+      peerId: 'mock-peer-2',
+      displayName: 'Aira',
+      deviceLabel: 'Aira Laptop',
+      fingerprint: 'H3Q1-9L',
+      relationshipState: 'accepted',
+      isBlocked: false,
+      lastSeenAt: now - const Duration(minutes: 14).inMilliseconds,
+      createdAt: now,
+      updatedAt: now,
+    ),
+    PeerRow(
+      id: 'mock-peer-3',
+      peerId: 'mock-peer-3',
+      displayName: 'Marco',
+      deviceLabel: 'Studio PC',
+      fingerprint: 'LK22-0P',
+      relationshipState: 'accepted',
+      isBlocked: false,
+      lastSeenAt: now - const Duration(hours: 2).inMilliseconds,
+      createdAt: now,
+      updatedAt: now,
+    ),
+    PeerRow(
+      id: 'mock-peer-4',
+      peerId: 'mock-peer-4',
+      displayName: 'Jules',
+      deviceLabel: 'Tablet',
+      fingerprint: 'QZ11-4R',
+      relationshipState: 'accepted',
+      isBlocked: false,
+      lastSeenAt: null,
+      createdAt: now,
+      updatedAt: now,
+    ),
+    PeerRow(
+      id: 'mock-peer-5',
+      peerId: 'mock-peer-5',
+      displayName: 'Mina',
+      deviceLabel: 'Office Mac',
+      fingerprint: 'PT08-6S',
+      relationshipState: 'accepted',
+      isBlocked: false,
+      lastSeenAt: now - const Duration(days: 1, hours: 3).inMilliseconds,
+      createdAt: now,
+      updatedAt: now,
+    ),
+    PeerRow(
+      id: 'mock-peer-6',
+      peerId: 'mock-peer-6',
+      displayName: 'Rico',
+      deviceLabel: 'Rico\'s Desktop',
+      fingerprint: 'VB54-2M',
+      relationshipState: 'accepted',
+      isBlocked: false,
+      lastSeenAt: now - const Duration(minutes: 49).inMilliseconds,
+      createdAt: now,
+      updatedAt: now,
+    ),
+  ];
 });
 
 final reachableContactsProvider = StreamProvider((ref) {
@@ -46,6 +138,102 @@ final conversationListProvider = StreamProvider<List<ConversationRow>>((ref) {
     loading: () => Stream.value(const []),
     error: (error, stackTrace) => Stream.error(error, stackTrace),
   );
+});
+
+final previewConversationListProvider = Provider<List<ConversationRow>>((ref) {
+  final now = DateTime.now();
+  return [
+    ConversationRow(
+      id: 'mock-conversation-1',
+      type: 'group',
+      title: 'Weekend LAN Party',
+      pinnedMessageId: null,
+      lastMessagePreview: 'Bring your own headset this time.',
+      lastMessageAt: now
+          .subtract(const Duration(minutes: 6))
+          .millisecondsSinceEpoch,
+      unreadCount: 3,
+      isArchived: false,
+      isMuted: false,
+      createdAt: now.millisecondsSinceEpoch,
+      updatedAt: now.millisecondsSinceEpoch,
+    ),
+    ConversationRow(
+      id: 'mock-conversation-2',
+      type: 'direct',
+      title: 'Ken',
+      pinnedMessageId: null,
+      lastMessagePreview: 'I\'ll send the build after dinner.',
+      lastMessageAt: now
+          .subtract(const Duration(minutes: 18))
+          .millisecondsSinceEpoch,
+      unreadCount: 0,
+      isArchived: false,
+      isMuted: false,
+      createdAt: now.millisecondsSinceEpoch,
+      updatedAt: now.millisecondsSinceEpoch,
+    ),
+    ConversationRow(
+      id: 'mock-conversation-3',
+      type: 'direct',
+      title: 'Aira',
+      pinnedMessageId: null,
+      lastMessagePreview: 'Can you test on Windows too?',
+      lastMessageAt: now
+          .subtract(const Duration(hours: 2, minutes: 10))
+          .millisecondsSinceEpoch,
+      unreadCount: 1,
+      isArchived: false,
+      isMuted: false,
+      createdAt: now.millisecondsSinceEpoch,
+      updatedAt: now.millisecondsSinceEpoch,
+    ),
+    ConversationRow(
+      id: 'mock-conversation-4',
+      type: 'group',
+      title: 'Office Mesh',
+      pinnedMessageId: null,
+      lastMessagePreview: 'Printer is back online.',
+      lastMessageAt: now
+          .subtract(const Duration(hours: 5, minutes: 24))
+          .millisecondsSinceEpoch,
+      unreadCount: 0,
+      isArchived: false,
+      isMuted: true,
+      createdAt: now.millisecondsSinceEpoch,
+      updatedAt: now.millisecondsSinceEpoch,
+    ),
+    ConversationRow(
+      id: 'mock-conversation-5',
+      type: 'direct',
+      title: 'Marco',
+      pinnedMessageId: null,
+      lastMessagePreview: 'The photos transferred correctly.',
+      lastMessageAt: now
+          .subtract(const Duration(days: 1, hours: 1))
+          .millisecondsSinceEpoch,
+      unreadCount: 0,
+      isArchived: false,
+      isMuted: false,
+      createdAt: now.millisecondsSinceEpoch,
+      updatedAt: now.millisecondsSinceEpoch,
+    ),
+    ConversationRow(
+      id: 'mock-conversation-6',
+      type: 'direct',
+      title: 'Jules',
+      pinnedMessageId: null,
+      lastMessagePreview: 'Meet near the router closet.',
+      lastMessageAt: now
+          .subtract(const Duration(days: 3))
+          .millisecondsSinceEpoch,
+      unreadCount: 2,
+      isArchived: false,
+      isMuted: false,
+      createdAt: now.millisecondsSinceEpoch,
+      updatedAt: now.millisecondsSinceEpoch,
+    ),
+  ];
 });
 
 final pendingGroupInvitesProvider = StreamProvider<List<ConversationRow>>((
