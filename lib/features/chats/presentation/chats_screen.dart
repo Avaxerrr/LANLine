@@ -19,103 +19,44 @@ class ChatsScreen extends ConsumerWidget {
       children: [
         conversationsAsync.when(
           data: (conversations) {
-            if (conversations.isEmpty) {
-              return _EmptyChatsState(onGoToRequests: onGoToRequests);
-            }
-
-            return ListView.separated(
+            return ListView(
               padding: const EdgeInsets.fromLTRB(16, 16, 16, 96),
-              itemCount: conversations.length,
-              separatorBuilder: (_, _) => const SizedBox(height: 12),
-              itemBuilder: (context, index) {
-                final conversation = conversations[index];
-                return Card(
-                  color: const Color(0xFF1B1B1B),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(18),
-                  ),
-                  child: ListTile(
-                    onTap: () => _openConversation(
-                      context,
-                      ref,
-                      conversation: conversation,
-                    ),
-                    contentPadding: const EdgeInsets.symmetric(
-                      horizontal: 16,
-                      vertical: 10,
-                    ),
-                    leading: CircleAvatar(
-                      backgroundColor: _accentForConversation(
-                        conversation.type,
-                      ).withValues(alpha: 0.18),
-                      child: Icon(
-                        conversation.type == 'group'
-                            ? Icons.groups_2_outlined
-                            : Icons.chat_bubble_outline,
-                        color: _accentForConversation(conversation.type),
+              children: [
+                _ChatsHeader(
+                  conversationCount: conversations.length,
+                  onGoToRequests: onGoToRequests,
+                ),
+                const SizedBox(height: 18),
+                _SectionLabel(
+                  title: conversations.isEmpty
+                      ? 'Nothing active yet'
+                      : 'Recent conversations',
+                  subtitle: conversations.isEmpty
+                      ? 'Connect from Requests or create a group to start talking.'
+                      : 'Direct chats and groups appear here in one place.',
+                ),
+                const SizedBox(height: 14),
+                if (conversations.isEmpty)
+                  _EmptyChatsState(onGoToRequests: onGoToRequests)
+                else ...[
+                  for (
+                    var index = 0;
+                    index < conversations.length;
+                    index++
+                  ) ...[
+                    _ConversationCard(
+                      conversation: conversations[index],
+                      onTap: () => _openConversation(
+                        context,
+                        ref,
+                        conversation: conversations[index],
                       ),
                     ),
-                    title: Row(
-                      crossAxisAlignment: CrossAxisAlignment.center,
-                      children: [
-                        Expanded(
-                          child: Text(
-                            conversation.title ??
-                                (conversation.type == 'group'
-                                    ? 'Group chat'
-                                    : 'Direct conversation'),
-                            style: const TextStyle(fontWeight: FontWeight.w700),
-                          ),
-                        ),
-                        if (conversation.type == 'group')
-                          Align(
-                            alignment: Alignment.center,
-                            child: Container(
-                              height: 30,
-                              alignment: Alignment.center,
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 10,
-                                vertical: 4,
-                              ),
-                              decoration: BoxDecoration(
-                                color: Colors.amber.withValues(alpha: 0.14),
-                                borderRadius: BorderRadius.circular(999),
-                              ),
-                              child: const Text(
-                                'Group',
-                                style: TextStyle(
-                                  color: Colors.amber,
-                                  fontSize: 11,
-                                  fontWeight: FontWeight.w700,
-                                ),
-                              ),
-                            ),
-                          ),
-                      ],
-                    ),
-                    subtitle: Text(
-                      conversation.lastMessagePreview ?? 'No messages yet',
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(color: Colors.grey),
-                    ),
-                    trailing: conversation.unreadCount > 0
-                        ? CircleAvatar(
-                            radius: 12,
-                            backgroundColor: Colors.blueAccent,
-                            child: Text(
-                              '${conversation.unreadCount}',
-                              style: const TextStyle(
-                                fontSize: 11,
-                                fontWeight: FontWeight.bold,
-                                color: Colors.white,
-                              ),
-                            ),
-                          )
-                        : const Icon(Icons.chevron_right, color: Colors.grey),
-                  ),
-                );
-              },
+                    if (index != conversations.length - 1)
+                      const SizedBox(height: 12),
+                  ],
+                ],
+              ],
             );
           },
           loading: () => const Center(child: CircularProgressIndicator()),
@@ -125,11 +66,15 @@ class ChatsScreen extends ConsumerWidget {
         Positioned(
           right: 16,
           bottom: 16,
-          child: FloatingActionButton.extended(
-            onPressed: () => _openCreateGroup(context),
-            backgroundColor: Colors.blueAccent,
-            icon: const Icon(Icons.group_add_outlined),
-            label: const Text('New Group'),
+          child: SafeArea(
+            top: false,
+            child: FloatingActionButton.extended(
+              onPressed: () => _openCreateGroup(context),
+              backgroundColor: Colors.blueAccent,
+              elevation: 8,
+              icon: const Icon(Icons.group_add_outlined),
+              label: const Text('New Group'),
+            ),
           ),
         ),
       ],
@@ -157,10 +102,7 @@ class ChatsScreen extends ConsumerWidget {
         builder: (_) => DirectConversationScreen(
           conversationId: conversation.id,
           peerId: peerId,
-          title: conversation.title ??
-              (conversation.type == 'group'
-                  ? 'Group chat'
-                  : 'Direct conversation'),
+          title: conversation.title ?? _defaultConversationTitle(conversation),
           conversationType: conversation.type,
         ),
       ),
@@ -174,8 +116,308 @@ class ChatsScreen extends ConsumerWidget {
     ).push(MaterialPageRoute(builder: (_) => const CreateGroupScreen()));
   }
 
-  static Color _accentForConversation(String type) {
-    return type == 'group' ? Colors.amber : Colors.blueAccent;
+  static String _defaultConversationTitle(ConversationRow conversation) {
+    return conversation.type == 'group' ? 'Group chat' : 'Direct conversation';
+  }
+}
+
+class _ChatsHeader extends StatelessWidget {
+  final int conversationCount;
+  final VoidCallback? onGoToRequests;
+
+  const _ChatsHeader({
+    required this.conversationCount,
+    required this.onGoToRequests,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(18),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [
+            Colors.blueAccent.withValues(alpha: 0.18),
+            Colors.white.withValues(alpha: 0.04),
+          ],
+        ),
+        borderRadius: BorderRadius.circular(24),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.06)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                width: 44,
+                height: 44,
+                decoration: BoxDecoration(
+                  color: Colors.blueAccent.withValues(alpha: 0.18),
+                  shape: BoxShape.circle,
+                ),
+                child: const Icon(
+                  Icons.forum_outlined,
+                  color: Colors.blueAccent,
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text(
+                      'Chats',
+                      style: TextStyle(
+                        fontSize: 20,
+                        fontWeight: FontWeight.w900,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      conversationCount == 0
+                          ? 'No active conversations yet'
+                          : '$conversationCount active conversation${conversationCount == 1 ? '' : 's'}',
+                      style: const TextStyle(color: Colors.white70),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 16),
+          Wrap(
+            spacing: 10,
+            runSpacing: 10,
+            children: [
+              _HeaderChip(
+                icon: Icons.inbox_outlined,
+                label: 'Requests',
+                onTap: onGoToRequests,
+              ),
+              const _HeaderChip(
+                icon: Icons.group_add_outlined,
+                label: 'Create group',
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _HeaderChip extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final VoidCallback? onTap;
+
+  const _HeaderChip({required this.icon, required this.label, this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    final chip = Container(
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+      decoration: BoxDecoration(
+        color: Colors.black.withValues(alpha: 0.16),
+        borderRadius: BorderRadius.circular(999),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 18, color: Colors.white70),
+          const SizedBox(width: 8),
+          Text(label, style: const TextStyle(fontWeight: FontWeight.w700)),
+        ],
+      ),
+    );
+
+    if (onTap == null) {
+      return chip;
+    }
+
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(999),
+      child: chip,
+    );
+  }
+}
+
+class _SectionLabel extends StatelessWidget {
+  final String title;
+  final String subtitle;
+
+  const _SectionLabel({required this.title, required this.subtitle});
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          title,
+          style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w800),
+        ),
+        const SizedBox(height: 4),
+        Text(
+          subtitle,
+          style: const TextStyle(color: Colors.white70, height: 1.35),
+        ),
+      ],
+    );
+  }
+}
+
+class _ConversationCard extends StatelessWidget {
+  final ConversationRow conversation;
+  final VoidCallback onTap;
+
+  const _ConversationCard({required this.conversation, required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    final accent = conversation.type == 'group'
+        ? Colors.amber
+        : Colors.blueAccent;
+    final title =
+        conversation.title ??
+        (conversation.type == 'group' ? 'Group chat' : 'Direct conversation');
+    final preview = conversation.lastMessagePreview ?? 'No messages yet';
+
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(20),
+        child: Ink(
+          decoration: BoxDecoration(
+            color: const Color(0xFF1B1B1B),
+            borderRadius: BorderRadius.circular(20),
+            border: Border.all(color: Colors.white.withValues(alpha: 0.05)),
+          ),
+          child: Padding(
+            padding: const EdgeInsets.all(16),
+            child: Row(
+              children: [
+                Container(
+                  width: 52,
+                  height: 52,
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                      colors: [
+                        accent.withValues(alpha: 0.22),
+                        Colors.white.withValues(alpha: 0.05),
+                      ],
+                    ),
+                    shape: BoxShape.circle,
+                  ),
+                  child: Icon(
+                    conversation.type == 'group'
+                        ? Icons.groups_2_outlined
+                        : Icons.chat_bubble_outline,
+                    color: accent,
+                  ),
+                ),
+                const SizedBox(width: 14),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          Expanded(
+                            child: Text(
+                              title,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: const TextStyle(
+                                fontSize: 16,
+                                fontWeight: FontWeight.w800,
+                              ),
+                            ),
+                          ),
+                          if (conversation.type == 'group')
+                            _TypePill(label: 'Group', accent: accent),
+                        ],
+                      ),
+                      const SizedBox(height: 6),
+                      Text(
+                        preview,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                          color: Colors.white70,
+                          height: 1.3,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(width: 12),
+                if (conversation.unreadCount > 0)
+                  Container(
+                    constraints: const BoxConstraints(minWidth: 24),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 8,
+                      vertical: 6,
+                    ),
+                    decoration: BoxDecoration(
+                      color: Colors.blueAccent,
+                      borderRadius: BorderRadius.circular(999),
+                    ),
+                    child: Text(
+                      '${conversation.unreadCount}',
+                      textAlign: TextAlign.center,
+                      style: const TextStyle(
+                        fontSize: 11,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.white,
+                      ),
+                    ),
+                  )
+                else
+                  Icon(
+                    Icons.chevron_right,
+                    color: Colors.white.withValues(alpha: 0.35),
+                  ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _TypePill extends StatelessWidget {
+  final String label;
+  final Color accent;
+
+  const _TypePill({required this.label, required this.accent});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+      decoration: BoxDecoration(
+        color: accent.withValues(alpha: 0.14),
+        borderRadius: BorderRadius.circular(999),
+      ),
+      child: Text(
+        label,
+        style: TextStyle(
+          color: accent,
+          fontSize: 11,
+          fontWeight: FontWeight.w800,
+        ),
+      ),
+    );
   }
 }
 
@@ -186,55 +428,59 @@ class _EmptyChatsState extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 28),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Container(
-              padding: const EdgeInsets.all(24),
-              decoration: BoxDecoration(
-                color: Colors.blueAccent.withValues(alpha: 0.12),
-                shape: BoxShape.circle,
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(24),
+      decoration: BoxDecoration(
+        color: const Color(0xFF1B1B1B),
+        borderRadius: BorderRadius.circular(24),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.05)),
+      ),
+      child: Column(
+        children: [
+          Container(
+            padding: const EdgeInsets.all(22),
+            decoration: BoxDecoration(
+              color: Colors.blueAccent.withValues(alpha: 0.12),
+              shape: BoxShape.circle,
+            ),
+            child: const Icon(
+              Icons.forum_outlined,
+              size: 48,
+              color: Colors.blueAccent,
+            ),
+          ),
+          const SizedBox(height: 20),
+          const Text(
+            'No chats yet',
+            style: TextStyle(fontSize: 22, fontWeight: FontWeight.w900),
+          ),
+          const SizedBox(height: 10),
+          const Text(
+            'Connect from Requests or create a group to start your first conversation.',
+            textAlign: TextAlign.center,
+            style: TextStyle(color: Colors.white70, height: 1.45),
+          ),
+          const SizedBox(height: 20),
+          Wrap(
+            spacing: 12,
+            runSpacing: 12,
+            alignment: WrapAlignment.center,
+            children: [
+              FilledButton.icon(
+                onPressed: onGoToRequests,
+                icon: const Icon(Icons.inbox_outlined),
+                label: const Text('Open Requests'),
               ),
-              child: const Icon(
-                Icons.forum_outlined,
-                size: 52,
-                color: Colors.blueAccent,
-              ),
-            ),
-            const SizedBox(height: 24),
-            const Text(
-              'No chats yet',
-              style: TextStyle(fontSize: 22, fontWeight: FontWeight.w800),
-            ),
-            const SizedBox(height: 10),
-            const Text(
-              'Direct conversations and groups will appear here once you connect from the Requests tab.',
-              textAlign: TextAlign.center,
-              style: TextStyle(color: Colors.grey, height: 1.4),
-            ),
-            const SizedBox(height: 24),
-            Wrap(
-              spacing: 12,
-              runSpacing: 12,
-              alignment: WrapAlignment.center,
-              children: [
-                OutlinedButton.icon(
-                  onPressed: onGoToRequests,
-                  icon: const Icon(Icons.inbox_outlined),
-                  label: const Text('Open Requests'),
-                ),
-                const Text(
-                  'Use the New Group button to start a group chat.',
-                  style: TextStyle(color: Colors.grey),
-                  textAlign: TextAlign.center,
-                ),
-              ],
-            ),
-          ],
-        ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          const Text(
+            'Use the floating New Group button when you are ready to start a group chat.',
+            textAlign: TextAlign.center,
+            style: TextStyle(color: Colors.white70),
+          ),
+        ],
       ),
     );
   }
@@ -264,7 +510,7 @@ class _ErrorState extends StatelessWidget {
             Text(
               message,
               textAlign: TextAlign.center,
-              style: const TextStyle(color: Colors.grey),
+              style: const TextStyle(color: Colors.white70),
             ),
           ],
         ),

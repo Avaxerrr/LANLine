@@ -3,18 +3,18 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../core/providers/v2_data_providers.dart';
-import '../core/providers/v2_direct_message_protocol_provider.dart';
-import '../core/providers/v2_group_protocol_provider.dart';
-import '../core/providers/v2_identity_provider.dart';
-import '../core/providers/v2_media_protocol_provider.dart';
-import '../core/providers/v2_presence_discovery_provider.dart';
-import '../core/providers/v2_request_protocol_provider.dart';
-import '../features/call/presentation/call_screen.dart';
-import '../features/chats/presentation/chats_screen.dart';
-import '../features/people/presentation/people_screen.dart';
-import '../features/requests/presentation/requests_screen.dart';
-import '../features/settings/presentation/settings_screen.dart';
+import 'package:lanline/core/providers/v2_data_providers.dart';
+import 'package:lanline/core/providers/v2_direct_message_protocol_provider.dart';
+import 'package:lanline/core/providers/v2_group_protocol_provider.dart';
+import 'package:lanline/core/providers/v2_identity_provider.dart';
+import 'package:lanline/core/providers/v2_media_protocol_provider.dart';
+import 'package:lanline/core/providers/v2_presence_discovery_provider.dart';
+import 'package:lanline/core/providers/v2_request_protocol_provider.dart';
+import 'package:lanline/features/call/presentation/call_screen.dart';
+import 'package:lanline/features/chats/presentation/chats_screen.dart';
+import 'package:lanline/features/people/presentation/people_screen.dart';
+import 'package:lanline/features/requests/presentation/requests_screen.dart';
+import 'package:lanline/features/settings/presentation/settings_screen.dart';
 
 class AppShell extends ConsumerStatefulWidget {
   const AppShell({super.key});
@@ -53,7 +53,9 @@ class _AppShellState extends ConsumerState<AppShell> {
           isInitiator: isInitiator,
           sendSignal: (payload) {
             unawaited(
-              ref.read(mediaActionsProvider).sendCallSignal(
+              ref
+                  .read(mediaActionsProvider)
+                  .sendCallSignal(
                     peerId: peerId,
                     conversationId: conversationId,
                     conversationTitle: title,
@@ -66,7 +68,9 @@ class _AppShellState extends ConsumerState<AppShell> {
     );
 
     if (result != null && result > 0) {
-      await ref.read(mediaActionsProvider).addLocalCallSummary(
+      await ref
+          .read(mediaActionsProvider)
+          .addLocalCallSummary(
             conversationId: conversationId,
             callType: callType,
             durationSeconds: result,
@@ -155,10 +159,7 @@ class _AppShellState extends ConsumerState<AppShell> {
 
   @override
   Widget build(BuildContext context) {
-    ref.listen<V2MediaProtocolState>(v2MediaProtocolProvider, (
-      previous,
-      next,
-    ) {
+    ref.listen<V2MediaProtocolState>(v2MediaProtocolProvider, (previous, next) {
       final incomingChanged =
           next.incomingCall != null &&
           next.incomingCall?.callId != previous?.incomingCall?.callId;
@@ -198,46 +199,104 @@ class _AppShellState extends ConsumerState<AppShell> {
 
     final titles = ['Chats', 'People', 'Requests', 'Settings'];
 
-    return Scaffold(
-      backgroundColor: const Color(0xFF121212),
-      appBar: AppBar(
-        title: Text(
-          titles[_selectedIndex],
-          style: const TextStyle(fontWeight: FontWeight.w800),
+    return Container(
+      decoration: const BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topCenter,
+          end: Alignment.bottomCenter,
+          colors: [Color(0xFF151515), Color(0xFF101010)],
         ),
-        backgroundColor: Colors.transparent,
-        elevation: 0,
       ),
-      body: IndexedStack(index: _selectedIndex, children: screens),
-      bottomNavigationBar: NavigationBar(
-        selectedIndex: _selectedIndex,
-        backgroundColor: const Color(0xFF181818),
-        indicatorColor: Colors.blueAccent.withValues(alpha: 0.2),
-        onDestinationSelected: (index) {
-          setState(() => _selectedIndex = index);
-        },
-        destinations: const [
-          NavigationDestination(
-            icon: Icon(Icons.chat_bubble_outline),
-            selectedIcon: Icon(Icons.chat_bubble),
-            label: 'Chats',
+      child: Scaffold(
+        backgroundColor: Colors.transparent,
+        appBar: AppBar(
+          toolbarHeight: 72,
+          titleSpacing: 20,
+          title: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'LANLine',
+                style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                  color: Colors.white70,
+                  fontWeight: FontWeight.w700,
+                  letterSpacing: 1.2,
+                ),
+              ),
+              const SizedBox(height: 4),
+              Text(
+                titles[_selectedIndex],
+                style: const TextStyle(
+                  fontSize: 24,
+                  fontWeight: FontWeight.w900,
+                ),
+              ),
+            ],
           ),
-          NavigationDestination(
-            icon: Icon(Icons.people_outline),
-            selectedIcon: Icon(Icons.people),
-            label: 'People',
+          backgroundColor: Colors.transparent,
+          elevation: 0,
+          centerTitle: false,
+        ),
+        body: IndexedStack(index: _selectedIndex, children: screens),
+        bottomNavigationBar: SafeArea(
+          top: false,
+          child: Container(
+            margin: const EdgeInsets.fromLTRB(16, 0, 16, 14),
+            decoration: BoxDecoration(
+              color: const Color(0xFF181818),
+              borderRadius: BorderRadius.circular(26),
+              border: Border.all(color: Colors.white.withValues(alpha: 0.05)),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withValues(alpha: 0.28),
+                  blurRadius: 24,
+                  offset: const Offset(0, 10),
+                ),
+              ],
+            ),
+            child: NavigationBarTheme(
+              data: NavigationBarThemeData(
+                backgroundColor: Colors.transparent,
+                indicatorColor: Colors.blueAccent.withValues(alpha: 0.18),
+                labelTextStyle: WidgetStatePropertyAll(
+                  Theme.of(context).textTheme.labelMedium?.copyWith(
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ),
+              child: NavigationBar(
+                selectedIndex: _selectedIndex,
+                backgroundColor: Colors.transparent,
+                elevation: 0,
+                onDestinationSelected: (index) {
+                  setState(() => _selectedIndex = index);
+                },
+                destinations: const [
+                  NavigationDestination(
+                    icon: Icon(Icons.chat_bubble_outline),
+                    selectedIcon: Icon(Icons.chat_bubble),
+                    label: 'Chats',
+                  ),
+                  NavigationDestination(
+                    icon: Icon(Icons.people_outline),
+                    selectedIcon: Icon(Icons.people),
+                    label: 'People',
+                  ),
+                  NavigationDestination(
+                    icon: Icon(Icons.inbox_outlined),
+                    selectedIcon: Icon(Icons.inbox),
+                    label: 'Requests',
+                  ),
+                  NavigationDestination(
+                    icon: Icon(Icons.settings_outlined),
+                    selectedIcon: Icon(Icons.settings),
+                    label: 'Settings',
+                  ),
+                ],
+              ),
+            ),
           ),
-          NavigationDestination(
-            icon: Icon(Icons.inbox_outlined),
-            selectedIcon: Icon(Icons.inbox),
-            label: 'Requests',
-          ),
-          NavigationDestination(
-            icon: Icon(Icons.settings_outlined),
-            selectedIcon: Icon(Icons.settings),
-            label: 'Settings',
-          ),
-        ],
+        ),
       ),
     );
   }
