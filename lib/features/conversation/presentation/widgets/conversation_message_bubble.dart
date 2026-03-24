@@ -180,49 +180,63 @@ class _ConversationMessageBubbleState
                       ),
                     ),
                     if (_supportsHover)
-                      Positioned(
-                        top: 6,
-                        left: widget.isMe ? -118 : null,
-                        right: widget.isMe ? null : -118,
+                      Positioned.fill(
                         child: AnimatedOpacity(
                           opacity: desktopActionsVisible ? 1 : 0,
                           duration: const Duration(milliseconds: 120),
                           child: IgnorePointer(
                             ignoring: !desktopActionsVisible,
-                            child: _DesktopMessageActionsRail(
-                              message: widget.message,
-                              isPinned: widget.isPinned,
-                              showCopy:
-                                  (widget.message.textBody?.trim().isNotEmpty ??
-                                  false),
-                              onReply: widget.onReply,
-                              onForward: widget.onForward,
-                              onTogglePin: widget.onTogglePin,
-                              onDelete: widget.onDelete,
+                            child: Align(
+                              alignment: widget.isMe
+                                  ? Alignment.centerLeft
+                                  : Alignment.centerRight,
+                              child: Transform.translate(
+                                offset: Offset(widget.isMe ? -78 : 78, 0),
+                                child: _DesktopMessageActionsRail(
+                                  message: widget.message,
+                                  isPinned: widget.isPinned,
+                                  showCopy:
+                                      (widget.message.textBody
+                                          ?.trim()
+                                          .isNotEmpty ??
+                                      false),
+                                  onReply: widget.onReply,
+                                  onForward: widget.onForward,
+                                  onTogglePin: widget.onTogglePin,
+                                  onDelete: widget.onDelete,
+                                ),
+                              ),
                             ),
                           ),
                         ),
                       ),
                     if (!_supportsHover)
-                      Positioned(
-                        top: -10,
-                        left: widget.isMe ? -6 : null,
-                        right: widget.isMe ? null : -6,
+                      Positioned.fill(
                         child: AnimatedOpacity(
                           opacity: widget.showInlineActions ? 1 : 0,
                           duration: const Duration(milliseconds: 120),
                           child: IgnorePointer(
                             ignoring: !widget.showInlineActions,
-                            child: _MobileMessageMenuButton(
-                              message: widget.message,
-                              isPinned: widget.isPinned,
-                              showCopy:
-                                  (widget.message.textBody?.trim().isNotEmpty ??
-                                  false),
-                              onReply: widget.onReply,
-                              onForward: widget.onForward,
-                              onTogglePin: widget.onTogglePin,
-                              onDelete: widget.onDelete,
+                            child: Align(
+                              alignment: widget.isMe
+                                  ? Alignment.centerLeft
+                                  : Alignment.centerRight,
+                              child: Transform.translate(
+                                offset: Offset(widget.isMe ? -18 : 18, 0),
+                                child: _MobileMessageMenuButton(
+                                  message: widget.message,
+                                  isPinned: widget.isPinned,
+                                  showCopy:
+                                      (widget.message.textBody
+                                          ?.trim()
+                                          .isNotEmpty ??
+                                      false),
+                                  onReply: widget.onReply,
+                                  onForward: widget.onForward,
+                                  onTogglePin: widget.onTogglePin,
+                                  onDelete: widget.onDelete,
+                                ),
+                              ),
                             ),
                           ),
                         ),
@@ -320,7 +334,7 @@ class _DesktopMessageActionsRail extends StatelessWidget {
     final text = message.textBody?.trim() ?? '';
 
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
+      padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 4),
       decoration: BoxDecoration(
         color: const Color(0xFF1B1B1B),
         borderRadius: BorderRadius.circular(999),
@@ -356,13 +370,13 @@ class _DesktopMessageActionsRail extends StatelessWidget {
             tooltip: 'More',
             color: const Color(0xFF1E1E1E),
             icon: Container(
-              width: 34,
-              height: 34,
+              width: 28,
+              height: 28,
               decoration: BoxDecoration(
                 color: Colors.white.withValues(alpha: 0.08),
                 borderRadius: BorderRadius.circular(999),
               ),
-              child: const Icon(Icons.more_horiz, size: 18),
+              child: const Icon(Icons.more_horiz, size: 16),
             ),
             onSelected: (action) => _handleOverflowAction(
               context,
@@ -569,13 +583,13 @@ class _ActionIconButton extends StatelessWidget {
           onTap: onPressed,
           borderRadius: BorderRadius.circular(999),
           child: Container(
-            width: 34,
-            height: 34,
+            width: 28,
+            height: 28,
             decoration: BoxDecoration(
               color: Colors.white.withValues(alpha: 0.08),
               borderRadius: BorderRadius.circular(999),
             ),
-            child: Icon(icon, size: 17, color: Colors.white),
+            child: Icon(icon, size: 15, color: Colors.white),
           ),
         ),
       ),
