@@ -111,7 +111,7 @@ class _ChatsToolbar extends StatelessWidget {
                 ? 'Start from Requests to create a conversation.'
                 : '$conversationCount conversation${conversationCount == 1 ? '' : 's'}',
             style: TextStyle(
-              color: palette.textMuted,
+              color: palette.textMuted.withValues(alpha: 0.92),
               height: 1.3,
               fontSize: 13,
               fontWeight: FontWeight.w600,
@@ -122,7 +122,7 @@ class _ChatsToolbar extends StatelessWidget {
           TextButton(
             onPressed: onCreateGroup,
             style: TextButton.styleFrom(
-              foregroundColor: palette.textMuted,
+              foregroundColor: palette.brand.withValues(alpha: 0.92),
               padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(999),
@@ -187,17 +187,17 @@ class _ConversationRow extends StatelessWidget {
           decoration: BoxDecoration(
             gradient: palette.surfaceGradient,
             borderRadius: BorderRadius.circular(22),
-            border: Border.all(color: palette.border.withValues(alpha: 0.18)),
+            border: Border.all(color: palette.border.withValues(alpha: 0.12)),
             boxShadow: [
               BoxShadow(
-                color: Colors.black.withValues(alpha: 0.12),
-                blurRadius: 18,
-                offset: const Offset(0, 10),
+                color: Colors.black.withValues(alpha: 0.18),
+                blurRadius: 24,
+                offset: const Offset(0, 12),
               ),
             ],
           ),
           child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
+            padding: const EdgeInsets.symmetric(horizontal: 15, vertical: 15),
             child: Row(
               children: [
                 Container(
@@ -209,8 +209,8 @@ class _ConversationRow extends StatelessWidget {
                       begin: Alignment.topLeft,
                       end: Alignment.bottomRight,
                       colors: [
-                        accent.withValues(alpha: 0.18),
-                        accent.withValues(alpha: 0.04),
+                        accent.withValues(alpha: 0.22),
+                        accent.withValues(alpha: 0.06),
                       ],
                     ),
                   ),
@@ -236,9 +236,9 @@ class _ConversationRow extends StatelessWidget {
                               maxLines: 1,
                               overflow: TextOverflow.ellipsis,
                               style: const TextStyle(
-                                fontSize: 15.5,
+                                fontSize: 15.8,
                                 fontWeight: FontWeight.w800,
-                                letterSpacing: -0.15,
+                                letterSpacing: -0.2,
                               ),
                             ),
                           ),
@@ -257,8 +257,10 @@ class _ConversationRow extends StatelessWidget {
                               maxLines: 1,
                               overflow: TextOverflow.ellipsis,
                               style: TextStyle(
-                                color: palette.textMuted,
-                                height: 1.32,
+                                color: palette.textMuted.withValues(
+                                  alpha: 0.94,
+                                ),
+                                height: 1.28,
                                 fontSize: 13.5,
                               ),
                             ),
@@ -272,6 +274,7 @@ class _ConversationRow extends StatelessWidget {
                 SizedBox(
                   width: 54,
                   child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
                     crossAxisAlignment: CrossAxisAlignment.end,
                     children: [
                       if (conversation.lastMessageAt != null)
@@ -279,14 +282,14 @@ class _ConversationRow extends StatelessWidget {
                           _formatConversationTime(conversation.lastMessageAt!),
                           textAlign: TextAlign.right,
                           style: TextStyle(
-                            color: palette.textMuted.withValues(alpha: 0.55),
+                            color: palette.textMuted.withValues(alpha: 0.68),
                             fontSize: 11.5,
                             fontWeight: FontWeight.w600,
                           ),
                         )
                       else
                         const SizedBox(height: 14),
-                      const SizedBox(height: 10),
+                      const SizedBox(height: 8),
                       if (conversation.unreadCount > 0)
                         Container(
                           constraints: const BoxConstraints(minWidth: 22),
@@ -312,7 +315,7 @@ class _ConversationRow extends StatelessWidget {
                         Icon(
                           Icons.chevron_right,
                           size: 20,
-                          color: palette.textMuted.withValues(alpha: 0.5),
+                          color: palette.textMuted.withValues(alpha: 0.42),
                         ),
                     ],
                   ),
@@ -340,12 +343,12 @@ class _EmptyChatsState extends StatelessWidget {
       decoration: BoxDecoration(
         gradient: palette.surfaceGradient,
         borderRadius: BorderRadius.circular(24),
-        border: Border.all(color: palette.border.withValues(alpha: 0.18)),
+        border: Border.all(color: palette.border.withValues(alpha: 0.12)),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withValues(alpha: 0.12),
-            blurRadius: 18,
-            offset: const Offset(0, 10),
+            color: Colors.black.withValues(alpha: 0.18),
+            blurRadius: 22,
+            offset: const Offset(0, 12),
           ),
         ],
       ),

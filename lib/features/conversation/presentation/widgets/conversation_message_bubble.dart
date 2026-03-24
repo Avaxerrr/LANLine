@@ -123,9 +123,6 @@ class _ConversationMessageBubbleState
           final actionsVisible = _supportsHover
               ? _isHovered
               : widget.showInlineActions;
-          final bubbleColor = widget.isMe
-              ? palette.brand.withValues(alpha: 0.28)
-              : palette.surface.withValues(alpha: 0.96);
           final alignment = widget.isMe
               ? CrossAxisAlignment.end
               : CrossAxisAlignment.start;
@@ -189,7 +186,21 @@ class _ConversationMessageBubbleState
                               vertical: 12,
                             ),
                             decoration: BoxDecoration(
-                              color: bubbleColor,
+                              gradient: LinearGradient(
+                                begin: Alignment.topLeft,
+                                end: Alignment.bottomRight,
+                                colors: widget.isMe
+                                    ? [
+                                        palette.brand.withValues(alpha: 0.38),
+                                        palette.brand.withValues(alpha: 0.22),
+                                      ]
+                                    : [
+                                        palette.surfaceRaised.withValues(
+                                          alpha: 0.86,
+                                        ),
+                                        palette.surface.withValues(alpha: 0.96),
+                                      ],
+                              ),
                               borderRadius: BorderRadius.only(
                                 topLeft: const Radius.circular(18),
                                 topRight: const Radius.circular(18),
@@ -202,14 +213,14 @@ class _ConversationMessageBubbleState
                               ),
                               border: Border.all(
                                 color: palette.border.withValues(
-                                  alpha: widget.isMe ? 0.22 : 0.18,
+                                  alpha: widget.isMe ? 0.16 : 0.14,
                                 ),
                               ),
                               boxShadow: [
                                 BoxShadow(
-                                  color: Colors.black.withValues(alpha: 0.12),
-                                  blurRadius: 12,
-                                  offset: const Offset(0, 5),
+                                  color: Colors.black.withValues(alpha: 0.16),
+                                  blurRadius: 14,
+                                  offset: const Offset(0, 7),
                                 ),
                               ],
                             ),
@@ -253,7 +264,7 @@ class _ConversationMessageBubbleState
                     ),
                     style: TextStyle(
                       fontSize: 11.5,
-                      color: palette.textMuted.withValues(alpha: 0.55),
+                      color: palette.textMuted.withValues(alpha: 0.62),
                       fontWeight: FontWeight.w600,
                     ),
                   ),
@@ -394,9 +405,16 @@ class _MessageMenuButton extends StatelessWidget {
             width: 28,
             height: 28,
             decoration: BoxDecoration(
-              color: palette.surfaceRaised.withValues(alpha: 0.92),
+              color: palette.menuSurface.withValues(alpha: 0.96),
               shape: BoxShape.circle,
-              border: Border.all(color: palette.border.withValues(alpha: 0.24)),
+              border: Border.all(color: palette.border.withValues(alpha: 0.16)),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withValues(alpha: 0.18),
+                  blurRadius: 12,
+                  offset: const Offset(0, 4),
+                ),
+              ],
             ),
             child: const Center(child: Icon(Icons.more_horiz, size: 16)),
           ),
@@ -663,7 +681,7 @@ class ReplyPreview extends StatelessWidget {
       constraints: const BoxConstraints(maxWidth: 260),
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
       decoration: BoxDecoration(
-        color: palette.surfaceMuted.withValues(alpha: 0.78),
+        color: palette.surfaceMuted.withValues(alpha: 0.84),
         borderRadius: BorderRadius.circular(12),
         border: Border(
           left: BorderSide(
@@ -798,9 +816,9 @@ class AttachmentMessageContent extends ConsumerWidget {
         Container(
           padding: const EdgeInsets.all(12),
           decoration: BoxDecoration(
-            color: palette.surfaceMuted.withValues(alpha: 0.82),
+            color: palette.surfaceMuted.withValues(alpha: 0.86),
             borderRadius: BorderRadius.circular(14),
-            border: Border.all(color: palette.border.withValues(alpha: 0.22)),
+            border: Border.all(color: palette.border.withValues(alpha: 0.14)),
           ),
           child: Row(
             mainAxisSize: MainAxisSize.min,
@@ -808,7 +826,7 @@ class AttachmentMessageContent extends ConsumerWidget {
               Container(
                 padding: const EdgeInsets.all(8),
                 decoration: BoxDecoration(
-                  color: palette.surface.withValues(alpha: 0.72),
+                  color: palette.surface.withValues(alpha: 0.78),
                   borderRadius: BorderRadius.circular(10),
                 ),
                 child: Icon(
@@ -956,7 +974,7 @@ class AttachmentMessageContent extends ConsumerWidget {
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
         decoration: BoxDecoration(
-          color: palette.surface.withValues(alpha: 0.72),
+          color: palette.surface.withValues(alpha: 0.8),
           borderRadius: BorderRadius.circular(8),
         ),
         child: Row(

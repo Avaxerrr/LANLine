@@ -216,15 +216,16 @@ class _AppShellState extends ConsumerState<AppShell> {
               child: Column(
                 children: [
                   Padding(
-                    padding: const EdgeInsets.fromLTRB(20, 10, 20, 4),
+                    padding: const EdgeInsets.fromLTRB(20, 12, 20, 6),
                     child: Align(
                       alignment: Alignment.centerLeft,
                       child: Text(
                         titles[_selectedIndex],
-                        style: const TextStyle(
-                          fontSize: 24,
-                          fontWeight: FontWeight.w900,
-                          letterSpacing: -0.35,
+                        style: TextStyle(
+                          fontSize: 23,
+                          fontWeight: FontWeight.w800,
+                          letterSpacing: -0.4,
+                          color: Colors.white.withValues(alpha: 0.98),
                         ),
                       ),
                     ),
@@ -295,8 +296,8 @@ class _BottomFadeOverlay extends StatelessWidget {
           end: Alignment.bottomCenter,
           colors: [
             palette.background.withValues(alpha: 0),
-            palette.background.withValues(alpha: 0.66),
-            palette.background.withValues(alpha: 0.96),
+            palette.background.withValues(alpha: 0.68),
+            palette.background.withValues(alpha: 0.97),
           ],
         ),
       ),
@@ -321,14 +322,14 @@ class _FloatingShellNav extends StatelessWidget {
       child: Container(
         margin: const EdgeInsets.fromLTRB(16, 0, 16, 14),
         decoration: BoxDecoration(
-          color: palette.navGlass.withValues(alpha: 0.58),
+          color: palette.navGlass.withValues(alpha: 0.62),
           borderRadius: BorderRadius.circular(26),
-          border: Border.all(color: palette.border.withValues(alpha: 0.35)),
+          border: Border.all(color: palette.border.withValues(alpha: 0.18)),
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withValues(alpha: 0.28),
-              blurRadius: 24,
-              offset: const Offset(0, 10),
+              color: Colors.black.withValues(alpha: 0.34),
+              blurRadius: 28,
+              offset: const Offset(0, 12),
             ),
           ],
         ),
@@ -339,7 +340,7 @@ class _FloatingShellNav extends StatelessWidget {
             child: NavigationBarTheme(
               data: NavigationBarThemeData(
                 backgroundColor: Colors.transparent,
-                indicatorColor: palette.brand.withValues(alpha: 0.18),
+                indicatorColor: palette.brand.withValues(alpha: 0.16),
                 labelTextStyle: WidgetStatePropertyAll(
                   Theme.of(context).textTheme.labelMedium?.copyWith(
                     fontWeight: FontWeight.w700,

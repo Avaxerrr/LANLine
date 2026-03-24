@@ -49,7 +49,7 @@ class ConversationInputBar extends StatelessWidget {
                   vertical: 12,
                 ),
                 decoration: BoxDecoration(
-                  color: palette.surface.withValues(alpha: 0.96),
+                  color: palette.surface.withValues(alpha: 0.94),
                   borderRadius: BorderRadius.circular(18),
                   border: Border(
                     left: BorderSide(
@@ -118,16 +118,16 @@ class ConversationInputBar extends StatelessWidget {
                     vertical: 10,
                   ),
                   decoration: BoxDecoration(
-                    color: palette.navGlass.withValues(alpha: 0.56),
+                    color: palette.navGlass.withValues(alpha: 0.64),
                     borderRadius: BorderRadius.circular(28),
                     border: Border.all(
-                      color: palette.border.withValues(alpha: 0.35),
+                      color: palette.border.withValues(alpha: 0.18),
                     ),
                     boxShadow: [
                       BoxShadow(
-                        color: Colors.black.withValues(alpha: 0.24),
-                        blurRadius: 18,
-                        offset: const Offset(0, 8),
+                        color: Colors.black.withValues(alpha: 0.28),
+                        blurRadius: 22,
+                        offset: const Offset(0, 10),
                       ),
                     ],
                   ),
@@ -169,7 +169,7 @@ class ConversationInputBar extends StatelessWidget {
                               ),
                               filled: true,
                               fillColor: palette.inputFill.withValues(
-                                alpha: 0.8,
+                                alpha: 0.9,
                               ),
                               contentPadding: const EdgeInsets.symmetric(
                                 horizontal: 16,
@@ -182,13 +182,13 @@ class ConversationInputBar extends StatelessWidget {
                               enabledBorder: OutlineInputBorder(
                                 borderRadius: BorderRadius.circular(18),
                                 borderSide: BorderSide(
-                                  color: palette.border.withValues(alpha: 0.24),
+                                  color: palette.border.withValues(alpha: 0.16),
                                 ),
                               ),
                               focusedBorder: OutlineInputBorder(
                                 borderRadius: BorderRadius.circular(18),
                                 borderSide: BorderSide(
-                                  color: palette.brand.withValues(alpha: 0.28),
+                                  color: palette.brand.withValues(alpha: 0.24),
                                 ),
                               ),
                             ),
@@ -252,7 +252,7 @@ class _ComposerCircleButton extends StatelessWidget {
           : IconButton.filledTonal(
               onPressed: onPressed,
               style: IconButton.styleFrom(
-                backgroundColor: palette.surfaceMuted.withValues(alpha: 0.92),
+                backgroundColor: palette.surfaceMuted.withValues(alpha: 0.94),
                 foregroundColor: palette.textMuted,
                 padding: EdgeInsets.zero,
                 minimumSize: const Size(44, 44),

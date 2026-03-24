@@ -67,21 +67,21 @@ class AppThemePalette extends ThemeExtension<AppThemePalette> {
 
   static AppThemePalette fromPreset(AppThemePreset preset) => switch (preset) {
     AppThemePreset.midnight => const AppThemePalette(
-      background: Color(0xFF0A1018),
-      backgroundAlt: Color(0xFF111A28),
-      surface: Color(0xFF172130),
-      surfaceRaised: Color(0xFF223047),
-      surfaceMuted: Color(0xFF111A26),
-      border: Color(0xFF27364A),
-      textMuted: Color(0xFF98A4B8),
-      brand: Color(0xFF5B8CFF),
+      background: Color(0xFF080E15),
+      backgroundAlt: Color(0xFF101826),
+      surface: Color(0xFF162131),
+      surfaceRaised: Color(0xFF253349),
+      surfaceMuted: Color(0xFF111927),
+      border: Color(0xFF314256),
+      textMuted: Color(0xFF95A3B8),
+      brand: Color(0xFF6C95FF),
       groupAccent: Color(0xFFE2B443),
       positive: Color(0xFF4DE1A7),
       warning: Color(0xFFFFB866),
       danger: Color(0xFFFF6E74),
-      navGlass: Color(0xCC141D2A),
-      inputFill: Color(0xFF151E2A),
-      menuSurface: Color(0xFF1B2738),
+      navGlass: Color(0xCC101722),
+      inputFill: Color(0xFF131C29),
+      menuSurface: Color(0xFF1A2638),
     ),
     AppThemePreset.graphite => const AppThemePalette(
       background: Color(0xFF0D0F13),
@@ -123,15 +123,16 @@ class AppThemePalette extends ThemeExtension<AppThemePalette> {
     begin: Alignment.topLeft,
     end: Alignment.bottomRight,
     colors: [
-      surfaceRaised.withValues(alpha: 0.94),
-      surface.withValues(alpha: 0.9),
+      surfaceRaised.withValues(alpha: 0.92),
+      surface.withValues(alpha: 0.96),
     ],
   );
 
   LinearGradient get pageGradient => LinearGradient(
-    begin: Alignment.topLeft,
+    begin: Alignment.topCenter,
     end: Alignment.bottomCenter,
     colors: [backgroundAlt, background],
+    stops: const [0.0, 0.7],
   );
 
   @override
@@ -251,7 +252,7 @@ class AppTheme {
         margin: EdgeInsets.zero,
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(22),
-          side: BorderSide(color: palette.border.withValues(alpha: 0.5)),
+          side: BorderSide(color: palette.border.withValues(alpha: 0.22)),
         ),
       ),
       listTileTheme: const ListTileThemeData(
@@ -261,7 +262,7 @@ class AppTheme {
       ),
       navigationBarTheme: NavigationBarThemeData(
         backgroundColor: palette.surface,
-        indicatorColor: palette.brand.withValues(alpha: 0.16),
+        indicatorColor: palette.brand.withValues(alpha: 0.18),
         labelTextStyle: WidgetStateProperty.resolveWith((states) {
           final selected = states.contains(WidgetState.selected);
           return TextStyle(
@@ -321,7 +322,7 @@ class AppTheme {
       ),
       inputDecorationTheme: InputDecorationTheme(
         filled: true,
-        fillColor: palette.inputFill,
+        fillColor: palette.inputFill.withValues(alpha: 0.92),
         hintStyle: TextStyle(color: palette.textMuted),
         labelStyle: TextStyle(color: palette.textMuted),
         prefixIconColor: palette.textMuted,
@@ -332,15 +333,18 @@ class AppTheme {
         ),
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(20),
-          borderSide: BorderSide(color: Colors.white.withValues(alpha: 0.08)),
+          borderSide: BorderSide(color: palette.border.withValues(alpha: 0.28)),
         ),
         enabledBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(20),
-          borderSide: BorderSide(color: Colors.white.withValues(alpha: 0.08)),
+          borderSide: BorderSide(color: palette.border.withValues(alpha: 0.28)),
         ),
         focusedBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(20),
-          borderSide: BorderSide(color: palette.brand, width: 1.4),
+          borderSide: BorderSide(
+            color: palette.brand.withValues(alpha: 0.9),
+            width: 1.35,
+          ),
         ),
       ),
       filledButtonTheme: FilledButtonThemeData(
@@ -402,7 +406,10 @@ class AppTheme {
       popupMenuTheme: PopupMenuThemeData(
         color: palette.menuSurface,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
-        textStyle: const TextStyle(color: Colors.white),
+        textStyle: const TextStyle(
+          color: Colors.white,
+          fontWeight: FontWeight.w600,
+        ),
       ),
     );
   }
