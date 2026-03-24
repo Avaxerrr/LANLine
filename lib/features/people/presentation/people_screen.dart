@@ -225,69 +225,46 @@ class PeopleScreen extends ConsumerWidget {
                       text:
                           'Approve a nearby device from Requests and it will appear here.',
                     )
-                  : Container(
-                      decoration: BoxDecoration(
-                        gradient: LinearGradient(
-                          begin: Alignment.topLeft,
-                          end: Alignment.bottomRight,
-                          colors: [
-                            const Color(0xFF202C3D).withValues(alpha: 0.9),
-                            const Color(0xFF182230).withValues(alpha: 0.84),
-                          ],
-                        ),
-                        borderRadius: BorderRadius.circular(26),
-                        border: Border.all(
-                          color: Colors.white.withValues(alpha: 0.03),
-                        ),
-                        boxShadow: [
-                          BoxShadow(
-                            color: Colors.black.withValues(alpha: 0.12),
-                            blurRadius: 18,
-                            offset: const Offset(0, 10),
-                          ),
-                        ],
-                      ),
-                      child: Column(
-                        children: [
-                          for (
-                            var index = 0;
-                            index < contacts.length;
-                            index++
-                          ) ...[
-                            _ContactRow(
-                              peer: contacts[index],
-                              onTap: () =>
-                                  unawaited(showContactSheet(contacts[index])),
-                              onSelected: (action) {
-                                switch (action) {
-                                  case _ContactMenuAction.message:
-                                    unawaited(
-                                      openConversation(contacts[index]),
-                                    );
-                                    break;
-                                  case _ContactMenuAction.block:
-                                    unawaited(
-                                      runPeerAction(
-                                        'Blocked ${contacts[index].displayName}',
-                                        () => requestActions.blockPeer(
-                                          peerId: contacts[index].peerId,
-                                        ),
+                  : Column(
+                      children: [
+                        for (
+                          var index = 0;
+                          index < contacts.length;
+                          index++
+                        ) ...[
+                          _ContactRow(
+                            peer: contacts[index],
+                            onTap: () =>
+                                unawaited(showContactSheet(contacts[index])),
+                            onSelected: (action) {
+                              switch (action) {
+                                case _ContactMenuAction.message:
+                                  unawaited(openConversation(contacts[index]));
+                                  break;
+                                case _ContactMenuAction.block:
+                                  unawaited(
+                                    runPeerAction(
+                                      'Blocked ${contacts[index].displayName}',
+                                      () => requestActions.blockPeer(
+                                        peerId: contacts[index].peerId,
                                       ),
-                                    );
-                                    break;
-                                }
-                              },
-                            ),
-                            if (index != contacts.length - 1)
-                              Divider(
+                                    ),
+                                  );
+                                  break;
+                              }
+                            },
+                          ),
+                          if (index != contacts.length - 1)
+                            Padding(
+                              padding: const EdgeInsets.only(left: 72),
+                              child: Divider(
                                 height: 1,
-                                indent: 72,
-                                endIndent: 18,
+                                thickness: 1,
                                 color: Colors.white.withValues(alpha: 0.05),
                               ),
-                          ],
+                            ),
                         ],
-                      ),
+                      ],
                     ),
             ],
           ),
@@ -385,9 +362,9 @@ class _ContactRow extends StatelessWidget {
       color: Colors.transparent,
       child: InkWell(
         onTap: onTap,
-        borderRadius: BorderRadius.circular(26),
+        borderRadius: BorderRadius.circular(18),
         child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
+          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 14),
           child: Row(
             children: [
               Stack(
@@ -443,7 +420,7 @@ class _ContactRow extends StatelessWidget {
                       overflow: TextOverflow.ellipsis,
                       style: const TextStyle(
                         color: Colors.white60,
-                        fontSize: 13,
+                        fontSize: 12.5,
                       ),
                     ),
                   ],
