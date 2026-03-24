@@ -354,22 +354,40 @@ class _MessageMenuButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return PopupMenuButton<_MessageMenuAction>(
-      tooltip: 'Message actions',
-      padding: EdgeInsets.zero,
-      color: const Color(0xFF1E1E1E),
-      offset: const Offset(0, 8),
-      child: Container(
-        width: 28,
-        height: 28,
-        decoration: BoxDecoration(
-          color: const Color(0xFF1B1B1B),
-          shape: BoxShape.circle,
-          border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
+    return Tooltip(
+      message: 'Message actions',
+      child: MouseRegion(
+        cursor: SystemMouseCursors.click,
+        child: GestureDetector(
+          behavior: HitTestBehavior.opaque,
+          onTapDown: (details) => _showMenu(context, details.globalPosition),
+          child: Container(
+            width: 28,
+            height: 28,
+            decoration: BoxDecoration(
+              color: const Color(0xFF1B1B1B),
+              shape: BoxShape.circle,
+              border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
+            ),
+            child: const Center(child: Icon(Icons.more_horiz, size: 16)),
+          ),
         ),
-        child: const Center(child: Icon(Icons.more_horiz, size: 16)),
       ),
-      itemBuilder: (context) => [
+    );
+  }
+
+  Future<void> _showMenu(BuildContext context, Offset globalPosition) async {
+    final overlay = Overlay.of(context).context.findRenderObject() as RenderBox;
+    final action = await showMenu<_MessageMenuAction>(
+      context: context,
+      color: const Color(0xFF1E1E1E),
+      position: RelativeRect.fromLTRB(
+        globalPosition.dx - 14,
+        globalPosition.dy + 14,
+        overlay.size.width - globalPosition.dx - 14,
+        overlay.size.height - globalPosition.dy - 14,
+      ),
+      items: [
         const PopupMenuItem<_MessageMenuAction>(
           value: _MessageMenuAction.reply,
           child: _OverflowMenuLabel(
@@ -413,9 +431,9 @@ class _MessageMenuButton extends StatelessWidget {
           ),
         ),
       ],
-      onSelected: (action) =>
-          _handleOverflowAction(context, action: action, message: message),
     );
+    if (action == null || !context.mounted) return;
+    await _handleOverflowAction(context, action: action, message: message);
   }
 
   Future<void> _handleOverflowAction(
