@@ -6,6 +6,7 @@ import 'package:qr_flutter/qr_flutter.dart';
 
 import '../../../core/providers/app_metadata_provider.dart';
 import '../../../core/providers/app_theme_provider.dart';
+import '../../../core/providers/message_retention_provider.dart';
 import '../../../core/providers/username_provider.dart';
 import '../../../core/providers/v2_identity_provider.dart';
 import '../../../core/theme/app_theme.dart';
@@ -58,6 +59,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     final identityAsync = ref.watch(localIdentityProvider);
     final version = ref.watch(appVersionProvider);
     final selectedTheme = ref.watch(appThemePresetProvider);
+    final retentionLimit = ref.watch(messageRetentionLimitProvider);
 
     return identityAsync.when(
       data: (identity) {
@@ -189,6 +191,38 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                     ? CrossFadeState.showSecond
                     : CrossFadeState.showFirst,
                 duration: const Duration(milliseconds: 220),
+              ),
+            ),
+            const SizedBox(height: 18),
+            _SurfaceCard(
+              title: 'Storage',
+              subtitle:
+                  'Control how much message history each conversation keeps locally.',
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Message retention',
+                    style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                  const SizedBox(height: 10),
+                  Wrap(
+                    spacing: 10,
+                    runSpacing: 10,
+                    children: [
+                      for (final option in retentionChoices)
+                        _RetentionChip(
+                          value: option,
+                          selected: option == retentionLimit,
+                          onTap: () => ref
+                              .read(messageRetentionLimitProvider.notifier)
+                              .setLimit(option),
+                        ),
+                    ],
+                  ),
+                ],
               ),
             ),
             const SizedBox(height: 18),
@@ -558,6 +592,56 @@ class _ThemePresetChip extends StatelessWidget {
               ],
             ),
           ],
+        ),
+      ),
+    );
+  }
+}
+
+class _RetentionChip extends StatelessWidget {
+  final int value;
+  final bool selected;
+  final VoidCallback onTap;
+
+  const _RetentionChip({
+    required this.value,
+    required this.selected,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final palette = context.appPalette;
+    final label = switch (value) {
+      retentionUnlimited => 'Keep all',
+      250 => '250 msgs',
+      1000 => '1,000 msgs',
+      5000 => '5,000 msgs',
+      _ => '$value msgs',
+    };
+
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(16),
+      child: Ink(
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+        decoration: BoxDecoration(
+          color: selected
+              ? palette.brand.withValues(alpha: 0.16)
+              : palette.surfaceMuted.withValues(alpha: 0.84),
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(
+            color: selected
+                ? palette.brand.withValues(alpha: 0.42)
+                : palette.border.withValues(alpha: 0.22),
+          ),
+        ),
+        child: Text(
+          label,
+          style: TextStyle(
+            color: selected ? Colors.white : palette.textMuted,
+            fontWeight: FontWeight.w700,
+          ),
         ),
       ),
     );

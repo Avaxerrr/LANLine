@@ -11,12 +11,15 @@ import '../network/v2_request_signaling_service.dart';
 import '../repositories/conversations_repository.dart';
 import '../repositories/messages_repository.dart';
 import '../repositories/peers_repository.dart';
+import '../security/device_signature_service.dart';
+import 'security_providers.dart';
 import 'v2_identity_provider.dart';
 import 'v2_repository_providers.dart';
 
 class V2DirectMessageProtocolController {
   final V2RequestSignalingService _signalingService;
   final IdentityService _identityService;
+  final DeviceSignatureService _deviceSignatureService;
   final PeersRepository _peersRepository;
   final ConversationsRepository _conversationsRepository;
   final MessagesRepository _messagesRepository;
@@ -29,11 +32,13 @@ class V2DirectMessageProtocolController {
   V2DirectMessageProtocolController({
     required V2RequestSignalingService signalingService,
     required IdentityService identityService,
+    required DeviceSignatureService deviceSignatureService,
     required PeersRepository peersRepository,
     required ConversationsRepository conversationsRepository,
     required MessagesRepository messagesRepository,
   }) : _signalingService = signalingService,
        _identityService = identityService,
+       _deviceSignatureService = deviceSignatureService,
        _peersRepository = peersRepository,
        _conversationsRepository = conversationsRepository,
        _messagesRepository = messagesRepository;
@@ -110,7 +115,7 @@ class V2DirectMessageProtocolController {
       sentAt: DateTime.now().millisecondsSinceEpoch,
     );
 
-    final payload = jsonEncode({
+    final payload = await _buildSignedPayload({
       'protocol': 'lanline_v2_message',
       'action': 'message',
       'senderPeerId': _localIdentity!.peerId,
@@ -149,6 +154,7 @@ class V2DirectMessageProtocolController {
 
   Future<void> _handleIncomingMessage(String rawMessage) async {
     try {
+      _localIdentity ??= await _identityService.bootstrap();
       final data = jsonDecode(rawMessage);
       if (data is! Map<String, dynamic> ||
           data['protocol'] != 'lanline_v2_message') {
@@ -163,10 +169,24 @@ class V2DirectMessageProtocolController {
           await _handleIncomingTextMessage(data);
           break;
         case 'delivered':
+          final senderPeerId = data['senderPeerId']?.toString();
           final clientGeneratedId = data['clientGeneratedId']?.toString();
-          if (clientGeneratedId == null) return;
+          if (!isValidProtocolIdentifier(senderPeerId) ||
+              !isValidProtocolIdentifier(clientGeneratedId)) {
+            return;
+          }
+          final peer = await _peersRepository.getPeerByPeerId(
+            senderPeerId!.trim(),
+          );
+          final verified = await _verifySignedPayload(
+            data,
+            fallbackPublicKey: peer?.signingPublicKey,
+          );
+          if (!verified || peer == null || peer.isBlocked) {
+            return;
+          }
           await _messagesRepository.updateMessageStatusByClientGeneratedId(
-            clientGeneratedId,
+            clientGeneratedId!.trim(),
             'delivered',
           );
           break;
@@ -183,8 +203,18 @@ class V2DirectMessageProtocolController {
     final rawSenderPeerId = data['senderPeerId']?.toString();
     final rawClientGeneratedId = data['clientGeneratedId']?.toString();
     final text = data['text']?.toString();
+    final senderSigningPublicKey = data['senderSigningPublicKey']?.toString();
+    final signature = data['signature']?.toString();
     if (!isValidProtocolIdentifier(rawSenderPeerId) ||
         !isValidProtocolIdentifier(rawClientGeneratedId) ||
+        !isValidOptionalProtocolText(
+          senderSigningPublicKey,
+          maxLength: kMaxProtocolSigningPublicKeyLength,
+        ) ||
+        !isValidOptionalProtocolText(
+          signature,
+          maxLength: kMaxProtocolSignatureLength,
+        ) ||
         !isValidOptionalProtocolText(text, maxLength: kMaxProtocolTextLength)) {
       return;
     }
@@ -195,6 +225,14 @@ class V2DirectMessageProtocolController {
     }
 
     final existingPeer = await _peersRepository.getPeerByPeerId(senderPeerId);
+    final verified = await _verifySignedPayload(
+      data,
+      fallbackPublicKey:
+          existingPeer?.signingPublicKey ?? senderSigningPublicKey,
+    );
+    if (!verified) {
+      return;
+    }
     final isTrustedPeer =
         existingPeer != null &&
         !existingPeer.isBlocked &&
@@ -232,6 +270,8 @@ class V2DirectMessageProtocolController {
           )
           ? fingerprint?.trim()
           : existingPeer.fingerprint,
+      signingPublicKey:
+          senderSigningPublicKey?.trim() ?? existingPeer.signingPublicKey,
       relationshipState: existingPeer.relationshipState,
       isBlocked: existingPeer.isBlocked,
     );
@@ -279,7 +319,7 @@ class V2DirectMessageProtocolController {
     required String clientGeneratedId,
   }) async {
     final presence = await _requireReachablePresence(peerId);
-    final payload = jsonEncode({
+    final payload = await _buildSignedPayload({
       'protocol': 'lanline_v2_message',
       'action': 'delivered',
       'senderPeerId': _localIdentity!.peerId,
@@ -321,6 +361,47 @@ class V2DirectMessageProtocolController {
     _messageSubscription = null;
     _startFuture = null;
   }
+
+  Future<String> _buildSignedPayload(Map<String, dynamic> payload) async {
+    final signingPublicKey =
+        _localIdentity!.signingPublicKey ??
+        (await _deviceSignatureService.ensureIdentity()).publicKey;
+    final signature = await _deviceSignatureService.signPayload(payload);
+    return jsonEncode({
+      ...payload,
+      'senderSigningPublicKey': signingPublicKey,
+      'signature': signature,
+    });
+  }
+
+  Future<bool> _verifySignedPayload(
+    Map<String, dynamic> payload, {
+    required String? fallbackPublicKey,
+  }) async {
+    final signature = payload['signature']?.toString();
+    final publicKey =
+        payload['senderSigningPublicKey']?.toString() ?? fallbackPublicKey;
+    if (signature == null ||
+        publicKey == null ||
+        !isValidOptionalProtocolText(
+          signature,
+          maxLength: kMaxProtocolSignatureLength,
+        ) ||
+        !isValidOptionalProtocolText(
+          publicKey,
+          maxLength: kMaxProtocolSigningPublicKeyLength,
+        )) {
+      return false;
+    }
+    final signedPayload = Map<String, dynamic>.from(payload)
+      ..remove('signature')
+      ..remove('senderSigningPublicKey');
+    return _deviceSignatureService.verifyPayload(
+      payload: signedPayload,
+      publicKeyBase64: publicKey,
+      signatureBase64: signature,
+    );
+  }
 }
 
 final v2DirectMessageProtocolControllerProvider =
@@ -328,6 +409,7 @@ final v2DirectMessageProtocolControllerProvider =
       final controller = V2DirectMessageProtocolController(
         signalingService: ref.read(v2RequestSignalingServiceProvider),
         identityService: ref.read(identityServiceProvider),
+        deviceSignatureService: ref.read(deviceSignatureServiceProvider),
         peersRepository: ref.read(peersRepositoryProvider),
         conversationsRepository: ref.read(conversationsRepositoryProvider),
         messagesRepository: ref.read(messagesRepositoryProvider),

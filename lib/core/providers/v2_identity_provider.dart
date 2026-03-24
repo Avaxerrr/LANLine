@@ -1,6 +1,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../identity/identity_service.dart';
+import 'security_providers.dart';
 import 'username_provider.dart';
 import 'v2_repository_providers.dart';
 
@@ -8,6 +9,7 @@ final identityServiceProvider = Provider<IdentityService>((ref) {
   return IdentityService(
     repository: ref.read(identityRepositoryProvider),
     prefs: ref.read(sharedPreferencesProvider),
+    signatureService: ref.read(deviceSignatureServiceProvider),
   );
 });
 

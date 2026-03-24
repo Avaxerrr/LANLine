@@ -11,12 +11,15 @@ import '../network/protocol_validation.dart';
 import '../network/v2_request_signaling_service.dart';
 import '../repositories/peers_repository.dart';
 import '../repositories/requests_repository.dart';
+import '../security/device_signature_service.dart';
+import 'security_providers.dart';
 import 'v2_identity_provider.dart';
 import 'v2_repository_providers.dart';
 
 class V2RequestProtocolController {
   final V2RequestSignalingService _signalingService;
   final IdentityService _identityService;
+  final DeviceSignatureService _deviceSignatureService;
   final PeersRepository _peersRepository;
   final RequestsRepository _requestsRepository;
   final Uuid _uuid;
@@ -28,11 +31,13 @@ class V2RequestProtocolController {
   V2RequestProtocolController({
     required V2RequestSignalingService signalingService,
     required IdentityService identityService,
+    required DeviceSignatureService deviceSignatureService,
     required PeersRepository peersRepository,
     required RequestsRepository requestsRepository,
     Uuid? uuid,
   }) : _signalingService = signalingService,
        _identityService = identityService,
+       _deviceSignatureService = deviceSignatureService,
        _peersRepository = peersRepository,
        _requestsRepository = requestsRepository,
        _uuid = uuid ?? const Uuid();
@@ -65,7 +70,7 @@ class V2RequestProtocolController {
     final peer = await _requirePeer(peerId);
     final presence = await _requireReachablePresence(peerId);
     final requestId = _uuid.v4();
-    final payload = jsonEncode({
+    final payload = await _buildSignedPayload({
       'protocol': 'lanline_v2_request',
       'action': 'request',
       'requestId': requestId,
@@ -139,7 +144,7 @@ class V2RequestProtocolController {
     required String action,
   }) async {
     final presence = await _requireReachablePresence(request.peerId);
-    final payload = jsonEncode({
+    final payload = await _buildSignedPayload({
       'protocol': 'lanline_v2_request',
       'action': action,
       'requestId': request.id,
@@ -173,6 +178,7 @@ class V2RequestProtocolController {
 
   Future<void> _handleIncomingMessage(String rawMessage) async {
     try {
+      _localIdentity ??= await _identityService.bootstrap();
       final data = jsonDecode(rawMessage);
       if (data is! Map<String, dynamic> ||
           data['protocol'] != 'lanline_v2_request') {
@@ -182,8 +188,18 @@ class V2RequestProtocolController {
       final rawSenderPeerId = data['senderPeerId']?.toString();
       final rawRequestId = data['requestId']?.toString();
       final action = data['action']?.toString();
+      final senderSigningPublicKey = data['senderSigningPublicKey']?.toString();
+      final signature = data['signature']?.toString();
       if (!isValidProtocolIdentifier(rawSenderPeerId) ||
           !isValidProtocolIdentifier(rawRequestId) ||
+          !isValidOptionalProtocolText(
+            senderSigningPublicKey,
+            maxLength: kMaxProtocolSigningPublicKeyLength,
+          ) ||
+          !isValidOptionalProtocolText(
+            signature,
+            maxLength: kMaxProtocolSignatureLength,
+          ) ||
           action == null ||
           (_localIdentity != null &&
               rawSenderPeerId == _localIdentity!.peerId)) {
@@ -201,6 +217,18 @@ class V2RequestProtocolController {
       }
 
       final existingPeer = await _peersRepository.getPeerByPeerId(senderPeerId);
+      final verified = await _verifySignedPayload(
+        data,
+        fallbackPublicKey:
+            existingPeer?.signingPublicKey ?? senderSigningPublicKey,
+      );
+      if (!verified) {
+        debugPrint(
+          '[V2RequestProtocolController] Ignored unsigned or invalid request '
+          'payload from $senderPeerId.',
+        );
+        return;
+      }
       if (action == 'request' && (existingPeer?.isBlocked ?? false)) {
         return;
       }
@@ -241,6 +269,8 @@ class V2RequestProtocolController {
             )
             ? fingerprint?.trim()
             : existingPeer?.fingerprint,
+        signingPublicKey:
+            senderSigningPublicKey?.trim() ?? existingPeer?.signingPublicKey,
         relationshipState: existingPeer?.relationshipState ?? 'discovered',
         isBlocked: existingPeer?.isBlocked ?? false,
       );
@@ -294,6 +324,48 @@ class V2RequestProtocolController {
     _startFuture = null;
     await _signalingService.stopServer();
   }
+
+  Future<String> _buildSignedPayload(Map<String, dynamic> payload) async {
+    final signingPublicKey =
+        _localIdentity!.signingPublicKey ??
+        (await _deviceSignatureService.ensureIdentity()).publicKey;
+    final signature = await _deviceSignatureService.signPayload(payload);
+    return jsonEncode({
+      ...payload,
+      'senderSigningPublicKey': signingPublicKey,
+      'signature': signature,
+    });
+  }
+
+  Future<bool> _verifySignedPayload(
+    Map<String, dynamic> payload, {
+    required String? fallbackPublicKey,
+  }) async {
+    final signature = payload['signature']?.toString();
+    final publicKey =
+        payload['senderSigningPublicKey']?.toString() ?? fallbackPublicKey;
+    if (signature == null ||
+        publicKey == null ||
+        !isValidOptionalProtocolText(
+          signature,
+          maxLength: kMaxProtocolSignatureLength,
+        ) ||
+        !isValidOptionalProtocolText(
+          publicKey,
+          maxLength: kMaxProtocolSigningPublicKeyLength,
+        )) {
+      return false;
+    }
+
+    final signedPayload = Map<String, dynamic>.from(payload)
+      ..remove('signature')
+      ..remove('senderSigningPublicKey');
+    return _deviceSignatureService.verifyPayload(
+      payload: signedPayload,
+      publicKeyBase64: publicKey,
+      signatureBase64: signature,
+    );
+  }
 }
 
 final v2RequestProtocolControllerProvider =
@@ -301,6 +373,7 @@ final v2RequestProtocolControllerProvider =
       final controller = V2RequestProtocolController(
         signalingService: ref.read(v2RequestSignalingServiceProvider),
         identityService: ref.read(identityServiceProvider),
+        deviceSignatureService: ref.read(deviceSignatureServiceProvider),
         peersRepository: ref.read(peersRepositoryProvider),
         requestsRepository: ref.read(requestsRepositoryProvider),
       );

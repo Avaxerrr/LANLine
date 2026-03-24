@@ -11,6 +11,8 @@ import '../network/v2_request_signaling_service.dart';
 import '../repositories/conversations_repository.dart';
 import '../repositories/messages_repository.dart';
 import '../repositories/peers_repository.dart';
+import '../security/device_signature_service.dart';
+import 'security_providers.dart';
 import 'v2_identity_provider.dart';
 import 'v2_navigation_state_provider.dart';
 import 'v2_repository_providers.dart';
@@ -18,6 +20,7 @@ import 'v2_repository_providers.dart';
 class V2GroupProtocolController {
   final V2RequestSignalingService _signalingService;
   final IdentityService _identityService;
+  final DeviceSignatureService _deviceSignatureService;
   final PeersRepository _peersRepository;
   final ConversationsRepository _conversationsRepository;
   final MessagesRepository _messagesRepository;
@@ -30,12 +33,14 @@ class V2GroupProtocolController {
   V2GroupProtocolController({
     required V2RequestSignalingService signalingService,
     required IdentityService identityService,
+    required DeviceSignatureService deviceSignatureService,
     required PeersRepository peersRepository,
     required ConversationsRepository conversationsRepository,
     required MessagesRepository messagesRepository,
     required String? Function() readActiveConversationId,
   }) : _signalingService = signalingService,
        _identityService = identityService,
+       _deviceSignatureService = deviceSignatureService,
        _peersRepository = peersRepository,
        _conversationsRepository = conversationsRepository,
        _messagesRepository = messagesRepository,
@@ -120,7 +125,7 @@ class V2GroupProtocolController {
         },
     ];
 
-    final payload = jsonEncode({
+    final payload = await _buildSignedPayload({
       'protocol': 'lanline_v2_group',
       'action': 'group_invite',
       'conversationId': conversation.id,
@@ -181,7 +186,7 @@ class V2GroupProtocolController {
     await _signalingService.sendMessage(
       host: adminPresence.host!,
       port: adminPresence.port ?? V2RequestSignalingService.defaultPort,
-      payload: jsonEncode({
+      payload: await _buildSignedPayload({
         'protocol': 'lanline_v2_group',
         'action': 'group_invite_response',
         'response': 'accepted',
@@ -221,7 +226,7 @@ class V2GroupProtocolController {
     await _signalingService.sendMessage(
       host: adminPresence.host!,
       port: adminPresence.port ?? V2RequestSignalingService.defaultPort,
-      payload: jsonEncode({
+      payload: await _buildSignedPayload({
         'protocol': 'lanline_v2_group',
         'action': 'group_invite_response',
         'response': 'declined',
@@ -274,7 +279,7 @@ class V2GroupProtocolController {
       sentAt: DateTime.now().millisecondsSinceEpoch,
     );
 
-    final payload = jsonEncode({
+    final payload = await _buildSignedPayload({
       'protocol': 'lanline_v2_group',
       'action': 'group_message',
       'conversationId': conversationId,
@@ -310,6 +315,7 @@ class V2GroupProtocolController {
 
   Future<void> _handleIncomingMessage(String rawMessage) async {
     try {
+      _localIdentity ??= await _identityService.bootstrap();
       final data = jsonDecode(rawMessage);
       if (data is! Map<String, dynamic> ||
           data['protocol'] != 'lanline_v2_group') {
@@ -320,6 +326,16 @@ class V2GroupProtocolController {
       if (!isValidProtocolIdentifier(rawSenderPeerId) ||
           (_localIdentity != null &&
               rawSenderPeerId == _localIdentity!.peerId)) {
+        return;
+      }
+      if (!isValidOptionalProtocolText(
+            data['senderSigningPublicKey']?.toString(),
+            maxLength: kMaxProtocolSigningPublicKeyLength,
+          ) ||
+          !isValidOptionalProtocolText(
+            data['signature']?.toString(),
+            maxLength: kMaxProtocolSignatureLength,
+          )) {
         return;
       }
       switch (data['action']) {
@@ -362,6 +378,15 @@ class V2GroupProtocolController {
     final normalizedTitle = title!.trim();
 
     final senderPeer = await _peersRepository.getPeerByPeerId(senderPeerId);
+    final verified = await _verifySignedPayload(
+      data,
+      fallbackPublicKey:
+          senderPeer?.signingPublicKey ??
+          data['senderSigningPublicKey']?.toString(),
+    );
+    if (!verified) {
+      return;
+    }
     final isTrustedSender =
         senderPeer != null &&
         !senderPeer.isBlocked &&
@@ -403,6 +428,9 @@ class V2GroupProtocolController {
             )
             ? member['fingerprint']?.toString().trim()
             : existingPeer?.fingerprint,
+        signingPublicKey: peerId == senderPeerId
+            ? data['senderSigningPublicKey']?.toString().trim()
+            : existingPeer?.signingPublicKey,
         relationshipState:
             existingPeer?.relationshipState ??
             (peerId == senderPeerId ? 'accepted' : 'discovered'),
@@ -447,6 +475,16 @@ class V2GroupProtocolController {
     }
     final conversationId = rawConversationId!.trim();
     final senderPeerId = rawSenderPeerId!.trim();
+    final existingPeer = await _peersRepository.getPeerByPeerId(senderPeerId);
+    final verified = await _verifySignedPayload(
+      data,
+      fallbackPublicKey:
+          existingPeer?.signingPublicKey ??
+          data['senderSigningPublicKey']?.toString(),
+    );
+    if (!verified) {
+      return;
+    }
 
     final senderMembership = await _conversationsRepository.getMembership(
       conversationId: conversationId,
@@ -507,6 +545,16 @@ class V2GroupProtocolController {
     final conversationId = rawConversationId!.trim();
     final senderPeerId = rawSenderPeerId!.trim();
     final memberPeerId = rawMemberPeerId!.trim();
+    final existingPeer = await _peersRepository.getPeerByPeerId(senderPeerId);
+    final verified = await _verifySignedPayload(
+      data,
+      fallbackPublicKey:
+          existingPeer?.signingPublicKey ??
+          data['senderSigningPublicKey']?.toString(),
+    );
+    if (!verified) {
+      return;
+    }
 
     final senderMembership = await _conversationsRepository.getMembership(
       conversationId: conversationId,
@@ -560,6 +608,7 @@ class V2GroupProtocolController {
     final conversationId = rawConversationId!.trim();
     final senderPeerId = rawSenderPeerId!.trim();
     final clientGeneratedId = rawClientGeneratedId!.trim();
+    final senderSigningPublicKey = data['senderSigningPublicKey']?.toString();
 
     final membership = await _conversationsRepository.getMembership(
       conversationId: conversationId,
@@ -570,6 +619,14 @@ class V2GroupProtocolController {
     }
 
     final existingPeer = await _peersRepository.getPeerByPeerId(senderPeerId);
+    final verified = await _verifySignedPayload(
+      data,
+      fallbackPublicKey:
+          existingPeer?.signingPublicKey ?? senderSigningPublicKey,
+    );
+    if (!verified) {
+      return;
+    }
     final senderMembership = await _conversationsRepository.getMembership(
       conversationId: conversationId,
       peerId: senderPeerId,
@@ -606,6 +663,8 @@ class V2GroupProtocolController {
           )
           ? data['senderFingerprint']?.toString().trim()
           : existingPeer.fingerprint,
+      signingPublicKey:
+          senderSigningPublicKey?.trim() ?? existingPeer.signingPublicKey,
       relationshipState: existingPeer.relationshipState,
       isBlocked: existingPeer.isBlocked,
     );
@@ -665,7 +724,7 @@ class V2GroupProtocolController {
 
     final member = await _peersRepository.getPeerByPeerId(memberPeerId);
     final targets = await _resolveMemberBroadcastTargets(conversationId);
-    final payload = jsonEncode({
+    final payload = await _buildSignedPayload({
       'protocol': 'lanline_v2_group',
       'action': 'group_member_update',
       'conversationId': conversationId,
@@ -760,6 +819,48 @@ class V2GroupProtocolController {
     _messageSubscription = null;
     _startFuture = null;
   }
+
+  Future<String> _buildSignedPayload(Map<String, dynamic> payload) async {
+    final signingPublicKey =
+        _localIdentity!.signingPublicKey ??
+        (await _deviceSignatureService.ensureIdentity()).publicKey;
+    final signature = await _deviceSignatureService.signPayload(payload);
+    return jsonEncode({
+      ...payload,
+      'senderSigningPublicKey': signingPublicKey,
+      'signature': signature,
+    });
+  }
+
+  Future<bool> _verifySignedPayload(
+    Map<String, dynamic> payload, {
+    required String? fallbackPublicKey,
+  }) async {
+    final signature = payload['signature']?.toString();
+    final publicKey =
+        payload['senderSigningPublicKey']?.toString() ?? fallbackPublicKey;
+    if (signature == null ||
+        publicKey == null ||
+        !isValidOptionalProtocolText(
+          signature,
+          maxLength: kMaxProtocolSignatureLength,
+        ) ||
+        !isValidOptionalProtocolText(
+          publicKey,
+          maxLength: kMaxProtocolSigningPublicKeyLength,
+        )) {
+      return false;
+    }
+
+    final signedPayload = Map<String, dynamic>.from(payload)
+      ..remove('signature')
+      ..remove('senderSigningPublicKey');
+    return _deviceSignatureService.verifyPayload(
+      payload: signedPayload,
+      publicKeyBase64: publicKey,
+      signatureBase64: signature,
+    );
+  }
 }
 
 final v2GroupProtocolControllerProvider = Provider<V2GroupProtocolController>((
@@ -768,6 +869,7 @@ final v2GroupProtocolControllerProvider = Provider<V2GroupProtocolController>((
   final controller = V2GroupProtocolController(
     signalingService: ref.read(v2RequestSignalingServiceProvider),
     identityService: ref.read(identityServiceProvider),
+    deviceSignatureService: ref.read(deviceSignatureServiceProvider),
     peersRepository: ref.read(peersRepositoryProvider),
     conversationsRepository: ref.read(conversationsRepositoryProvider),
     messagesRepository: ref.read(messagesRepositoryProvider),

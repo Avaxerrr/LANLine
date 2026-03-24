@@ -63,6 +63,7 @@ class PeersRepository {
     required String displayName,
     String? deviceLabel,
     String? fingerprint,
+    String? signingPublicKey,
     String relationshipState = 'discovered',
     bool isBlocked = false,
   }) async {
@@ -79,6 +80,7 @@ class PeersRepository {
               displayName: displayName,
               deviceLabel: drift.Value(deviceLabel),
               fingerprint: drift.Value(fingerprint),
+              signingPublicKey: drift.Value(signingPublicKey),
               relationshipState: relationshipState,
               isBlocked: drift.Value(isBlocked),
               createdAt: now,
@@ -93,6 +95,7 @@ class PeersRepository {
           displayName: drift.Value(displayName),
           deviceLabel: drift.Value(deviceLabel),
           fingerprint: drift.Value(fingerprint),
+          signingPublicKey: drift.Value(signingPublicKey ?? existing.signingPublicKey),
           relationshipState: drift.Value(relationshipState),
           isBlocked: drift.Value(isBlocked),
           updatedAt: drift.Value(now),

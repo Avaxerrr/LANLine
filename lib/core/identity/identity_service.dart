@@ -3,6 +3,7 @@ import 'package:uuid/uuid.dart';
 
 import '../db/app_database.dart';
 import '../repositories/identity_repository.dart';
+import '../security/device_signature_service.dart';
 import 'fingerprint_service.dart';
 
 class IdentityService {
@@ -11,14 +12,17 @@ class IdentityService {
 
   final IdentityRepository _repository;
   final SharedPreferences _prefs;
+  final DeviceSignatureService _signatureService;
   final Uuid _uuid;
 
   IdentityService({
     required IdentityRepository repository,
     required SharedPreferences prefs,
+    required DeviceSignatureService signatureService,
     Uuid? uuid,
   }) : _repository = repository,
        _prefs = prefs,
+       _signatureService = signatureService,
        _uuid = uuid ?? const Uuid();
 
   Future<LocalIdentityRow> bootstrap() async {
@@ -27,6 +31,7 @@ class IdentityService {
     final seededName = (legacyName != null && legacyName.isNotEmpty)
         ? legacyName
         : defaultDisplayName;
+    final signingIdentity = await _signatureService.ensureIdentity();
 
     if (existing == null) {
       final peerId = _uuid.v4();
@@ -35,6 +40,20 @@ class IdentityService {
         peerId: peerId,
         displayName: seededName,
         fingerprint: FingerprintService.fromPeerId(peerId),
+        signingPublicKey: signingIdentity.publicKey,
+      );
+    }
+
+    if (existing.signingPublicKey != signingIdentity.publicKey) {
+      return _repository.updateIdentity(
+        id: existing.id,
+        displayName: legacyName != null &&
+                legacyName.isNotEmpty &&
+                legacyName != existing.displayName
+            ? legacyName
+            : existing.displayName,
+        deviceLabel: existing.deviceLabel,
+        signingPublicKey: signingIdentity.publicKey,
       );
     }
 
@@ -45,6 +64,7 @@ class IdentityService {
         id: existing.id,
         displayName: legacyName,
         deviceLabel: existing.deviceLabel,
+        signingPublicKey: existing.signingPublicKey,
       );
     }
 
@@ -64,6 +84,7 @@ class IdentityService {
       id: existing.id,
       displayName: displayName,
       deviceLabel: deviceLabel,
+      signingPublicKey: existing.signingPublicKey,
     );
   }
 }

@@ -8,9 +8,13 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:lanline/core/db/app_database.dart';
 import 'package:lanline/core/network/v2_request_signaling_service.dart';
 import 'package:lanline/core/providers/username_provider.dart';
+import 'package:lanline/core/providers/security_providers.dart';
 import 'package:lanline/core/providers/v2_database_provider.dart';
 import 'package:lanline/core/providers/v2_media_protocol_provider.dart';
 import 'package:lanline/core/providers/v2_repository_providers.dart';
+import 'package:lanline/core/security/device_signature_service.dart';
+import 'package:lanline/core/security/in_memory_secret_store.dart';
+import 'package:lanline/core/security/local_data_protection_service.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -23,6 +27,7 @@ void main() {
     late MockV2PeerSignalingService signalingService;
     late StreamController<String> incomingMessages;
     late SharedPreferences prefs;
+    late DeviceSignatureService signatureService;
     late ProviderContainer container;
 
     setUp(() async {
@@ -30,6 +35,7 @@ void main() {
       signalingService = MockV2PeerSignalingService();
       incomingMessages = StreamController<String>.broadcast();
 
+      signatureService = DeviceSignatureService(InMemorySecretStore());
       SharedPreferences.setMockInitialValues({
         'lanline_username': 'Local User',
       });
@@ -56,6 +62,10 @@ void main() {
           appDatabaseProvider.overrideWithValue(database),
           sharedPreferencesProvider.overrideWithValue(prefs),
           v2RequestSignalingServiceProvider.overrideWithValue(signalingService),
+          deviceSignatureServiceProvider.overrideWithValue(signatureService),
+          localDataProtectionServiceProvider.overrideWithValue(
+            const PassthroughLocalDataProtectionService(),
+          ),
         ],
       );
 

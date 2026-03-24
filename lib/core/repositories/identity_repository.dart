@@ -25,6 +25,7 @@ class IdentityRepository {
     required String displayName,
     String? deviceLabel,
     required String fingerprint,
+    String? signingPublicKey,
   }) async {
     final now = DateTime.now().millisecondsSinceEpoch;
     await _database
@@ -36,6 +37,7 @@ class IdentityRepository {
             displayName: displayName,
             deviceLabel: drift.Value(deviceLabel),
             fingerprint: fingerprint,
+            signingPublicKey: drift.Value(signingPublicKey),
             createdAt: now,
             updatedAt: now,
           ),
@@ -47,6 +49,7 @@ class IdentityRepository {
     required String id,
     required String displayName,
     String? deviceLabel,
+    String? signingPublicKey,
   }) async {
     final now = DateTime.now().millisecondsSinceEpoch;
     await (_database.update(
@@ -55,6 +58,7 @@ class IdentityRepository {
       LocalIdentityTableCompanion(
         displayName: drift.Value(displayName),
         deviceLabel: drift.Value(deviceLabel),
+        signingPublicKey: drift.Value(signingPublicKey),
         updatedAt: drift.Value(now),
       ),
     );

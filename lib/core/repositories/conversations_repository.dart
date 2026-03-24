@@ -2,13 +2,19 @@ import 'package:drift/drift.dart' as drift;
 import 'package:uuid/uuid.dart';
 
 import '../db/app_database.dart';
+import '../security/local_data_protection_service.dart';
 
 class ConversationsRepository {
   final AppDatabase _database;
+  final LocalDataProtectionService _dataProtectionService;
   final Uuid _uuid;
 
-  ConversationsRepository(this._database, {Uuid? uuid})
-    : _uuid = uuid ?? const Uuid();
+  ConversationsRepository(
+    this._database, {
+    required LocalDataProtectionService dataProtectionService,
+    Uuid? uuid,
+  }) : _dataProtectionService = dataProtectionService,
+       _uuid = uuid ?? const Uuid();
 
   Stream<List<ConversationRow>> watchConversationList({
     required String localPeerId,
@@ -27,13 +33,17 @@ class ConversationsRepository {
             (tbl) => drift.OrderingTerm.desc(tbl.lastMessageAt),
             (tbl) => drift.OrderingTerm.desc(tbl.updatedAt),
           ]))
-        .watch();
+        .watch()
+        .asyncMap((rows) async => Future.wait(rows.map(_decryptConversation)));
   }
 
   Stream<ConversationRow?> watchConversationById(String conversationId) {
-    return (_database.select(
-      _database.conversationsTable,
-    )..where((tbl) => tbl.id.equals(conversationId))).watchSingleOrNull();
+    return (_database.select(_database.conversationsTable)
+          ..where((tbl) => tbl.id.equals(conversationId)))
+        .watchSingleOrNull()
+        .asyncMap(
+          (row) async => row == null ? null : _decryptConversation(row),
+        );
   }
 
   Stream<List<ConversationRow>> watchPendingGroupInvites({
@@ -51,7 +61,8 @@ class ConversationsRepository {
             (tbl) => tbl.id.isInQuery(inviteIds) & tbl.type.equals('group'),
           )
           ..orderBy([(tbl) => drift.OrderingTerm.desc(tbl.updatedAt)]))
-        .watch();
+        .watch()
+        .asyncMap((rows) async => Future.wait(rows.map(_decryptConversation)));
   }
 
   Stream<List<ConversationMemberRow>> watchConversationMembers(
@@ -67,9 +78,10 @@ class ConversationsRepository {
   }
 
   Future<ConversationRow?> getConversationById(String conversationId) {
-    return (_database.select(
-      _database.conversationsTable,
-    )..where((tbl) => tbl.id.equals(conversationId))).getSingleOrNull();
+    return (_database.select(_database.conversationsTable)
+          ..where((tbl) => tbl.id.equals(conversationId)))
+        .getSingleOrNull()
+        .then((row) => row == null ? null : _decryptConversation(row));
   }
 
   Future<ConversationMemberRow?> getMembership({
@@ -361,13 +373,23 @@ class ConversationsRepository {
     required int messageTimestamp,
   }) async {
     final now = DateTime.now().millisecondsSinceEpoch;
+    final encryptedPreview =
+        await _dataProtectionService.encryptNullable(preview) ?? preview;
     await (_database.update(
       _database.conversationsTable,
     )..where((tbl) => tbl.id.equals(conversationId))).write(
       ConversationsTableCompanion(
-        lastMessagePreview: drift.Value(preview),
+        lastMessagePreview: drift.Value(encryptedPreview),
         lastMessageAt: drift.Value(messageTimestamp),
         updatedAt: drift.Value(now),
+      ),
+    );
+  }
+
+  Future<ConversationRow> _decryptConversation(ConversationRow row) async {
+    return row.copyWith(
+      lastMessagePreview: drift.Value(
+        await _dataProtectionService.decryptNullable(row.lastMessagePreview),
       ),
     );
   }

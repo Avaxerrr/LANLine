@@ -1,4 +1,5 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_riverpod/legacy.dart';
 
 import '../db/app_database.dart';
 import '../repositories/messages_repository.dart';
@@ -11,6 +12,10 @@ import 'v2_navigation_state_provider.dart';
 import 'v2_presence_discovery_provider.dart';
 import 'v2_request_protocol_provider.dart';
 import 'v2_repository_providers.dart';
+
+final conversationMessagePageSizeProvider = StateProvider.family<int, String>(
+  (ref, conversationId) => 50,
+);
 
 final contactsProvider = StreamProvider((ref) {
   ref.watch(v2PresenceDiscoveryControllerProvider);
@@ -79,7 +84,12 @@ final conversationDetailsProvider =
 
 final conversationMessagesProvider =
     StreamProvider.family<List<MessageRow>, String>((ref, conversationId) {
-      return ref.read(messagesRepositoryProvider).watchMessages(conversationId);
+      final limit = ref.watch(
+        conversationMessagePageSizeProvider(conversationId),
+      );
+      return ref
+          .read(messagesRepositoryProvider)
+          .watchMessagesPage(conversationId, limit: limit);
     });
 
 final messageAttachmentsProvider =

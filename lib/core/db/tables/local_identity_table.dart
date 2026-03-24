@@ -7,6 +7,8 @@ class LocalIdentityTable extends Table {
   TextColumn get displayName => text().named('display_name')();
   TextColumn get deviceLabel => text().named('device_label').nullable()();
   TextColumn get fingerprint => text()();
+  TextColumn get signingPublicKey =>
+      text().named('signing_public_key').nullable()();
   IntColumn get createdAt => integer().named('created_at')();
   IntColumn get updatedAt => integer().named('updated_at')();
 

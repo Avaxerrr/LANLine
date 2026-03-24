@@ -12,6 +12,9 @@ import 'package:lanline/core/repositories/conversations_repository.dart';
 import 'package:lanline/core/repositories/identity_repository.dart';
 import 'package:lanline/core/repositories/messages_repository.dart';
 import 'package:lanline/core/repositories/peers_repository.dart';
+import 'package:lanline/core/security/device_signature_service.dart';
+import 'package:lanline/core/security/in_memory_secret_store.dart';
+import 'package:lanline/core/security/local_data_protection_service.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -27,6 +30,8 @@ void main() {
     late ConversationsRepository conversationsRepository;
     late AttachmentsRepository attachmentsRepository;
     late MessagesRepository messagesRepository;
+    late DeviceSignatureService signatureService;
+    late DeviceSignatureService remoteSignatureService;
     late MockV2PeerSignalingService signalingService;
     late StreamController<String> incomingMessages;
     late V2DirectMessageProtocolController controller;
@@ -35,13 +40,20 @@ void main() {
       database = AppDatabase(executor: NativeDatabase.memory());
       identityRepository = IdentityRepository(database);
       peersRepository = PeersRepository(database);
-      conversationsRepository = ConversationsRepository(database);
+      conversationsRepository = ConversationsRepository(
+        database,
+        dataProtectionService: const PassthroughLocalDataProtectionService(),
+      );
       attachmentsRepository = AttachmentsRepository(database);
       messagesRepository = MessagesRepository(
         database,
         conversationsRepository: conversationsRepository,
         attachmentsRepository: attachmentsRepository,
+        dataProtectionService: const PassthroughLocalDataProtectionService(),
+        readRetentionLimit: () => 0,
       );
+      signatureService = DeviceSignatureService(InMemorySecretStore());
+      remoteSignatureService = DeviceSignatureService(InMemorySecretStore());
       signalingService = MockV2PeerSignalingService();
       incomingMessages = StreamController<String>.broadcast();
 
@@ -52,6 +64,7 @@ void main() {
       identityService = IdentityService(
         repository: identityRepository,
         prefs: prefs,
+        signatureService: signatureService,
       );
 
       when(
@@ -74,6 +87,7 @@ void main() {
       controller = V2DirectMessageProtocolController(
         signalingService: signalingService,
         identityService: identityService,
+        deviceSignatureService: signatureService,
         peersRepository: peersRepository,
         conversationsRepository: conversationsRepository,
         messagesRepository: messagesRepository,
@@ -190,16 +204,22 @@ void main() {
           port: V2RequestSignalingService.defaultPort,
         );
 
+        final remoteIdentity = await remoteSignatureService.ensureIdentity();
+        final payload = {
+          'protocol': 'lanline_v2_message',
+          'action': 'message',
+          'senderPeerId': 'peer-remote',
+          'senderDisplayName': 'Remote Device',
+          'clientGeneratedId': 'msg-123',
+          'type': 'text',
+          'text': 'Hi from remote',
+          'sentAt': 1234567890,
+        };
         incomingMessages.add(
           jsonEncode({
-            'protocol': 'lanline_v2_message',
-            'action': 'message',
-            'senderPeerId': 'peer-remote',
-            'senderDisplayName': 'Remote Device',
-            'clientGeneratedId': 'msg-123',
-            'type': 'text',
-            'text': 'Hi from remote',
-            'sentAt': 1234567890,
+            ...payload,
+            'senderSigningPublicKey': remoteIdentity.publicKey,
+            'signature': await remoteSignatureService.signPayload(payload),
           }),
         );
 
@@ -262,17 +282,23 @@ void main() {
         port: V2RequestSignalingService.defaultPort,
       );
 
+      final remoteIdentity = await remoteSignatureService.ensureIdentity();
+      final payload = {
+        'protocol': 'lanline_v2_message',
+        'action': 'message',
+        'senderPeerId': 'peer-remote',
+        'senderDisplayName': 'Remote Device',
+        'clientGeneratedId': 'msg-reply',
+        'type': 'text',
+        'text': 'Reply body',
+        'replyToMessageId': original.id,
+        'sentAt': 1234567890,
+      };
       incomingMessages.add(
         jsonEncode({
-          'protocol': 'lanline_v2_message',
-          'action': 'message',
-          'senderPeerId': 'peer-remote',
-          'senderDisplayName': 'Remote Device',
-          'clientGeneratedId': 'msg-reply',
-          'type': 'text',
-          'text': 'Reply body',
-          'replyToMessageId': original.id,
-          'sentAt': 1234567890,
+          ...payload,
+          'senderSigningPublicKey': remoteIdentity.publicKey,
+          'signature': await remoteSignatureService.signPayload(payload),
         }),
       );
 

@@ -3,15 +3,19 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:lanline/core/db/app_database.dart';
 import 'package:lanline/core/identity/identity_service.dart';
 import 'package:lanline/core/repositories/identity_repository.dart';
+import 'package:lanline/core/security/device_signature_service.dart';
+import 'package:lanline/core/security/in_memory_secret_store.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 void main() {
   late AppDatabase database;
   late IdentityRepository repository;
+  late DeviceSignatureService signatureService;
 
   setUp(() {
     database = AppDatabase(executor: NativeDatabase.memory());
     repository = IdentityRepository(database);
+    signatureService = DeviceSignatureService(InMemorySecretStore());
   });
 
   tearDown(() async {
@@ -22,7 +26,11 @@ void main() {
     SharedPreferences.setMockInitialValues({});
     final prefs = await SharedPreferences.getInstance();
 
-    final service = IdentityService(repository: repository, prefs: prefs);
+    final service = IdentityService(
+      repository: repository,
+      prefs: prefs,
+      signatureService: signatureService,
+    );
     final identity = await service.bootstrap();
 
     expect(identity.id, 'local_identity');
@@ -37,7 +45,11 @@ void main() {
     });
     final prefs = await SharedPreferences.getInstance();
 
-    final service = IdentityService(repository: repository, prefs: prefs);
+    final service = IdentityService(
+      repository: repository,
+      prefs: prefs,
+      signatureService: signatureService,
+    );
     final identity = await service.bootstrap();
 
     expect(identity.displayName, 'LegacyName');
@@ -48,7 +60,11 @@ void main() {
       IdentityService.legacyUsernameKey: 'StableName',
     });
     final prefs = await SharedPreferences.getInstance();
-    final service = IdentityService(repository: repository, prefs: prefs);
+    final service = IdentityService(
+      repository: repository,
+      prefs: prefs,
+      signatureService: signatureService,
+    );
 
     final first = await service.bootstrap();
     final second = await service.bootstrap();
@@ -65,7 +81,11 @@ void main() {
         IdentityService.legacyUsernameKey: 'FirstName',
       });
       var prefs = await SharedPreferences.getInstance();
-      var service = IdentityService(repository: repository, prefs: prefs);
+      var service = IdentityService(
+        repository: repository,
+        prefs: prefs,
+        signatureService: signatureService,
+      );
 
       final first = await service.bootstrap();
       expect(first.displayName, 'FirstName');
@@ -74,7 +94,11 @@ void main() {
         IdentityService.legacyUsernameKey: 'UpdatedName',
       });
       prefs = await SharedPreferences.getInstance();
-      service = IdentityService(repository: repository, prefs: prefs);
+      service = IdentityService(
+        repository: repository,
+        prefs: prefs,
+        signatureService: signatureService,
+      );
 
       final second = await service.bootstrap();
       expect(second.peerId, first.peerId);

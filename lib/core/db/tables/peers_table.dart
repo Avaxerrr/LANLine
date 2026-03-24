@@ -7,6 +7,8 @@ class PeersTable extends Table {
   TextColumn get displayName => text().named('display_name')();
   TextColumn get deviceLabel => text().named('device_label').nullable()();
   TextColumn get fingerprint => text().nullable()();
+  TextColumn get signingPublicKey =>
+      text().named('signing_public_key').nullable()();
   TextColumn get relationshipState => text().named('relationship_state')();
   BoolColumn get isBlocked =>
       boolean().named('is_blocked').withDefault(const Constant(false))();

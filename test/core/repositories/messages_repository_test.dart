@@ -4,6 +4,7 @@ import 'package:lanline/core/db/app_database.dart';
 import 'package:lanline/core/repositories/attachments_repository.dart';
 import 'package:lanline/core/repositories/conversations_repository.dart';
 import 'package:lanline/core/repositories/messages_repository.dart';
+import 'package:lanline/core/security/local_data_protection_service.dart';
 
 void main() {
   late AppDatabase database;
@@ -13,12 +14,17 @@ void main() {
 
   setUp(() {
     database = AppDatabase(executor: NativeDatabase.memory());
-    conversationsRepository = ConversationsRepository(database);
+    conversationsRepository = ConversationsRepository(
+      database,
+      dataProtectionService: const PassthroughLocalDataProtectionService(),
+    );
     attachmentsRepository = AttachmentsRepository(database);
     messagesRepository = MessagesRepository(
       database,
       conversationsRepository: conversationsRepository,
       attachmentsRepository: attachmentsRepository,
+      dataProtectionService: const PassthroughLocalDataProtectionService(),
+      readRetentionLimit: () => 0,
     );
   });
 

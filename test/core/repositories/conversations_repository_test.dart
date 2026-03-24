@@ -2,6 +2,7 @@ import 'package:drift/native.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:lanline/core/db/app_database.dart';
 import 'package:lanline/core/repositories/conversations_repository.dart';
+import 'package:lanline/core/security/local_data_protection_service.dart';
 
 void main() {
   late AppDatabase database;
@@ -9,7 +10,10 @@ void main() {
 
   setUp(() {
     database = AppDatabase(executor: NativeDatabase.memory());
-    conversationsRepository = ConversationsRepository(database);
+    conversationsRepository = ConversationsRepository(
+      database,
+      dataProtectionService: const PassthroughLocalDataProtectionService(),
+    );
   });
 
   tearDown(() async {

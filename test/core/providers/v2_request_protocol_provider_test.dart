@@ -10,6 +10,8 @@ import 'package:lanline/core/providers/v2_request_protocol_provider.dart';
 import 'package:lanline/core/repositories/identity_repository.dart';
 import 'package:lanline/core/repositories/peers_repository.dart';
 import 'package:lanline/core/repositories/requests_repository.dart';
+import 'package:lanline/core/security/device_signature_service.dart';
+import 'package:lanline/core/security/in_memory_secret_store.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -23,6 +25,8 @@ void main() {
     late IdentityService identityService;
     late PeersRepository peersRepository;
     late RequestsRepository requestsRepository;
+    late DeviceSignatureService signatureService;
+    late DeviceSignatureService remoteSignatureService;
     late MockV2RequestSignalingService signalingService;
     late StreamController<String> incomingMessages;
     late V2RequestProtocolController controller;
@@ -35,6 +39,8 @@ void main() {
       signalingService = MockV2RequestSignalingService();
       incomingMessages = StreamController<String>.broadcast();
 
+      signatureService = DeviceSignatureService(InMemorySecretStore());
+      remoteSignatureService = DeviceSignatureService(InMemorySecretStore());
       SharedPreferences.setMockInitialValues({
         IdentityService.legacyUsernameKey: 'Local User',
       });
@@ -42,6 +48,7 @@ void main() {
       identityService = IdentityService(
         repository: identityRepository,
         prefs: prefs,
+        signatureService: signatureService,
       );
 
       when(() => signalingService.onMessageReceived)
@@ -64,6 +71,7 @@ void main() {
       controller = V2RequestProtocolController(
         signalingService: signalingService,
         identityService: identityService,
+        deviceSignatureService: signatureService,
         peersRepository: peersRepository,
         requestsRepository: requestsRepository,
       );
@@ -112,17 +120,23 @@ void main() {
 
     test('incoming request message creates pending incoming request', () async {
       await controller.start();
+      final remoteIdentity = await remoteSignatureService.ensureIdentity();
+      final payload = {
+        'protocol': 'lanline_v2_request',
+        'action': 'request',
+        'requestId': 'req-123',
+        'senderPeerId': 'peer-remote',
+        'senderDisplayName': 'Remote Device',
+        'senderDeviceLabel': 'Phone',
+        'senderFingerprint': 'R3M0-TE',
+        'message': 'connect with me',
+      };
 
       incomingMessages.add(
         jsonEncode({
-          'protocol': 'lanline_v2_request',
-          'action': 'request',
-          'requestId': 'req-123',
-          'senderPeerId': 'peer-remote',
-          'senderDisplayName': 'Remote Device',
-          'senderDeviceLabel': 'Phone',
-          'senderFingerprint': 'R3M0-TE',
-          'message': 'connect with me',
+          ...payload,
+          'senderSigningPublicKey': remoteIdentity.publicKey,
+          'signature': await remoteSignatureService.signPayload(payload),
         }),
       );
 
@@ -149,14 +163,20 @@ void main() {
         peerId: 'peer-remote',
         requestId: 'req-456',
       );
+      final remoteIdentity = await remoteSignatureService.ensureIdentity();
+      final payload = {
+        'protocol': 'lanline_v2_request',
+        'action': 'accepted',
+        'requestId': 'req-456',
+        'senderPeerId': 'peer-remote',
+        'senderDisplayName': 'Remote Device',
+      };
 
       incomingMessages.add(
         jsonEncode({
-          'protocol': 'lanline_v2_request',
-          'action': 'accepted',
-          'requestId': 'req-456',
-          'senderPeerId': 'peer-remote',
-          'senderDisplayName': 'Remote Device',
+          ...payload,
+          'senderSigningPublicKey': remoteIdentity.publicKey,
+          'signature': await remoteSignatureService.signPayload(payload),
         }),
       );
 

@@ -6,6 +6,8 @@ import '../repositories/identity_repository.dart';
 import '../repositories/messages_repository.dart';
 import '../repositories/peers_repository.dart';
 import '../repositories/requests_repository.dart';
+import 'message_retention_provider.dart';
+import 'security_providers.dart';
 import 'v2_database_provider.dart';
 
 final identityRepositoryProvider = Provider<IdentityRepository>((ref) {
@@ -23,7 +25,10 @@ final requestsRepositoryProvider = Provider<RequestsRepository>((ref) {
 final conversationsRepositoryProvider = Provider<ConversationsRepository>((
   ref,
 ) {
-  return ConversationsRepository(ref.read(appDatabaseProvider));
+  return ConversationsRepository(
+    ref.read(appDatabaseProvider),
+    dataProtectionService: ref.read(localDataProtectionServiceProvider),
+  );
 });
 
 final attachmentsRepositoryProvider = Provider<AttachmentsRepository>((ref) {
@@ -35,5 +40,7 @@ final messagesRepositoryProvider = Provider<MessagesRepository>((ref) {
     ref.read(appDatabaseProvider),
     conversationsRepository: ref.read(conversationsRepositoryProvider),
     attachmentsRepository: ref.read(attachmentsRepositoryProvider),
+    dataProtectionService: ref.read(localDataProtectionServiceProvider),
+    readRetentionLimit: () => ref.read(messageRetentionLimitProvider),
   );
 });

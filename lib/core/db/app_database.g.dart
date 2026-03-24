@@ -60,6 +60,17 @@ class $LocalIdentityTableTable extends LocalIdentityTable
     type: DriftSqlType.string,
     requiredDuringInsert: true,
   );
+  static const VerificationMeta _signingPublicKeyMeta = const VerificationMeta(
+    'signingPublicKey',
+  );
+  @override
+  late final GeneratedColumn<String> signingPublicKey = GeneratedColumn<String>(
+    'signing_public_key',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
   static const VerificationMeta _createdAtMeta = const VerificationMeta(
     'createdAt',
   );
@@ -89,6 +100,7 @@ class $LocalIdentityTableTable extends LocalIdentityTable
     displayName,
     deviceLabel,
     fingerprint,
+    signingPublicKey,
     createdAt,
     updatedAt,
   ];
@@ -148,6 +160,15 @@ class $LocalIdentityTableTable extends LocalIdentityTable
     } else if (isInserting) {
       context.missing(_fingerprintMeta);
     }
+    if (data.containsKey('signing_public_key')) {
+      context.handle(
+        _signingPublicKeyMeta,
+        signingPublicKey.isAcceptableOrUnknown(
+          data['signing_public_key']!,
+          _signingPublicKeyMeta,
+        ),
+      );
+    }
     if (data.containsKey('created_at')) {
       context.handle(
         _createdAtMeta,
@@ -197,6 +218,10 @@ class $LocalIdentityTableTable extends LocalIdentityTable
         DriftSqlType.string,
         data['${effectivePrefix}fingerprint'],
       )!,
+      signingPublicKey: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}signing_public_key'],
+      ),
       createdAt: attachedDatabase.typeMapping.read(
         DriftSqlType.int,
         data['${effectivePrefix}created_at'],
@@ -221,6 +246,7 @@ class LocalIdentityRow extends DataClass
   final String displayName;
   final String? deviceLabel;
   final String fingerprint;
+  final String? signingPublicKey;
   final int createdAt;
   final int updatedAt;
   const LocalIdentityRow({
@@ -229,6 +255,7 @@ class LocalIdentityRow extends DataClass
     required this.displayName,
     this.deviceLabel,
     required this.fingerprint,
+    this.signingPublicKey,
     required this.createdAt,
     required this.updatedAt,
   });
@@ -242,6 +269,9 @@ class LocalIdentityRow extends DataClass
       map['device_label'] = Variable<String>(deviceLabel);
     }
     map['fingerprint'] = Variable<String>(fingerprint);
+    if (!nullToAbsent || signingPublicKey != null) {
+      map['signing_public_key'] = Variable<String>(signingPublicKey);
+    }
     map['created_at'] = Variable<int>(createdAt);
     map['updated_at'] = Variable<int>(updatedAt);
     return map;
@@ -256,6 +286,9 @@ class LocalIdentityRow extends DataClass
           ? const Value.absent()
           : Value(deviceLabel),
       fingerprint: Value(fingerprint),
+      signingPublicKey: signingPublicKey == null && nullToAbsent
+          ? const Value.absent()
+          : Value(signingPublicKey),
       createdAt: Value(createdAt),
       updatedAt: Value(updatedAt),
     );
@@ -272,6 +305,7 @@ class LocalIdentityRow extends DataClass
       displayName: serializer.fromJson<String>(json['displayName']),
       deviceLabel: serializer.fromJson<String?>(json['deviceLabel']),
       fingerprint: serializer.fromJson<String>(json['fingerprint']),
+      signingPublicKey: serializer.fromJson<String?>(json['signingPublicKey']),
       createdAt: serializer.fromJson<int>(json['createdAt']),
       updatedAt: serializer.fromJson<int>(json['updatedAt']),
     );
@@ -285,6 +319,7 @@ class LocalIdentityRow extends DataClass
       'displayName': serializer.toJson<String>(displayName),
       'deviceLabel': serializer.toJson<String?>(deviceLabel),
       'fingerprint': serializer.toJson<String>(fingerprint),
+      'signingPublicKey': serializer.toJson<String?>(signingPublicKey),
       'createdAt': serializer.toJson<int>(createdAt),
       'updatedAt': serializer.toJson<int>(updatedAt),
     };
@@ -296,6 +331,7 @@ class LocalIdentityRow extends DataClass
     String? displayName,
     Value<String?> deviceLabel = const Value.absent(),
     String? fingerprint,
+    Value<String?> signingPublicKey = const Value.absent(),
     int? createdAt,
     int? updatedAt,
   }) => LocalIdentityRow(
@@ -304,6 +340,9 @@ class LocalIdentityRow extends DataClass
     displayName: displayName ?? this.displayName,
     deviceLabel: deviceLabel.present ? deviceLabel.value : this.deviceLabel,
     fingerprint: fingerprint ?? this.fingerprint,
+    signingPublicKey: signingPublicKey.present
+        ? signingPublicKey.value
+        : this.signingPublicKey,
     createdAt: createdAt ?? this.createdAt,
     updatedAt: updatedAt ?? this.updatedAt,
   );
@@ -320,6 +359,9 @@ class LocalIdentityRow extends DataClass
       fingerprint: data.fingerprint.present
           ? data.fingerprint.value
           : this.fingerprint,
+      signingPublicKey: data.signingPublicKey.present
+          ? data.signingPublicKey.value
+          : this.signingPublicKey,
       createdAt: data.createdAt.present ? data.createdAt.value : this.createdAt,
       updatedAt: data.updatedAt.present ? data.updatedAt.value : this.updatedAt,
     );
@@ -333,6 +375,7 @@ class LocalIdentityRow extends DataClass
           ..write('displayName: $displayName, ')
           ..write('deviceLabel: $deviceLabel, ')
           ..write('fingerprint: $fingerprint, ')
+          ..write('signingPublicKey: $signingPublicKey, ')
           ..write('createdAt: $createdAt, ')
           ..write('updatedAt: $updatedAt')
           ..write(')'))
@@ -346,6 +389,7 @@ class LocalIdentityRow extends DataClass
     displayName,
     deviceLabel,
     fingerprint,
+    signingPublicKey,
     createdAt,
     updatedAt,
   );
@@ -358,6 +402,7 @@ class LocalIdentityRow extends DataClass
           other.displayName == this.displayName &&
           other.deviceLabel == this.deviceLabel &&
           other.fingerprint == this.fingerprint &&
+          other.signingPublicKey == this.signingPublicKey &&
           other.createdAt == this.createdAt &&
           other.updatedAt == this.updatedAt);
 }
@@ -368,6 +413,7 @@ class LocalIdentityTableCompanion extends UpdateCompanion<LocalIdentityRow> {
   final Value<String> displayName;
   final Value<String?> deviceLabel;
   final Value<String> fingerprint;
+  final Value<String?> signingPublicKey;
   final Value<int> createdAt;
   final Value<int> updatedAt;
   final Value<int> rowid;
@@ -377,6 +423,7 @@ class LocalIdentityTableCompanion extends UpdateCompanion<LocalIdentityRow> {
     this.displayName = const Value.absent(),
     this.deviceLabel = const Value.absent(),
     this.fingerprint = const Value.absent(),
+    this.signingPublicKey = const Value.absent(),
     this.createdAt = const Value.absent(),
     this.updatedAt = const Value.absent(),
     this.rowid = const Value.absent(),
@@ -387,6 +434,7 @@ class LocalIdentityTableCompanion extends UpdateCompanion<LocalIdentityRow> {
     required String displayName,
     this.deviceLabel = const Value.absent(),
     required String fingerprint,
+    this.signingPublicKey = const Value.absent(),
     required int createdAt,
     required int updatedAt,
     this.rowid = const Value.absent(),
@@ -402,6 +450,7 @@ class LocalIdentityTableCompanion extends UpdateCompanion<LocalIdentityRow> {
     Expression<String>? displayName,
     Expression<String>? deviceLabel,
     Expression<String>? fingerprint,
+    Expression<String>? signingPublicKey,
     Expression<int>? createdAt,
     Expression<int>? updatedAt,
     Expression<int>? rowid,
@@ -412,6 +461,7 @@ class LocalIdentityTableCompanion extends UpdateCompanion<LocalIdentityRow> {
       if (displayName != null) 'display_name': displayName,
       if (deviceLabel != null) 'device_label': deviceLabel,
       if (fingerprint != null) 'fingerprint': fingerprint,
+      if (signingPublicKey != null) 'signing_public_key': signingPublicKey,
       if (createdAt != null) 'created_at': createdAt,
       if (updatedAt != null) 'updated_at': updatedAt,
       if (rowid != null) 'rowid': rowid,
@@ -424,6 +474,7 @@ class LocalIdentityTableCompanion extends UpdateCompanion<LocalIdentityRow> {
     Value<String>? displayName,
     Value<String?>? deviceLabel,
     Value<String>? fingerprint,
+    Value<String?>? signingPublicKey,
     Value<int>? createdAt,
     Value<int>? updatedAt,
     Value<int>? rowid,
@@ -434,6 +485,7 @@ class LocalIdentityTableCompanion extends UpdateCompanion<LocalIdentityRow> {
       displayName: displayName ?? this.displayName,
       deviceLabel: deviceLabel ?? this.deviceLabel,
       fingerprint: fingerprint ?? this.fingerprint,
+      signingPublicKey: signingPublicKey ?? this.signingPublicKey,
       createdAt: createdAt ?? this.createdAt,
       updatedAt: updatedAt ?? this.updatedAt,
       rowid: rowid ?? this.rowid,
@@ -458,6 +510,9 @@ class LocalIdentityTableCompanion extends UpdateCompanion<LocalIdentityRow> {
     if (fingerprint.present) {
       map['fingerprint'] = Variable<String>(fingerprint.value);
     }
+    if (signingPublicKey.present) {
+      map['signing_public_key'] = Variable<String>(signingPublicKey.value);
+    }
     if (createdAt.present) {
       map['created_at'] = Variable<int>(createdAt.value);
     }
@@ -478,6 +533,7 @@ class LocalIdentityTableCompanion extends UpdateCompanion<LocalIdentityRow> {
           ..write('displayName: $displayName, ')
           ..write('deviceLabel: $deviceLabel, ')
           ..write('fingerprint: $fingerprint, ')
+          ..write('signingPublicKey: $signingPublicKey, ')
           ..write('createdAt: $createdAt, ')
           ..write('updatedAt: $updatedAt, ')
           ..write('rowid: $rowid')
@@ -538,6 +594,17 @@ class $PeersTableTable extends PeersTable
   @override
   late final GeneratedColumn<String> fingerprint = GeneratedColumn<String>(
     'fingerprint',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _signingPublicKeyMeta = const VerificationMeta(
+    'signingPublicKey',
+  );
+  @override
+  late final GeneratedColumn<String> signingPublicKey = GeneratedColumn<String>(
+    'signing_public_key',
     aliasedName,
     true,
     type: DriftSqlType.string,
@@ -610,6 +677,7 @@ class $PeersTableTable extends PeersTable
     displayName,
     deviceLabel,
     fingerprint,
+    signingPublicKey,
     relationshipState,
     isBlocked,
     lastSeenAt,
@@ -667,6 +735,15 @@ class $PeersTableTable extends PeersTable
         fingerprint.isAcceptableOrUnknown(
           data['fingerprint']!,
           _fingerprintMeta,
+        ),
+      );
+    }
+    if (data.containsKey('signing_public_key')) {
+      context.handle(
+        _signingPublicKeyMeta,
+        signingPublicKey.isAcceptableOrUnknown(
+          data['signing_public_key']!,
+          _signingPublicKeyMeta,
         ),
       );
     }
@@ -745,6 +822,10 @@ class $PeersTableTable extends PeersTable
         DriftSqlType.string,
         data['${effectivePrefix}fingerprint'],
       ),
+      signingPublicKey: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}signing_public_key'],
+      ),
       relationshipState: attachedDatabase.typeMapping.read(
         DriftSqlType.string,
         data['${effectivePrefix}relationship_state'],
@@ -780,6 +861,7 @@ class PeerRow extends DataClass implements Insertable<PeerRow> {
   final String displayName;
   final String? deviceLabel;
   final String? fingerprint;
+  final String? signingPublicKey;
   final String relationshipState;
   final bool isBlocked;
   final int? lastSeenAt;
@@ -791,6 +873,7 @@ class PeerRow extends DataClass implements Insertable<PeerRow> {
     required this.displayName,
     this.deviceLabel,
     this.fingerprint,
+    this.signingPublicKey,
     required this.relationshipState,
     required this.isBlocked,
     this.lastSeenAt,
@@ -808,6 +891,9 @@ class PeerRow extends DataClass implements Insertable<PeerRow> {
     }
     if (!nullToAbsent || fingerprint != null) {
       map['fingerprint'] = Variable<String>(fingerprint);
+    }
+    if (!nullToAbsent || signingPublicKey != null) {
+      map['signing_public_key'] = Variable<String>(signingPublicKey);
     }
     map['relationship_state'] = Variable<String>(relationshipState);
     map['is_blocked'] = Variable<bool>(isBlocked);
@@ -830,6 +916,9 @@ class PeerRow extends DataClass implements Insertable<PeerRow> {
       fingerprint: fingerprint == null && nullToAbsent
           ? const Value.absent()
           : Value(fingerprint),
+      signingPublicKey: signingPublicKey == null && nullToAbsent
+          ? const Value.absent()
+          : Value(signingPublicKey),
       relationshipState: Value(relationshipState),
       isBlocked: Value(isBlocked),
       lastSeenAt: lastSeenAt == null && nullToAbsent
@@ -851,6 +940,7 @@ class PeerRow extends DataClass implements Insertable<PeerRow> {
       displayName: serializer.fromJson<String>(json['displayName']),
       deviceLabel: serializer.fromJson<String?>(json['deviceLabel']),
       fingerprint: serializer.fromJson<String?>(json['fingerprint']),
+      signingPublicKey: serializer.fromJson<String?>(json['signingPublicKey']),
       relationshipState: serializer.fromJson<String>(json['relationshipState']),
       isBlocked: serializer.fromJson<bool>(json['isBlocked']),
       lastSeenAt: serializer.fromJson<int?>(json['lastSeenAt']),
@@ -867,6 +957,7 @@ class PeerRow extends DataClass implements Insertable<PeerRow> {
       'displayName': serializer.toJson<String>(displayName),
       'deviceLabel': serializer.toJson<String?>(deviceLabel),
       'fingerprint': serializer.toJson<String?>(fingerprint),
+      'signingPublicKey': serializer.toJson<String?>(signingPublicKey),
       'relationshipState': serializer.toJson<String>(relationshipState),
       'isBlocked': serializer.toJson<bool>(isBlocked),
       'lastSeenAt': serializer.toJson<int?>(lastSeenAt),
@@ -881,6 +972,7 @@ class PeerRow extends DataClass implements Insertable<PeerRow> {
     String? displayName,
     Value<String?> deviceLabel = const Value.absent(),
     Value<String?> fingerprint = const Value.absent(),
+    Value<String?> signingPublicKey = const Value.absent(),
     String? relationshipState,
     bool? isBlocked,
     Value<int?> lastSeenAt = const Value.absent(),
@@ -892,6 +984,9 @@ class PeerRow extends DataClass implements Insertable<PeerRow> {
     displayName: displayName ?? this.displayName,
     deviceLabel: deviceLabel.present ? deviceLabel.value : this.deviceLabel,
     fingerprint: fingerprint.present ? fingerprint.value : this.fingerprint,
+    signingPublicKey: signingPublicKey.present
+        ? signingPublicKey.value
+        : this.signingPublicKey,
     relationshipState: relationshipState ?? this.relationshipState,
     isBlocked: isBlocked ?? this.isBlocked,
     lastSeenAt: lastSeenAt.present ? lastSeenAt.value : this.lastSeenAt,
@@ -911,6 +1006,9 @@ class PeerRow extends DataClass implements Insertable<PeerRow> {
       fingerprint: data.fingerprint.present
           ? data.fingerprint.value
           : this.fingerprint,
+      signingPublicKey: data.signingPublicKey.present
+          ? data.signingPublicKey.value
+          : this.signingPublicKey,
       relationshipState: data.relationshipState.present
           ? data.relationshipState.value
           : this.relationshipState,
@@ -931,6 +1029,7 @@ class PeerRow extends DataClass implements Insertable<PeerRow> {
           ..write('displayName: $displayName, ')
           ..write('deviceLabel: $deviceLabel, ')
           ..write('fingerprint: $fingerprint, ')
+          ..write('signingPublicKey: $signingPublicKey, ')
           ..write('relationshipState: $relationshipState, ')
           ..write('isBlocked: $isBlocked, ')
           ..write('lastSeenAt: $lastSeenAt, ')
@@ -947,6 +1046,7 @@ class PeerRow extends DataClass implements Insertable<PeerRow> {
     displayName,
     deviceLabel,
     fingerprint,
+    signingPublicKey,
     relationshipState,
     isBlocked,
     lastSeenAt,
@@ -962,6 +1062,7 @@ class PeerRow extends DataClass implements Insertable<PeerRow> {
           other.displayName == this.displayName &&
           other.deviceLabel == this.deviceLabel &&
           other.fingerprint == this.fingerprint &&
+          other.signingPublicKey == this.signingPublicKey &&
           other.relationshipState == this.relationshipState &&
           other.isBlocked == this.isBlocked &&
           other.lastSeenAt == this.lastSeenAt &&
@@ -975,6 +1076,7 @@ class PeersTableCompanion extends UpdateCompanion<PeerRow> {
   final Value<String> displayName;
   final Value<String?> deviceLabel;
   final Value<String?> fingerprint;
+  final Value<String?> signingPublicKey;
   final Value<String> relationshipState;
   final Value<bool> isBlocked;
   final Value<int?> lastSeenAt;
@@ -987,6 +1089,7 @@ class PeersTableCompanion extends UpdateCompanion<PeerRow> {
     this.displayName = const Value.absent(),
     this.deviceLabel = const Value.absent(),
     this.fingerprint = const Value.absent(),
+    this.signingPublicKey = const Value.absent(),
     this.relationshipState = const Value.absent(),
     this.isBlocked = const Value.absent(),
     this.lastSeenAt = const Value.absent(),
@@ -1000,6 +1103,7 @@ class PeersTableCompanion extends UpdateCompanion<PeerRow> {
     required String displayName,
     this.deviceLabel = const Value.absent(),
     this.fingerprint = const Value.absent(),
+    this.signingPublicKey = const Value.absent(),
     required String relationshipState,
     this.isBlocked = const Value.absent(),
     this.lastSeenAt = const Value.absent(),
@@ -1018,6 +1122,7 @@ class PeersTableCompanion extends UpdateCompanion<PeerRow> {
     Expression<String>? displayName,
     Expression<String>? deviceLabel,
     Expression<String>? fingerprint,
+    Expression<String>? signingPublicKey,
     Expression<String>? relationshipState,
     Expression<bool>? isBlocked,
     Expression<int>? lastSeenAt,
@@ -1031,6 +1136,7 @@ class PeersTableCompanion extends UpdateCompanion<PeerRow> {
       if (displayName != null) 'display_name': displayName,
       if (deviceLabel != null) 'device_label': deviceLabel,
       if (fingerprint != null) 'fingerprint': fingerprint,
+      if (signingPublicKey != null) 'signing_public_key': signingPublicKey,
       if (relationshipState != null) 'relationship_state': relationshipState,
       if (isBlocked != null) 'is_blocked': isBlocked,
       if (lastSeenAt != null) 'last_seen_at': lastSeenAt,
@@ -1046,6 +1152,7 @@ class PeersTableCompanion extends UpdateCompanion<PeerRow> {
     Value<String>? displayName,
     Value<String?>? deviceLabel,
     Value<String?>? fingerprint,
+    Value<String?>? signingPublicKey,
     Value<String>? relationshipState,
     Value<bool>? isBlocked,
     Value<int?>? lastSeenAt,
@@ -1059,6 +1166,7 @@ class PeersTableCompanion extends UpdateCompanion<PeerRow> {
       displayName: displayName ?? this.displayName,
       deviceLabel: deviceLabel ?? this.deviceLabel,
       fingerprint: fingerprint ?? this.fingerprint,
+      signingPublicKey: signingPublicKey ?? this.signingPublicKey,
       relationshipState: relationshipState ?? this.relationshipState,
       isBlocked: isBlocked ?? this.isBlocked,
       lastSeenAt: lastSeenAt ?? this.lastSeenAt,
@@ -1085,6 +1193,9 @@ class PeersTableCompanion extends UpdateCompanion<PeerRow> {
     }
     if (fingerprint.present) {
       map['fingerprint'] = Variable<String>(fingerprint.value);
+    }
+    if (signingPublicKey.present) {
+      map['signing_public_key'] = Variable<String>(signingPublicKey.value);
     }
     if (relationshipState.present) {
       map['relationship_state'] = Variable<String>(relationshipState.value);
@@ -1115,6 +1226,7 @@ class PeersTableCompanion extends UpdateCompanion<PeerRow> {
           ..write('displayName: $displayName, ')
           ..write('deviceLabel: $deviceLabel, ')
           ..write('fingerprint: $fingerprint, ')
+          ..write('signingPublicKey: $signingPublicKey, ')
           ..write('relationshipState: $relationshipState, ')
           ..write('isBlocked: $isBlocked, ')
           ..write('lastSeenAt: $lastSeenAt, ')
@@ -5532,6 +5644,7 @@ typedef $$LocalIdentityTableTableCreateCompanionBuilder =
       required String displayName,
       Value<String?> deviceLabel,
       required String fingerprint,
+      Value<String?> signingPublicKey,
       required int createdAt,
       required int updatedAt,
       Value<int> rowid,
@@ -5543,6 +5656,7 @@ typedef $$LocalIdentityTableTableUpdateCompanionBuilder =
       Value<String> displayName,
       Value<String?> deviceLabel,
       Value<String> fingerprint,
+      Value<String?> signingPublicKey,
       Value<int> createdAt,
       Value<int> updatedAt,
       Value<int> rowid,
@@ -5579,6 +5693,11 @@ class $$LocalIdentityTableTableFilterComposer
 
   ColumnFilters<String> get fingerprint => $composableBuilder(
     column: $table.fingerprint,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get signingPublicKey => $composableBuilder(
+    column: $table.signingPublicKey,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -5627,6 +5746,11 @@ class $$LocalIdentityTableTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
+  ColumnOrderings<String> get signingPublicKey => $composableBuilder(
+    column: $table.signingPublicKey,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   ColumnOrderings<int> get createdAt => $composableBuilder(
     column: $table.createdAt,
     builder: (column) => ColumnOrderings(column),
@@ -5665,6 +5789,11 @@ class $$LocalIdentityTableTableAnnotationComposer
 
   GeneratedColumn<String> get fingerprint => $composableBuilder(
     column: $table.fingerprint,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get signingPublicKey => $composableBuilder(
+    column: $table.signingPublicKey,
     builder: (column) => column,
   );
 
@@ -5720,6 +5849,7 @@ class $$LocalIdentityTableTableTableManager
                 Value<String> displayName = const Value.absent(),
                 Value<String?> deviceLabel = const Value.absent(),
                 Value<String> fingerprint = const Value.absent(),
+                Value<String?> signingPublicKey = const Value.absent(),
                 Value<int> createdAt = const Value.absent(),
                 Value<int> updatedAt = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
@@ -5729,6 +5859,7 @@ class $$LocalIdentityTableTableTableManager
                 displayName: displayName,
                 deviceLabel: deviceLabel,
                 fingerprint: fingerprint,
+                signingPublicKey: signingPublicKey,
                 createdAt: createdAt,
                 updatedAt: updatedAt,
                 rowid: rowid,
@@ -5740,6 +5871,7 @@ class $$LocalIdentityTableTableTableManager
                 required String displayName,
                 Value<String?> deviceLabel = const Value.absent(),
                 required String fingerprint,
+                Value<String?> signingPublicKey = const Value.absent(),
                 required int createdAt,
                 required int updatedAt,
                 Value<int> rowid = const Value.absent(),
@@ -5749,6 +5881,7 @@ class $$LocalIdentityTableTableTableManager
                 displayName: displayName,
                 deviceLabel: deviceLabel,
                 fingerprint: fingerprint,
+                signingPublicKey: signingPublicKey,
                 createdAt: createdAt,
                 updatedAt: updatedAt,
                 rowid: rowid,
@@ -5789,6 +5922,7 @@ typedef $$PeersTableTableCreateCompanionBuilder =
       required String displayName,
       Value<String?> deviceLabel,
       Value<String?> fingerprint,
+      Value<String?> signingPublicKey,
       required String relationshipState,
       Value<bool> isBlocked,
       Value<int?> lastSeenAt,
@@ -5803,6 +5937,7 @@ typedef $$PeersTableTableUpdateCompanionBuilder =
       Value<String> displayName,
       Value<String?> deviceLabel,
       Value<String?> fingerprint,
+      Value<String?> signingPublicKey,
       Value<String> relationshipState,
       Value<bool> isBlocked,
       Value<int?> lastSeenAt,
@@ -5842,6 +5977,11 @@ class $$PeersTableTableFilterComposer
 
   ColumnFilters<String> get fingerprint => $composableBuilder(
     column: $table.fingerprint,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get signingPublicKey => $composableBuilder(
+    column: $table.signingPublicKey,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -5905,6 +6045,11 @@ class $$PeersTableTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
+  ColumnOrderings<String> get signingPublicKey => $composableBuilder(
+    column: $table.signingPublicKey,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   ColumnOrderings<String> get relationshipState => $composableBuilder(
     column: $table.relationshipState,
     builder: (column) => ColumnOrderings(column),
@@ -5961,6 +6106,11 @@ class $$PeersTableTableAnnotationComposer
     builder: (column) => column,
   );
 
+  GeneratedColumn<String> get signingPublicKey => $composableBuilder(
+    column: $table.signingPublicKey,
+    builder: (column) => column,
+  );
+
   GeneratedColumn<String> get relationshipState => $composableBuilder(
     column: $table.relationshipState,
     builder: (column) => column,
@@ -6014,6 +6164,7 @@ class $$PeersTableTableTableManager
                 Value<String> displayName = const Value.absent(),
                 Value<String?> deviceLabel = const Value.absent(),
                 Value<String?> fingerprint = const Value.absent(),
+                Value<String?> signingPublicKey = const Value.absent(),
                 Value<String> relationshipState = const Value.absent(),
                 Value<bool> isBlocked = const Value.absent(),
                 Value<int?> lastSeenAt = const Value.absent(),
@@ -6026,6 +6177,7 @@ class $$PeersTableTableTableManager
                 displayName: displayName,
                 deviceLabel: deviceLabel,
                 fingerprint: fingerprint,
+                signingPublicKey: signingPublicKey,
                 relationshipState: relationshipState,
                 isBlocked: isBlocked,
                 lastSeenAt: lastSeenAt,
@@ -6040,6 +6192,7 @@ class $$PeersTableTableTableManager
                 required String displayName,
                 Value<String?> deviceLabel = const Value.absent(),
                 Value<String?> fingerprint = const Value.absent(),
+                Value<String?> signingPublicKey = const Value.absent(),
                 required String relationshipState,
                 Value<bool> isBlocked = const Value.absent(),
                 Value<int?> lastSeenAt = const Value.absent(),
@@ -6052,6 +6205,7 @@ class $$PeersTableTableTableManager
                 displayName: displayName,
                 deviceLabel: deviceLabel,
                 fingerprint: fingerprint,
+                signingPublicKey: signingPublicKey,
                 relationshipState: relationshipState,
                 isBlocked: isBlocked,
                 lastSeenAt: lastSeenAt,

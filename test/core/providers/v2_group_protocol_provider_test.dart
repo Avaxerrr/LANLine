@@ -11,6 +11,10 @@ import 'package:lanline/core/providers/v2_database_provider.dart';
 import 'package:lanline/core/providers/v2_identity_provider.dart';
 import 'package:lanline/core/providers/v2_group_protocol_provider.dart';
 import 'package:lanline/core/providers/v2_repository_providers.dart';
+import 'package:lanline/core/providers/security_providers.dart';
+import 'package:lanline/core/security/device_signature_service.dart';
+import 'package:lanline/core/security/in_memory_secret_store.dart';
+import 'package:lanline/core/security/local_data_protection_service.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -23,6 +27,8 @@ void main() {
     late MockV2PeerSignalingService signalingService;
     late StreamController<String> incomingMessages;
     late SharedPreferences prefs;
+    late DeviceSignatureService signatureService;
+    late DeviceSignatureService remoteSignatureService;
     late ProviderContainer container;
 
     setUp(() async {
@@ -30,6 +36,8 @@ void main() {
       signalingService = MockV2PeerSignalingService();
       incomingMessages = StreamController<String>.broadcast();
 
+      signatureService = DeviceSignatureService(InMemorySecretStore());
+      remoteSignatureService = DeviceSignatureService(InMemorySecretStore());
       SharedPreferences.setMockInitialValues({
         'lanline_username': 'Local User',
       });
@@ -57,6 +65,10 @@ void main() {
           appDatabaseProvider.overrideWithValue(database),
           sharedPreferencesProvider.overrideWithValue(prefs),
           v2RequestSignalingServiceProvider.overrideWithValue(signalingService),
+          deviceSignatureServiceProvider.overrideWithValue(signatureService),
+          localDataProtectionServiceProvider.overrideWithValue(
+            const PassthroughLocalDataProtectionService(),
+          ),
         ],
       );
 
@@ -172,28 +184,34 @@ void main() {
           displayName: 'Admin',
           relationshipState: 'accepted',
         );
+        final remoteIdentity = await remoteSignatureService.ensureIdentity();
+        final payload = {
+          'protocol': 'lanline_v2_group',
+          'action': 'group_invite',
+          'conversationId': 'group-1',
+          'title': 'LAN Crew',
+          'senderPeerId': 'peer-admin',
+          'senderDisplayName': 'Admin',
+          'members': [
+            {'peerId': 'peer-admin', 'displayName': 'Admin', 'role': 'admin'},
+            {
+              'peerId': localIdentity.peerId,
+              'displayName': 'Local User',
+              'role': 'invited',
+            },
+            {
+              'peerId': 'peer-other',
+              'displayName': 'Other User',
+              'role': 'invited',
+            },
+          ],
+        };
 
         incomingMessages.add(
           jsonEncode({
-            'protocol': 'lanline_v2_group',
-            'action': 'group_invite',
-            'conversationId': 'group-1',
-            'title': 'LAN Crew',
-            'senderPeerId': 'peer-admin',
-            'senderDisplayName': 'Admin',
-            'members': [
-              {'peerId': 'peer-admin', 'displayName': 'Admin', 'role': 'admin'},
-              {
-                'peerId': localIdentity.peerId,
-                'displayName': 'Local User',
-                'role': 'invited',
-              },
-              {
-                'peerId': 'peer-other',
-                'displayName': 'Other User',
-                'role': 'invited',
-              },
-            ],
+            ...payload,
+            'senderSigningPublicKey': remoteIdentity.publicKey,
+            'signature': await remoteSignatureService.signPayload(payload),
           }),
         );
 

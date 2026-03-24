@@ -11,9 +11,12 @@ import 'core/providers/app_metadata_provider.dart';
 import 'core/providers/app_theme_provider.dart';
 import 'core/providers/v2_database_provider.dart';
 import 'core/repositories/identity_repository.dart';
+import 'core/security/device_signature_service.dart';
+import 'core/security/flutter_secret_store.dart';
 import 'core/theme/app_theme.dart';
 import 'core/providers/username_provider.dart';
 import 'core/services/notification_service.dart';
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 
 class WindowSaver with WindowListener {
   final SharedPreferences prefs;
@@ -75,6 +78,9 @@ void main() async {
   await IdentityService(
     repository: IdentityRepository(database),
     prefs: prefs,
+    signatureService: DeviceSignatureService(
+      FlutterSecretStore(const FlutterSecureStorage()),
+    ),
   ).bootstrap();
 
   runApp(

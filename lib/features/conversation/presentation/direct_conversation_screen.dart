@@ -44,6 +44,7 @@ class _DirectConversationScreenState
   String? _activeMessageActionsId;
   bool _didInitialAutoScroll = false;
   int _lastObservedMessageCount = 0;
+  bool _isLoadingOlder = false;
 
   bool get _isGroup => widget.conversationType == 'group';
   bool get _supportsDirectMedia => !_isGroup && widget.peerId != null;
@@ -51,17 +52,33 @@ class _DirectConversationScreenState
   @override
   void initState() {
     super.initState();
-    Future.microtask(
-      () => ref
+    Future.microtask(() async {
+      ref
+              .read(
+                conversationMessagePageSizeProvider(
+                  widget.conversationId,
+                ).notifier,
+              )
+              .state =
+          50;
+      await ref
           .read(conversationActionsProvider)
-          .setActiveConversation(widget.conversationId),
-    );
+          .setActiveConversation(widget.conversationId);
+    });
   }
 
   @override
   void dispose() {
     _textController.dispose();
     _scrollController.dispose();
+    ref
+            .read(
+              conversationMessagePageSizeProvider(
+                widget.conversationId,
+              ).notifier,
+            )
+            .state =
+        50;
     ref.read(conversationActionsProvider).setActiveConversation(null);
     super.dispose();
   }
@@ -213,6 +230,23 @@ class _DirectConversationScreenState
       _activeMessageActionsId = _activeMessageActionsId == messageId
           ? null
           : messageId;
+    });
+  }
+
+  void _maybeLoadOlderMessages({
+    required int loadedMessageCount,
+    required int currentPageSize,
+  }) {
+    if (_isLoadingOlder || loadedMessageCount < currentPageSize) {
+      return;
+    }
+    _isLoadingOlder = true;
+    final notifier = ref.read(
+      conversationMessagePageSizeProvider(widget.conversationId).notifier,
+    );
+    notifier.state = notifier.state + 50;
+    Future<void>.delayed(const Duration(milliseconds: 120), () {
+      _isLoadingOlder = false;
     });
   }
 
@@ -402,6 +436,9 @@ class _DirectConversationScreenState
     final messagesAsync = ref.watch(
       conversationMessagesProvider(widget.conversationId),
     );
+    final currentPageSize = ref.watch(
+      conversationMessagePageSizeProvider(widget.conversationId),
+    );
     final conversationAsync = ref.watch(
       conversationStreamProvider(widget.conversationId),
     );
@@ -504,50 +541,64 @@ class _DirectConversationScreenState
                             localIdentity?.peerId,
                           );
 
-                          return ListView.builder(
-                            controller: _scrollController,
-                            padding: EdgeInsets.fromLTRB(
-                              16,
-                              16,
-                              16,
-                              composerBottomInset,
-                            ),
-                            itemCount: messages.length,
-                            itemBuilder: (context, index) {
-                              final message = messages[index];
-                              final isMe =
-                                  message.senderPeerId == localIdentity?.peerId;
-                              final replyMessageId = message.replyToMessageId;
-                              return ConversationMessageBubble(
-                                message: message,
-                                isMe: isMe,
-                                peerId: widget.peerId,
-                                isGroup: _isGroup,
-                                senderLabel:
-                                    memberNameByPeerId[message.senderPeerId] ??
-                                    message.senderPeerId,
-                                downloadProgress: mediaState.downloadProgress,
-                                showStatus:
-                                    isMe && message.id == latestMessageId,
-                                repliedMessage: replyMessageId == null
-                                    ? null
-                                    : messageById[replyMessageId],
-                                onReply: _setReply,
-                                onDelete: _deleteMessage,
-                                onForward: _forwardMessage,
-                                onTogglePin: _togglePin,
-                                showInlineActions:
-                                    _activeMessageActionsId == message.id,
-                                onToggleActions: () =>
-                                    _toggleMessageActions(message.id),
-                                isPinned: conversationAsync.maybeWhen(
-                                  data: (conversation) =>
-                                      conversation?.pinnedMessageId ==
-                                      message.id,
-                                  orElse: () => false,
-                                ),
-                              );
+                          return NotificationListener<ScrollNotification>(
+                            onNotification: (notification) {
+                              if (notification.metrics.pixels <= 80 &&
+                                  notification.metrics.axis == Axis.vertical) {
+                                _maybeLoadOlderMessages(
+                                  loadedMessageCount: messages.length,
+                                  currentPageSize: currentPageSize,
+                                );
+                              }
+                              return false;
                             },
+                            child: ListView.builder(
+                              controller: _scrollController,
+                              padding: EdgeInsets.fromLTRB(
+                                16,
+                                16,
+                                16,
+                                composerBottomInset,
+                              ),
+                              itemCount: messages.length,
+                              itemBuilder: (context, index) {
+                                final message = messages[index];
+                                final isMe =
+                                    message.senderPeerId ==
+                                    localIdentity?.peerId;
+                                final replyMessageId = message.replyToMessageId;
+                                return ConversationMessageBubble(
+                                  message: message,
+                                  isMe: isMe,
+                                  peerId: widget.peerId,
+                                  isGroup: _isGroup,
+                                  senderLabel:
+                                      memberNameByPeerId[message
+                                          .senderPeerId] ??
+                                      message.senderPeerId,
+                                  downloadProgress: mediaState.downloadProgress,
+                                  showStatus:
+                                      isMe && message.id == latestMessageId,
+                                  repliedMessage: replyMessageId == null
+                                      ? null
+                                      : messageById[replyMessageId],
+                                  onReply: _setReply,
+                                  onDelete: _deleteMessage,
+                                  onForward: _forwardMessage,
+                                  onTogglePin: _togglePin,
+                                  showInlineActions:
+                                      _activeMessageActionsId == message.id,
+                                  onToggleActions: () =>
+                                      _toggleMessageActions(message.id),
+                                  isPinned: conversationAsync.maybeWhen(
+                                    data: (conversation) =>
+                                        conversation?.pinnedMessageId ==
+                                        message.id,
+                                    orElse: () => false,
+                                  ),
+                                );
+                              },
+                            ),
                           );
                         },
                         loading: () =>
