@@ -201,34 +201,66 @@ class _AppShellState extends ConsumerState<AppShell> {
     ];
 
     final titles = ['Chats', 'People', 'Requests', 'Settings'];
+    final subtitles = [
+      'Local conversations and groups',
+      'Approved contacts on this network',
+      'Nearby discovery and pending invites',
+      'Profile, identity, and history',
+    ];
 
     return Container(
-      decoration: const BoxDecoration(
-        gradient: LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomCenter,
-          colors: [Color(0xFF161D2A), Color(0xFF0D1118)],
-        ),
-      ),
+      decoration: const BoxDecoration(color: Color(0xFF0B1017)),
       child: Scaffold(
         backgroundColor: Colors.transparent,
         appBar: AppBar(
-          toolbarHeight: 60,
+          toolbarHeight: 74,
           titleSpacing: 20,
-          title: Text(
-            titles[_selectedIndex],
-            style: const TextStyle(fontSize: 24, fontWeight: FontWeight.w900),
+          title: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                titles[_selectedIndex],
+                style: const TextStyle(
+                  fontSize: 26,
+                  fontWeight: FontWeight.w900,
+                  letterSpacing: -0.45,
+                ),
+              ),
+              const SizedBox(height: 2),
+              Text(
+                subtitles[_selectedIndex],
+                style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                  color: Colors.white54,
+                  fontSize: 12.5,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ],
           ),
           actions: [
             Padding(
               padding: const EdgeInsets.only(right: 16),
-              child: Center(
-                child: Text(
-                  'LANLine',
-                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                    color: Colors.white54,
-                    fontWeight: FontWeight.w700,
-                    letterSpacing: 0.8,
+              child: Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 8,
+                ),
+                decoration: BoxDecoration(
+                  color: Colors.white.withValues(alpha: 0.045),
+                  borderRadius: BorderRadius.circular(999),
+                  border: Border.all(
+                    color: Colors.white.withValues(alpha: 0.08),
+                  ),
+                ),
+                child: Center(
+                  child: Text(
+                    'LANLine',
+                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                      color: Colors.white70,
+                      fontWeight: FontWeight.w800,
+                      letterSpacing: 0.7,
+                    ),
                   ),
                 ),
               ),
@@ -238,15 +270,20 @@ class _AppShellState extends ConsumerState<AppShell> {
           elevation: 0,
           centerTitle: false,
         ),
-        body: IndexedStack(index: _selectedIndex, children: screens),
+        body: Stack(
+          children: [
+            const Positioned.fill(child: _ShellBackdrop()),
+            IndexedStack(index: _selectedIndex, children: screens),
+          ],
+        ),
         bottomNavigationBar: SafeArea(
           top: false,
           child: Container(
             margin: const EdgeInsets.fromLTRB(16, 0, 16, 14),
             decoration: BoxDecoration(
-              color: Colors.white.withValues(alpha: 0.06),
+              color: Colors.white.withValues(alpha: 0.07),
               borderRadius: BorderRadius.circular(26),
-              border: Border.all(color: Colors.white.withValues(alpha: 0.05)),
+              border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
               boxShadow: [
                 BoxShadow(
                   color: Colors.black.withValues(alpha: 0.28),
@@ -303,6 +340,53 @@ class _AppShellState extends ConsumerState<AppShell> {
               ),
             ),
           ),
+        ),
+      ),
+    );
+  }
+}
+
+class _ShellBackdrop extends StatelessWidget {
+  const _ShellBackdrop();
+
+  @override
+  Widget build(BuildContext context) {
+    return IgnorePointer(
+      child: DecoratedBox(
+        decoration: const BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomCenter,
+            colors: [Color(0xFF131C2B), Color(0xFF0B1017)],
+          ),
+        ),
+        child: Stack(
+          children: [
+            Positioned(
+              top: -90,
+              left: -60,
+              child: Container(
+                width: 220,
+                height: 220,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: Colors.blueAccent.withValues(alpha: 0.08),
+                ),
+              ),
+            ),
+            Positioned(
+              top: 120,
+              right: -70,
+              child: Container(
+                width: 180,
+                height: 180,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: Colors.amber.withValues(alpha: 0.05),
+                ),
+              ),
+            ),
+          ],
         ),
       ),
     );
