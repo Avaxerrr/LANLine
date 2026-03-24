@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/db/app_database.dart';
 import '../../../core/providers/v2_data_providers.dart';
+import '../../../core/theme/app_theme.dart';
 import '../../conversation/presentation/direct_conversation_screen.dart';
 
 class PeopleScreen extends ConsumerWidget {
@@ -15,6 +16,7 @@ class PeopleScreen extends ConsumerWidget {
     final contactsAsync = ref.watch(contactsProvider);
     final requestActions = ref.read(requestActionsProvider);
     final conversationActions = ref.read(conversationActionsProvider);
+    final palette = context.appPalette;
 
     Future<void> runPeerAction(
       String successMessage,
@@ -56,7 +58,7 @@ class PeopleScreen extends ConsumerWidget {
         context: context,
         useSafeArea: true,
         showDragHandle: true,
-        backgroundColor: const Color(0xFF162131),
+        backgroundColor: palette.menuSurface,
         shape: const RoundedRectangleBorder(
           borderRadius: BorderRadius.vertical(top: Radius.circular(30)),
         ),
@@ -138,17 +140,10 @@ class PeopleScreen extends ConsumerWidget {
                 const SizedBox(height: 18),
                 Container(
                   decoration: BoxDecoration(
-                    gradient: LinearGradient(
-                      begin: Alignment.topLeft,
-                      end: Alignment.bottomRight,
-                      colors: [
-                        const Color(0xFF202C3D).withValues(alpha: 0.95),
-                        const Color(0xFF182230).withValues(alpha: 0.9),
-                      ],
-                    ),
+                    gradient: palette.surfaceGradient,
                     borderRadius: BorderRadius.circular(24),
                     border: Border.all(
-                      color: Colors.white.withValues(alpha: 0.03),
+                      color: palette.border.withValues(alpha: 0.18),
                     ),
                   ),
                   child: Column(
@@ -285,19 +280,13 @@ class _SectionPlaceholder extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final palette = context.appPalette;
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        gradient: LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: [
-            const Color(0xFF202C3D).withValues(alpha: 0.9),
-            const Color(0xFF182230).withValues(alpha: 0.84),
-          ],
-        ),
+        gradient: palette.surfaceGradient,
         borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: Colors.white.withValues(alpha: 0.03)),
+        border: Border.all(color: palette.border.withValues(alpha: 0.18)),
         boxShadow: [
           BoxShadow(
             color: Colors.black.withValues(alpha: 0.1),
@@ -312,10 +301,10 @@ class _SectionPlaceholder extends StatelessWidget {
             width: 42,
             height: 42,
             decoration: BoxDecoration(
-              color: Colors.white.withValues(alpha: 0.04),
+              color: palette.surfaceMuted.withValues(alpha: 0.82),
               borderRadius: BorderRadius.circular(14),
             ),
-            child: Icon(icon, color: Colors.grey),
+            child: Icon(icon, color: palette.textMuted),
           ),
           const SizedBox(width: 12),
           Expanded(
@@ -355,7 +344,8 @@ class _ContactRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final accent = const Color(0xFF4DE1A7);
+    final palette = context.appPalette;
+    final accent = palette.positive;
     final secondary = _contactSecondary(peer);
 
     return Material(
@@ -391,10 +381,7 @@ class _ContactRow extends StatelessWidget {
                             ? accent
                             : Colors.white24,
                         shape: BoxShape.circle,
-                        border: Border.all(
-                          color: const Color(0xFF182230),
-                          width: 2,
-                        ),
+                        border: Border.all(color: palette.surface, width: 2),
                       ),
                     ),
                   ),

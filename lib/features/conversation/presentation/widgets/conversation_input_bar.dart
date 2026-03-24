@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'dart:ui';
 
+import '../../../../core/theme/app_theme.dart';
+
 class ConversationInputBar extends StatelessWidget {
   final bool supportsDirectMedia;
   final bool isPickingFile;
@@ -29,6 +31,7 @@ class ConversationInputBar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final palette = context.appPalette;
     return SafeArea(
       top: false,
       child: Padding(
@@ -46,11 +49,11 @@ class ConversationInputBar extends StatelessWidget {
                   vertical: 12,
                 ),
                 decoration: BoxDecoration(
-                  color: const Color(0xFF151B26),
+                  color: palette.surface.withValues(alpha: 0.96),
                   borderRadius: BorderRadius.circular(18),
                   border: Border(
                     left: BorderSide(
-                      color: Colors.blueAccent.withValues(alpha: 0.8),
+                      color: palette.brand.withValues(alpha: 0.8),
                       width: 4,
                     ),
                   ),
@@ -61,12 +64,12 @@ class ConversationInputBar extends StatelessWidget {
                       width: 30,
                       height: 30,
                       decoration: BoxDecoration(
-                        color: Colors.blueAccent.withValues(alpha: 0.12),
+                        color: palette.brand.withValues(alpha: 0.12),
                         borderRadius: BorderRadius.circular(999),
                       ),
-                      child: const Icon(
+                      child: Icon(
                         Icons.reply_outlined,
-                        color: Colors.blueAccent,
+                        color: palette.brand,
                         size: 16,
                       ),
                     ),
@@ -77,8 +80,8 @@ class ConversationInputBar extends StatelessWidget {
                         children: [
                           Text(
                             replyTitle!,
-                            style: const TextStyle(
-                              color: Colors.blueAccent,
+                            style: TextStyle(
+                              color: palette.brand,
                               fontWeight: FontWeight.w700,
                               fontSize: 12,
                             ),
@@ -88,8 +91,8 @@ class ConversationInputBar extends StatelessWidget {
                             replyPreview!,
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
-                            style: const TextStyle(
-                              color: Colors.grey,
+                            style: TextStyle(
+                              color: palette.textMuted,
                               height: 1.3,
                             ),
                           ),
@@ -98,7 +101,7 @@ class ConversationInputBar extends StatelessWidget {
                     ),
                     IconButton(
                       onPressed: onClearReply,
-                      icon: const Icon(Icons.close, color: Colors.grey),
+                      icon: Icon(Icons.close, color: palette.textMuted),
                       tooltip: 'Cancel reply',
                     ),
                   ],
@@ -115,10 +118,10 @@ class ConversationInputBar extends StatelessWidget {
                     vertical: 10,
                   ),
                   decoration: BoxDecoration(
-                    color: Colors.white.withValues(alpha: 0.07),
+                    color: palette.navGlass.withValues(alpha: 0.56),
                     borderRadius: BorderRadius.circular(28),
                     border: Border.all(
-                      color: Colors.white.withValues(alpha: 0.08),
+                      color: palette.border.withValues(alpha: 0.35),
                     ),
                     boxShadow: [
                       BoxShadow(
@@ -162,12 +165,12 @@ class ConversationInputBar extends StatelessWidget {
                                   ? 'Message the group'
                                   : 'Type a message',
                               hintStyle: TextStyle(
-                                color: Colors.white.withValues(alpha: 0.58),
+                                color: palette.textMuted.withValues(alpha: 0.8),
                               ),
                               filled: true,
-                              fillColor: const Color(
-                                0xFF171B22,
-                              ).withValues(alpha: 0.72),
+                              fillColor: palette.inputFill.withValues(
+                                alpha: 0.8,
+                              ),
                               contentPadding: const EdgeInsets.symmetric(
                                 horizontal: 16,
                                 vertical: 14,
@@ -179,15 +182,13 @@ class ConversationInputBar extends StatelessWidget {
                               enabledBorder: OutlineInputBorder(
                                 borderRadius: BorderRadius.circular(18),
                                 borderSide: BorderSide(
-                                  color: Colors.white.withValues(alpha: 0.035),
+                                  color: palette.border.withValues(alpha: 0.24),
                                 ),
                               ),
                               focusedBorder: OutlineInputBorder(
                                 borderRadius: BorderRadius.circular(18),
                                 borderSide: BorderSide(
-                                  color: Colors.blueAccent.withValues(
-                                    alpha: 0.28,
-                                  ),
+                                  color: palette.brand.withValues(alpha: 0.28),
                                 ),
                               ),
                             ),
@@ -233,6 +234,7 @@ class _ComposerCircleButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final palette = context.appPalette;
     final button = SizedBox(
       width: 44,
       height: 44,
@@ -240,7 +242,7 @@ class _ComposerCircleButton extends StatelessWidget {
           ? FilledButton(
               onPressed: onPressed,
               style: FilledButton.styleFrom(
-                backgroundColor: Colors.blueAccent,
+                backgroundColor: palette.brand,
                 foregroundColor: Colors.white,
                 padding: EdgeInsets.zero,
                 shape: const CircleBorder(),
@@ -250,6 +252,8 @@ class _ComposerCircleButton extends StatelessWidget {
           : IconButton.filledTonal(
               onPressed: onPressed,
               style: IconButton.styleFrom(
+                backgroundColor: palette.surfaceMuted.withValues(alpha: 0.92),
+                foregroundColor: palette.textMuted,
                 padding: EdgeInsets.zero,
                 minimumSize: const Size(44, 44),
                 shape: const CircleBorder(),

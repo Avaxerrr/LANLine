@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../../core/db/app_database.dart';
+import '../../../../core/theme/app_theme.dart';
 
 class ConversationTitle extends StatelessWidget {
   final String title;
@@ -17,6 +18,7 @@ class ConversationTitle extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final palette = context.appPalette;
     final isGroup = conversationType == 'group';
     final subtitle = isGroup
         ? membersAsync.maybeWhen(
@@ -41,7 +43,7 @@ class ConversationTitle extends StatelessWidget {
             subtitle,
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
-            style: const TextStyle(fontSize: 12, color: Colors.grey),
+            style: TextStyle(fontSize: 12, color: palette.textMuted),
           ),
         ],
       ],
@@ -56,6 +58,7 @@ class ConversationEmptyState extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final palette = context.appPalette;
     return Center(
       child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 28),
@@ -65,15 +68,14 @@ class ConversationEmptyState extends StatelessWidget {
             Container(
               padding: const EdgeInsets.all(18),
               decoration: BoxDecoration(
-                color: (isGroup ? Colors.amber : Colors.blueAccent).withValues(
-                  alpha: 0.12,
-                ),
+                color: (isGroup ? palette.groupAccent : palette.brand)
+                    .withValues(alpha: 0.12),
                 shape: BoxShape.circle,
               ),
               child: Icon(
                 isGroup ? Icons.groups_2_outlined : Icons.forum_outlined,
                 size: 34,
-                color: isGroup ? Colors.amber : Colors.blueAccent,
+                color: isGroup ? palette.groupAccent : palette.brand,
               ),
             ),
             const SizedBox(height: 18),
@@ -88,7 +90,7 @@ class ConversationEmptyState extends StatelessWidget {
                   ? 'When invited members accept, this thread becomes your shared group chat.'
                   : 'Send the first message or share a file to start this conversation.',
               textAlign: TextAlign.center,
-              style: const TextStyle(color: Colors.grey, height: 1.4),
+              style: TextStyle(color: palette.textMuted, height: 1.4),
             ),
           ],
         ),
@@ -122,25 +124,26 @@ class GroupConversationNotice extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final palette = context.appPalette;
     return Padding(
       padding: const EdgeInsets.fromLTRB(16, 0, 16, 10),
       child: Container(
         width: double.infinity,
         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
         decoration: BoxDecoration(
-          color: const Color(0xFF151B26),
+          color: palette.surface.withValues(alpha: 0.96),
           borderRadius: BorderRadius.circular(18),
         ),
-        child: const Row(
+        child: Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Icon(Icons.groups_2_outlined, color: Colors.amber, size: 18),
+            Icon(Icons.groups_2_outlined, color: palette.groupAccent, size: 18),
             SizedBox(width: 10),
             Expanded(
               child: Text(
                 'Admin-only group settings. Group calls and file sharing can be added later.',
                 style: TextStyle(
-                  color: Colors.grey,
+                  color: palette.textMuted,
                   fontSize: 12,
                   height: 1.35,
                 ),
@@ -165,16 +168,17 @@ class PinnedMessageBanner extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final palette = context.appPalette;
     return Padding(
       padding: const EdgeInsets.fromLTRB(16, 0, 16, 10),
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
         decoration: BoxDecoration(
-          color: const Color(0xFF151B26),
+          color: palette.surface.withValues(alpha: 0.96),
           borderRadius: BorderRadius.circular(18),
           border: Border(
             left: BorderSide(
-              color: Colors.amber.withValues(alpha: 0.85),
+              color: palette.groupAccent.withValues(alpha: 0.85),
               width: 4,
             ),
           ),
@@ -185,12 +189,12 @@ class PinnedMessageBanner extends StatelessWidget {
               width: 30,
               height: 30,
               decoration: BoxDecoration(
-                color: Colors.amber.withValues(alpha: 0.12),
+                color: palette.groupAccent.withValues(alpha: 0.12),
                 borderRadius: BorderRadius.circular(999),
               ),
-              child: const Icon(
+              child: Icon(
                 Icons.push_pin_outlined,
-                color: Colors.amber,
+                color: palette.groupAccent,
                 size: 16,
               ),
             ),
@@ -199,10 +203,10 @@ class PinnedMessageBanner extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Text(
+                  Text(
                     'Pinned message',
                     style: TextStyle(
-                      color: Colors.amber,
+                      color: palette.groupAccent,
                       fontSize: 12,
                       fontWeight: FontWeight.w700,
                     ),
@@ -212,7 +216,7 @@ class PinnedMessageBanner extends StatelessWidget {
                     preview,
                     maxLines: 2,
                     overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(color: Colors.grey, height: 1.35),
+                    style: TextStyle(color: palette.textMuted, height: 1.35),
                   ),
                 ],
               ),
@@ -221,7 +225,7 @@ class PinnedMessageBanner extends StatelessWidget {
             TextButton(
               onPressed: onUnpin,
               style: TextButton.styleFrom(
-                foregroundColor: Colors.amber,
+                foregroundColor: palette.groupAccent,
                 padding: const EdgeInsets.symmetric(
                   horizontal: 12,
                   vertical: 8,

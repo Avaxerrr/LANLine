@@ -8,6 +8,7 @@ import '../../../core/db/app_database.dart';
 import '../../../core/providers/v2_data_providers.dart';
 import '../../../core/providers/v2_identity_provider.dart';
 import '../../../core/providers/v2_media_protocol_provider.dart';
+import '../../../core/theme/app_theme.dart';
 import '../../call/presentation/call_screen.dart';
 import 'widgets/conversation_chrome.dart';
 import 'widgets/conversation_input_bar.dart';
@@ -241,7 +242,7 @@ class _DirectConversationScreenState
 
     final targetConversation = await showModalBottomSheet<ConversationRow>(
       context: context,
-      backgroundColor: const Color(0xFF1B2738),
+      backgroundColor: context.appPalette.menuSurface,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),
@@ -412,9 +413,10 @@ class _DirectConversationScreenState
     final memberRowsAsync = ref.watch(
       conversationMembersProvider(widget.conversationId),
     );
+    final palette = context.appPalette;
 
     return Scaffold(
-      backgroundColor: const Color(0xFF0D1118),
+      backgroundColor: palette.background,
       appBar: AppBar(
         title: ConversationTitle(
           title: widget.title,
@@ -579,10 +581,10 @@ class _DirectConversationScreenState
                     begin: Alignment.topCenter,
                     end: Alignment.bottomCenter,
                     colors: [
-                      const Color(0xFF0D1118).withValues(alpha: 0),
-                      const Color(0xFF0D1118).withValues(alpha: 0.14),
-                      const Color(0xFF0D1118).withValues(alpha: 0.42),
-                      const Color(0xFF0D1118).withValues(alpha: 0.78),
+                      palette.background.withValues(alpha: 0),
+                      palette.background.withValues(alpha: 0.14),
+                      palette.background.withValues(alpha: 0.42),
+                      palette.background.withValues(alpha: 0.78),
                     ],
                     stops: const [0, 0.38, 0.72, 1],
                   ),
@@ -620,46 +622,20 @@ class _ConversationBackdrop extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final palette = context.appPalette;
     return IgnorePointer(
       child: DecoratedBox(
         decoration: BoxDecoration(
           gradient: RadialGradient(
             center: const Alignment(-0.85, -1.1),
-            radius: 1.2,
+            radius: 1.15,
             colors: [
-              Colors.blueAccent.withValues(alpha: 0.08),
+              palette.backgroundAlt.withValues(alpha: 0.3),
               Colors.transparent,
             ],
           ),
         ),
-        child: Stack(
-          children: [
-            Positioned(
-              right: -120,
-              top: 90,
-              child: Container(
-                width: 220,
-                height: 220,
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  color: Colors.amber.withValues(alpha: 0.04),
-                ),
-              ),
-            ),
-            Positioned(
-              left: -100,
-              bottom: 110,
-              child: Container(
-                width: 180,
-                height: 180,
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  color: Colors.blueAccent.withValues(alpha: 0.05),
-                ),
-              ),
-            ),
-          ],
-        ),
+        child: const SizedBox.expand(),
       ),
     );
   }

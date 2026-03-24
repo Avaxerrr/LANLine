@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/db/app_database.dart';
 import '../../../core/providers/v2_data_providers.dart';
+import '../../../core/theme/app_theme.dart';
 import '../../conversation/presentation/direct_conversation_screen.dart';
 import '../../groups/presentation/create_group_screen.dart';
 
@@ -101,6 +102,7 @@ class _ChatsToolbar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final palette = context.appPalette;
     return Row(
       children: [
         Expanded(
@@ -120,7 +122,7 @@ class _ChatsToolbar extends StatelessWidget {
           TextButton(
             onPressed: onCreateGroup,
             style: TextButton.styleFrom(
-              foregroundColor: Colors.white70,
+              foregroundColor: palette.textMuted,
               padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(999),
@@ -167,9 +169,10 @@ class _ConversationRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final palette = context.appPalette;
     final accent = conversation.type == 'group'
-        ? Colors.amber
-        : Colors.blueAccent;
+        ? palette.groupAccent
+        : palette.brand;
     final title =
         conversation.title ??
         (conversation.type == 'group' ? 'Group chat' : 'Direct conversation');
@@ -182,16 +185,9 @@ class _ConversationRow extends StatelessWidget {
         borderRadius: BorderRadius.circular(22),
         child: Ink(
           decoration: BoxDecoration(
-            gradient: LinearGradient(
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-              colors: [
-                const Color(0xFF202C3D).withValues(alpha: 0.92),
-                const Color(0xFF182230).withValues(alpha: 0.86),
-              ],
-            ),
+            gradient: palette.surfaceGradient,
             borderRadius: BorderRadius.circular(22),
-            border: Border.all(color: Colors.white.withValues(alpha: 0.03)),
+            border: Border.all(color: palette.border.withValues(alpha: 0.18)),
             boxShadow: [
               BoxShadow(
                 color: Colors.black.withValues(alpha: 0.12),
@@ -299,7 +295,7 @@ class _ConversationRow extends StatelessWidget {
                             vertical: 5,
                           ),
                           decoration: BoxDecoration(
-                            color: Colors.blueAccent,
+                            color: palette.brand,
                             borderRadius: BorderRadius.circular(999),
                           ),
                           child: Text(
@@ -316,7 +312,7 @@ class _ConversationRow extends StatelessWidget {
                         Icon(
                           Icons.chevron_right,
                           size: 20,
-                          color: Colors.white.withValues(alpha: 0.28),
+                          color: palette.textMuted.withValues(alpha: 0.5),
                         ),
                     ],
                   ),
@@ -337,20 +333,14 @@ class _EmptyChatsState extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final palette = context.appPalette;
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.all(22),
       decoration: BoxDecoration(
-        gradient: LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: [
-            const Color(0xFF202C3D).withValues(alpha: 0.92),
-            const Color(0xFF182230).withValues(alpha: 0.86),
-          ],
-        ),
+        gradient: palette.surfaceGradient,
         borderRadius: BorderRadius.circular(24),
-        border: Border.all(color: Colors.white.withValues(alpha: 0.03)),
+        border: Border.all(color: palette.border.withValues(alpha: 0.18)),
         boxShadow: [
           BoxShadow(
             color: Colors.black.withValues(alpha: 0.12),
@@ -364,14 +354,10 @@ class _EmptyChatsState extends StatelessWidget {
           Container(
             padding: const EdgeInsets.all(18),
             decoration: BoxDecoration(
-              color: Colors.blueAccent.withValues(alpha: 0.12),
+              color: palette.brand.withValues(alpha: 0.12),
               shape: BoxShape.circle,
             ),
-            child: const Icon(
-              Icons.forum_outlined,
-              size: 42,
-              color: Colors.blueAccent,
-            ),
+            child: Icon(Icons.forum_outlined, size: 42, color: palette.brand),
           ),
           const SizedBox(height: 18),
           const Text(

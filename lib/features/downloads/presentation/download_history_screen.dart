@@ -7,6 +7,7 @@ import 'package:path/path.dart' as p;
 import 'package:share_plus/share_plus.dart';
 
 import '../../../core/providers/download_history_provider.dart';
+import '../../../core/theme/app_theme.dart';
 
 class DownloadHistoryScreen extends ConsumerWidget {
   const DownloadHistoryScreen({super.key});
@@ -268,16 +269,13 @@ class _SummaryCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final palette = context.appPalette;
     return Container(
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
-        gradient: const LinearGradient(
-          colors: [Color(0xFF202C3F), Color(0xFF182230)],
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-        ),
+        gradient: palette.surfaceGradient,
         borderRadius: BorderRadius.circular(24),
-        border: Border.all(color: Colors.white.withValues(alpha: 0.03)),
+        border: Border.all(color: palette.border.withValues(alpha: 0.18)),
         boxShadow: [
           BoxShadow(
             color: Colors.black.withValues(alpha: 0.12),
@@ -292,13 +290,10 @@ class _SummaryCard extends StatelessWidget {
             width: 54,
             height: 54,
             decoration: BoxDecoration(
-              color: Colors.blueAccent.withValues(alpha: 0.16),
+              color: palette.brand.withValues(alpha: 0.16),
               borderRadius: BorderRadius.circular(16),
             ),
-            child: const Icon(
-              Icons.download_done_outlined,
-              color: Colors.blueAccent,
-            ),
+            child: Icon(Icons.download_done_outlined, color: palette.brand),
           ),
           const SizedBox(width: 14),
           Expanded(
@@ -322,13 +317,13 @@ class _SummaryCard extends StatelessWidget {
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
             decoration: BoxDecoration(
-              color: Colors.white.withValues(alpha: 0.035),
+              color: palette.surfaceMuted.withValues(alpha: 0.7),
               borderRadius: BorderRadius.circular(999),
             ),
             child: Text(
               historyCount == 0 ? '0 files' : '$historyCount items',
-              style: const TextStyle(
-                color: Colors.white70,
+              style: TextStyle(
+                color: palette.textMuted,
                 fontSize: 12,
                 fontWeight: FontWeight.w600,
               ),
@@ -347,19 +342,13 @@ class _EmptyDownloadsCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final palette = context.appPalette;
     return Container(
       padding: const EdgeInsets.all(24),
       decoration: BoxDecoration(
-        gradient: LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: [
-            const Color(0xFF202C3D).withValues(alpha: 0.9),
-            const Color(0xFF182230).withValues(alpha: 0.84),
-          ],
-        ),
+        gradient: palette.surfaceGradient,
         borderRadius: BorderRadius.circular(22),
-        border: Border.all(color: Colors.white.withValues(alpha: 0.03)),
+        border: Border.all(color: palette.border.withValues(alpha: 0.18)),
         boxShadow: [
           BoxShadow(
             color: Colors.black.withValues(alpha: 0.1),
@@ -374,13 +363,13 @@ class _EmptyDownloadsCard extends StatelessWidget {
             width: 64,
             height: 64,
             decoration: BoxDecoration(
-              color: Colors.blueAccent.withValues(alpha: 0.12),
+              color: palette.brand.withValues(alpha: 0.12),
               borderRadius: BorderRadius.circular(18),
             ),
-            child: const Icon(
+            child: Icon(
               Icons.file_download_done_outlined,
               size: 32,
-              color: Colors.blueAccent,
+              color: palette.brand,
             ),
           ),
           const SizedBox(height: 16),
@@ -392,7 +381,7 @@ class _EmptyDownloadsCard extends StatelessWidget {
           Text(
             platformMessage,
             textAlign: TextAlign.center,
-            style: const TextStyle(color: Colors.white60, height: 1.35),
+            style: TextStyle(color: palette.textMuted, height: 1.35),
           ),
         ],
       ),
@@ -423,6 +412,7 @@ class _DownloadHistoryItem extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final palette = context.appPalette;
     final exists = record.fileExists;
     final conversationLabel = record.roomName.trim().isEmpty
         ? 'Conversation'
@@ -445,16 +435,9 @@ class _DownloadHistoryItem extends StatelessWidget {
       child: Container(
         margin: const EdgeInsets.only(bottom: 12),
         decoration: BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-            colors: [
-              const Color(0xFF202C3D).withValues(alpha: 0.9),
-              const Color(0xFF182230).withValues(alpha: 0.84),
-            ],
-          ),
+          gradient: palette.surfaceGradient,
           borderRadius: BorderRadius.circular(20),
-          border: Border.all(color: Colors.white.withValues(alpha: 0.03)),
+          border: Border.all(color: palette.border.withValues(alpha: 0.18)),
           boxShadow: [
             BoxShadow(
               color: Colors.black.withValues(alpha: 0.1),
@@ -537,10 +520,7 @@ class _DownloadHistoryItem extends StatelessWidget {
                     IconButton(
                       tooltip: 'Open',
                       onPressed: onOpen,
-                      icon: const Icon(
-                        Icons.open_in_new,
-                        color: Colors.blueAccent,
-                      ),
+                      icon: Icon(Icons.open_in_new, color: palette.brand),
                     ),
                     IconButton(
                       tooltip: Platform.isAndroid ? 'Share' : 'Open folder',
@@ -579,21 +559,19 @@ class _MetaPill extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final palette = context.appPalette;
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
       decoration: BoxDecoration(
-        color: Colors.white.withValues(alpha: 0.035),
+        color: palette.surfaceMuted.withValues(alpha: 0.78),
         borderRadius: BorderRadius.circular(999),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(icon, size: 14, color: Colors.white60),
+          Icon(icon, size: 14, color: palette.textMuted),
           const SizedBox(width: 6),
-          Text(
-            label,
-            style: const TextStyle(color: Colors.white60, fontSize: 12),
-          ),
+          Text(label, style: TextStyle(color: palette.textMuted, fontSize: 12)),
         ],
       ),
     );

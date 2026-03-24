@@ -5,8 +5,10 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:qr_flutter/qr_flutter.dart';
 
 import '../../../core/providers/app_metadata_provider.dart';
+import '../../../core/providers/app_theme_provider.dart';
 import '../../../core/providers/username_provider.dart';
 import '../../../core/providers/v2_identity_provider.dart';
+import '../../../core/theme/app_theme.dart';
 import '../../downloads/presentation/download_history_screen.dart';
 
 class SettingsScreen extends ConsumerStatefulWidget {
@@ -55,6 +57,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
   Widget build(BuildContext context) {
     final identityAsync = ref.watch(localIdentityProvider);
     final version = ref.watch(appVersionProvider);
+    final selectedTheme = ref.watch(appThemePresetProvider);
 
     return identityAsync.when(
       data: (identity) {
@@ -120,6 +123,25 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                       label: const Text('Save Profile'),
                     ),
                   ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 18),
+            _SurfaceCard(
+              title: 'Appearance',
+              subtitle: 'Switch between a few curated dark palettes.',
+              child: Wrap(
+                spacing: 10,
+                runSpacing: 10,
+                children: [
+                  for (final preset in AppThemePreset.values)
+                    _ThemePresetChip(
+                      preset: preset,
+                      selected: preset == selectedTheme,
+                      onTap: () => ref
+                          .read(appThemePresetProvider.notifier)
+                          .setPreset(preset),
+                    ),
                 ],
               ),
             ),
@@ -218,20 +240,14 @@ class _SurfaceCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final palette = context.appPalette;
     final trailingWidget = trailing;
     return Container(
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
-        gradient: LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: [
-            const Color(0xFF202C3D).withValues(alpha: 0.9),
-            const Color(0xFF182230).withValues(alpha: 0.84),
-          ],
-        ),
+        gradient: palette.surfaceGradient,
         borderRadius: BorderRadius.circular(22),
-        border: Border.all(color: Colors.white.withValues(alpha: 0.03)),
+        border: Border.all(color: palette.border.withValues(alpha: 0.18)),
         boxShadow: [
           BoxShadow(
             color: Colors.black.withValues(alpha: 0.12),
@@ -259,10 +275,7 @@ class _SurfaceCard extends StatelessWidget {
                     const SizedBox(height: 4),
                     Text(
                       subtitle,
-                      style: const TextStyle(
-                        color: Colors.white60,
-                        height: 1.35,
-                      ),
+                      style: TextStyle(color: palette.textMuted, height: 1.35),
                     ),
                   ],
                 ),
@@ -285,7 +298,7 @@ class _MutedMessage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Text(text, style: const TextStyle(color: Colors.white60));
+    return Text(text, style: TextStyle(color: context.appPalette.textMuted));
   }
 }
 
@@ -297,6 +310,7 @@ class _SettingsInputField extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final palette = context.appPalette;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -304,8 +318,8 @@ class _SettingsInputField extends StatelessWidget {
           padding: const EdgeInsets.only(left: 4, bottom: 8),
           child: Text(
             label,
-            style: const TextStyle(
-              color: Colors.white70,
+            style: TextStyle(
+              color: palette.textMuted,
               fontSize: 12.5,
               fontWeight: FontWeight.w700,
             ),
@@ -313,9 +327,9 @@ class _SettingsInputField extends StatelessWidget {
         ),
         Container(
           decoration: BoxDecoration(
-            color: const Color(0xFF111A26),
+            color: palette.inputFill.withValues(alpha: 0.96),
             borderRadius: BorderRadius.circular(22),
-            border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
+            border: Border.all(color: palette.border.withValues(alpha: 0.38)),
             boxShadow: [
               BoxShadow(
                 color: Colors.black.withValues(alpha: 0.12),
@@ -339,10 +353,11 @@ class _InfoRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final palette = context.appPalette;
     return Row(
       children: [
         Expanded(
-          child: Text(label, style: const TextStyle(color: Colors.white60)),
+          child: Text(label, style: TextStyle(color: palette.textMuted)),
         ),
         const SizedBox(width: 12),
         Flexible(
@@ -372,20 +387,21 @@ class _SettingsActionCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final palette = context.appPalette;
     return Container(
       decoration: BoxDecoration(
-        color: const Color(0xFF111A26).withValues(alpha: 0.88),
+        color: palette.surfaceMuted.withValues(alpha: 0.92),
         borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: Colors.white.withValues(alpha: 0.05)),
+        border: Border.all(color: palette.border.withValues(alpha: 0.25)),
       ),
       child: ListTile(
         leading: CircleAvatar(
-          backgroundColor: Colors.blueAccent.withValues(alpha: 0.14),
-          child: Icon(icon, color: Colors.blueAccent),
+          backgroundColor: palette.brand.withValues(alpha: 0.14),
+          child: Icon(icon, color: palette.brand),
         ),
         title: Text(title, style: const TextStyle(fontWeight: FontWeight.w700)),
-        subtitle: Text(subtitle, style: const TextStyle(color: Colors.white60)),
-        trailing: const Icon(Icons.chevron_right, color: Colors.white38),
+        subtitle: Text(subtitle, style: TextStyle(color: palette.textMuted)),
+        trailing: Icon(Icons.chevron_right, color: palette.textMuted),
         onTap: onTap,
       ),
     );
@@ -405,11 +421,12 @@ class _QrToggleButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final palette = context.appPalette;
     return TextButton.icon(
       onPressed: onPressed,
       style: TextButton.styleFrom(
         foregroundColor: enabled ? Colors.white70 : Colors.white30,
-        backgroundColor: Colors.white.withValues(alpha: 0.04),
+        backgroundColor: palette.surfaceMuted.withValues(alpha: 0.72),
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(999)),
       ),
@@ -426,6 +443,7 @@ class _QrPreviewSummary extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final palette = context.appPalette;
     final displayName = identity?.displayName as String? ?? 'Unavailable';
     final fingerprint = identity?.fingerprint as String? ?? '';
 
@@ -433,9 +451,9 @@ class _QrPreviewSummary extends StatelessWidget {
       width: double.infinity,
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: const Color(0xFF111A26).withValues(alpha: 0.88),
+        color: palette.surfaceMuted.withValues(alpha: 0.92),
         borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: Colors.white.withValues(alpha: 0.05)),
+        border: Border.all(color: palette.border.withValues(alpha: 0.25)),
       ),
       child: Row(
         children: [
@@ -443,10 +461,10 @@ class _QrPreviewSummary extends StatelessWidget {
             width: 44,
             height: 44,
             decoration: BoxDecoration(
-              color: Colors.blueAccent.withValues(alpha: 0.14),
+              color: palette.brand.withValues(alpha: 0.14),
               borderRadius: BorderRadius.circular(16),
             ),
-            child: const Icon(Icons.qr_code_2, color: Colors.blueAccent),
+            child: Icon(Icons.qr_code_2, color: palette.brand),
           ),
           const SizedBox(width: 12),
           Expanded(
@@ -463,12 +481,82 @@ class _QrPreviewSummary extends StatelessWidget {
                 const SizedBox(height: 4),
                 Text(
                   fingerprint.isEmpty ? 'Identity unavailable' : fingerprint,
-                  style: const TextStyle(color: Colors.white60),
+                  style: TextStyle(color: palette.textMuted),
                 ),
               ],
             ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+class _ThemePresetChip extends StatelessWidget {
+  final AppThemePreset preset;
+  final bool selected;
+  final VoidCallback onTap;
+
+  const _ThemePresetChip({
+    required this.preset,
+    required this.selected,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final palette = context.appPalette;
+    final accent = switch (preset) {
+      AppThemePreset.midnight => const Color(0xFF5B8CFF),
+      AppThemePreset.graphite => const Color(0xFFD1D7E4),
+      AppThemePreset.forest => const Color(0xFF57D8A0),
+    };
+
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(18),
+      child: Ink(
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+        decoration: BoxDecoration(
+          color: selected
+              ? accent.withValues(alpha: 0.16)
+              : palette.surfaceMuted.withValues(alpha: 0.84),
+          borderRadius: BorderRadius.circular(18),
+          border: Border.all(
+            color: selected
+                ? accent.withValues(alpha: 0.55)
+                : palette.border.withValues(alpha: 0.25),
+          ),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              width: 10,
+              height: 10,
+              decoration: BoxDecoration(color: accent, shape: BoxShape.circle),
+            ),
+            const SizedBox(width: 10),
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  preset.label,
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  preset.description,
+                  style: TextStyle(color: palette.textMuted, fontSize: 12),
+                ),
+              ],
+            ),
+          ],
+        ),
       ),
     );
   }

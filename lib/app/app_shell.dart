@@ -16,6 +16,7 @@ import 'package:lanline/features/chats/presentation/chats_screen.dart';
 import 'package:lanline/features/people/presentation/people_screen.dart';
 import 'package:lanline/features/requests/presentation/requests_screen.dart';
 import 'package:lanline/features/settings/presentation/settings_screen.dart';
+import 'package:lanline/core/theme/app_theme.dart';
 
 class AppShell extends ConsumerStatefulWidget {
   const AppShell({super.key});
@@ -201,8 +202,9 @@ class _AppShellState extends ConsumerState<AppShell> {
     ];
 
     final titles = ['Chats', 'People', 'Requests', 'Settings'];
+    final palette = context.appPalette;
     return Container(
-      decoration: const BoxDecoration(color: Color(0xFF091018)),
+      decoration: BoxDecoration(color: palette.background),
       child: Scaffold(
         backgroundColor: Colors.transparent,
         body: Stack(
@@ -265,43 +267,11 @@ class _ShellBackdrop extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final palette = context.appPalette;
     return IgnorePointer(
       child: DecoratedBox(
-        decoration: const BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topLeft,
-            end: Alignment.bottomCenter,
-            colors: [Color(0xFF0F1826), Color(0xFF091018)],
-          ),
-        ),
-        child: Stack(
-          children: [
-            Positioned(
-              top: -90,
-              left: -60,
-              child: Container(
-                width: 220,
-                height: 220,
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  color: Colors.blueAccent.withValues(alpha: 0.09),
-                ),
-              ),
-            ),
-            Positioned(
-              top: 120,
-              right: -70,
-              child: Container(
-                width: 180,
-                height: 180,
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  color: Colors.amber.withValues(alpha: 0.04),
-                ),
-              ),
-            ),
-          ],
-        ),
+        decoration: BoxDecoration(gradient: palette.pageGradient),
+        child: const SizedBox.expand(),
       ),
     );
   }
@@ -314,6 +284,7 @@ class _BottomFadeOverlay extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final palette = context.appPalette;
     return Container(
       height: height,
       decoration: BoxDecoration(
@@ -321,9 +292,9 @@ class _BottomFadeOverlay extends StatelessWidget {
           begin: Alignment.topCenter,
           end: Alignment.bottomCenter,
           colors: [
-            const Color(0xFF091018).withValues(alpha: 0),
-            const Color(0xFF091018).withValues(alpha: 0.66),
-            const Color(0xFF091018).withValues(alpha: 0.96),
+            palette.background.withValues(alpha: 0),
+            palette.background.withValues(alpha: 0.66),
+            palette.background.withValues(alpha: 0.96),
           ],
         ),
       ),
@@ -342,14 +313,15 @@ class _FloatingShellNav extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final palette = context.appPalette;
     return SafeArea(
       top: false,
       child: Container(
         margin: const EdgeInsets.fromLTRB(16, 0, 16, 14),
         decoration: BoxDecoration(
-          color: Colors.white.withValues(alpha: 0.07),
+          color: palette.navGlass.withValues(alpha: 0.58),
           borderRadius: BorderRadius.circular(26),
-          border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
+          border: Border.all(color: palette.border.withValues(alpha: 0.35)),
           boxShadow: [
             BoxShadow(
               color: Colors.black.withValues(alpha: 0.28),
@@ -365,7 +337,7 @@ class _FloatingShellNav extends StatelessWidget {
             child: NavigationBarTheme(
               data: NavigationBarThemeData(
                 backgroundColor: Colors.transparent,
-                indicatorColor: Colors.blueAccent.withValues(alpha: 0.18),
+                indicatorColor: palette.brand.withValues(alpha: 0.18),
                 labelTextStyle: WidgetStatePropertyAll(
                   Theme.of(context).textTheme.labelMedium?.copyWith(
                     fontWeight: FontWeight.w700,

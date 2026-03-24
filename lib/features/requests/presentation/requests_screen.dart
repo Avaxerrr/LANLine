@@ -5,12 +5,14 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/db/app_database.dart';
 import '../../../core/providers/v2_data_providers.dart';
+import '../../../core/theme/app_theme.dart';
 
 class RequestsScreen extends ConsumerWidget {
   const RequestsScreen({super.key});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final palette = context.appPalette;
     final discoveredAsync = ref.watch(discoveredPeersProvider);
     final incomingAsync = ref.watch(pendingIncomingRequestsProvider);
     final outgoingAsync = ref.watch(pendingOutgoingRequestsProvider);
@@ -96,14 +98,14 @@ class RequestsScreen extends ConsumerWidget {
                           subtitle:
                               request.message ??
                               'This device wants to connect with you.',
-                          accent: Colors.blueAccent,
+                          accent: palette.brand,
                           statusLabel: 'Incoming',
                           icon: Icons.mark_email_unread_outlined,
                           actions: [
                             _ActionButton(
                               label: 'Accept',
                               icon: Icons.check_circle_outline,
-                              foreground: Colors.greenAccent,
+                              foreground: palette.positive,
                               onPressed: () {
                                 unawaited(
                                   runRequestAction(
@@ -118,7 +120,7 @@ class RequestsScreen extends ConsumerWidget {
                             _ActionButton(
                               label: 'Decline',
                               icon: Icons.close_outlined,
-                              foreground: Colors.orangeAccent,
+                              foreground: palette.warning,
                               outlined: true,
                               onPressed: () {
                                 unawaited(
@@ -134,7 +136,7 @@ class RequestsScreen extends ConsumerWidget {
                             _ActionButton(
                               label: 'Block',
                               icon: Icons.block_outlined,
-                              foreground: Colors.redAccent,
+                              foreground: palette.danger,
                               outlined: true,
                               onPressed: () {
                                 unawaited(
@@ -173,14 +175,14 @@ class RequestsScreen extends ConsumerWidget {
                         _PendingRequestCard(
                           title: conversation.title ?? 'Group invite',
                           subtitle: 'Invitation pending for this conversation.',
-                          accent: Colors.amber,
+                          accent: palette.groupAccent,
                           statusLabel: 'Invite',
                           icon: Icons.groups_2_outlined,
                           actions: [
                             _ActionButton(
                               label: 'Join',
                               icon: Icons.check_circle_outline,
-                              foreground: Colors.greenAccent,
+                              foreground: palette.positive,
                               onPressed: () {
                                 unawaited(
                                   runRequestAction(
@@ -195,7 +197,7 @@ class RequestsScreen extends ConsumerWidget {
                             _ActionButton(
                               label: 'Decline',
                               icon: Icons.close_outlined,
-                              foreground: Colors.orangeAccent,
+                              foreground: palette.warning,
                               outlined: true,
                               onPressed: () {
                                 unawaited(
@@ -234,14 +236,14 @@ class RequestsScreen extends ConsumerWidget {
                           subtitle:
                               request.message ??
                               'Waiting for this person to approve you.',
-                          accent: Colors.orangeAccent,
+                          accent: palette.warning,
                           statusLabel: 'Sent',
                           icon: Icons.outgoing_mail,
                           actions: [
                             _ActionButton(
                               label: 'Cancel',
                               icon: Icons.remove_circle_outline,
-                              foreground: Colors.orangeAccent,
+                              foreground: palette.warning,
                               onPressed: () {
                                 unawaited(
                                   runRequestAction(
@@ -256,7 +258,7 @@ class RequestsScreen extends ConsumerWidget {
                             _ActionButton(
                               label: 'Block',
                               icon: Icons.block_outlined,
-                              foreground: Colors.redAccent,
+                              foreground: palette.danger,
                               outlined: true,
                               onPressed: () {
                                 unawaited(
@@ -345,20 +347,14 @@ class _EmptyState extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final palette = context.appPalette;
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        gradient: LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: [
-            const Color(0xFF202C3D).withValues(alpha: 0.9),
-            const Color(0xFF182230).withValues(alpha: 0.84),
-          ],
-        ),
+        gradient: palette.surfaceGradient,
         borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: Colors.white.withValues(alpha: 0.03)),
+        border: Border.all(color: palette.border.withValues(alpha: 0.18)),
         boxShadow: [
           BoxShadow(
             color: Colors.black.withValues(alpha: 0.1),
@@ -373,10 +369,10 @@ class _EmptyState extends StatelessWidget {
             width: 42,
             height: 42,
             decoration: BoxDecoration(
-              color: Colors.white.withValues(alpha: 0.04),
+              color: palette.surfaceMuted.withValues(alpha: 0.82),
               borderRadius: BorderRadius.circular(14),
             ),
-            child: Icon(icon, color: Colors.grey),
+            child: Icon(icon, color: palette.textMuted),
           ),
           const SizedBox(width: 12),
           Expanded(
@@ -416,6 +412,7 @@ class _NearbyPeerCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final palette = context.appPalette;
     final deviceLabel = peer.deviceLabel?.trim();
     final fingerprint = peer.fingerprint?.trim();
     final subtitleParts = <String>[
@@ -431,16 +428,9 @@ class _NearbyPeerCard extends StatelessWidget {
       margin: const EdgeInsets.only(bottom: 12),
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 13),
       decoration: BoxDecoration(
-        gradient: LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: [
-            const Color(0xFF202C3D).withValues(alpha: 0.9),
-            const Color(0xFF182230).withValues(alpha: 0.84),
-          ],
-        ),
+        gradient: palette.surfaceGradient,
         borderRadius: BorderRadius.circular(22),
-        border: Border.all(color: Colors.white.withValues(alpha: 0.03)),
+        border: Border.all(color: palette.border.withValues(alpha: 0.18)),
         boxShadow: [
           BoxShadow(
             color: Colors.black.withValues(alpha: 0.12),
@@ -460,16 +450,16 @@ class _NearbyPeerCard extends StatelessWidget {
                 begin: Alignment.topLeft,
                 end: Alignment.bottomRight,
                 colors: [
-                  Colors.cyanAccent.withValues(alpha: 0.16),
-                  Colors.cyanAccent.withValues(alpha: 0.05),
+                  palette.brand.withValues(alpha: 0.16),
+                  palette.brand.withValues(alpha: 0.05),
                 ],
               ),
             ),
             child: Center(
               child: Text(
                 _initialsFor(peer.displayName),
-                style: const TextStyle(
-                  color: Colors.cyanAccent,
+                style: TextStyle(
+                  color: palette.brand,
                   fontWeight: FontWeight.w800,
                 ),
               ),
@@ -502,8 +492,8 @@ class _NearbyPeerCard extends StatelessWidget {
           FilledButton(
             onPressed: onConnect,
             style: FilledButton.styleFrom(
-              backgroundColor: Colors.greenAccent.withValues(alpha: 0.16),
-              foregroundColor: Colors.greenAccent,
+              backgroundColor: palette.positive.withValues(alpha: 0.16),
+              foregroundColor: palette.positive,
               minimumSize: const Size(0, 42),
               padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 0),
             ),
@@ -554,20 +544,14 @@ class _PendingRequestCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final palette = context.appPalette;
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
       decoration: BoxDecoration(
-        gradient: LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: [
-            const Color(0xFF202C3D).withValues(alpha: 0.9),
-            const Color(0xFF182230).withValues(alpha: 0.84),
-          ],
-        ),
+        gradient: palette.surfaceGradient,
         borderRadius: BorderRadius.circular(22),
-        border: Border.all(color: Colors.white.withValues(alpha: 0.03)),
+        border: Border.all(color: palette.border.withValues(alpha: 0.18)),
         boxShadow: [
           BoxShadow(
             color: Colors.black.withValues(alpha: 0.12),

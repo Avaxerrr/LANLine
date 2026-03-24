@@ -8,6 +8,7 @@ import 'app/app_shell.dart';
 import 'core/db/app_database.dart';
 import 'core/identity/identity_service.dart';
 import 'core/providers/app_metadata_provider.dart';
+import 'core/providers/app_theme_provider.dart';
 import 'core/providers/v2_database_provider.dart';
 import 'core/repositories/identity_repository.dart';
 import 'core/theme/app_theme.dart';
@@ -88,16 +89,18 @@ void main() async {
   );
 }
 
-class LANLineApp extends StatelessWidget {
+class LANLineApp extends ConsumerWidget {
   const LANLineApp({super.key});
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final activeTheme = ref.watch(appThemeDataProvider);
+
     return MaterialApp(
       title: 'LANLine',
       theme: AppTheme.lightTheme,
-      darkTheme: AppTheme.darkTheme,
-      themeMode: ThemeMode.dark, // Enforcing dark mode for a sleeker look
+      darkTheme: activeTheme,
+      themeMode: ThemeMode.dark,
       home: const AppShell(),
       debugShowCheckedModeBanner: false,
     );
