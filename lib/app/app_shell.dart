@@ -88,72 +88,74 @@ class _AppShellState extends ConsumerState<AppShell> {
     await showDialog<void>(
       context: context,
       barrierDismissible: false,
-      builder: (dialogContext) => AlertDialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        title: Column(
-          children: [
-            Container(
-              width: 72,
-              height: 72,
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                color: Colors.greenAccent.withValues(alpha: 0.15),
+      builder: (dialogContext) {
+        final palette = dialogContext.appPalette;
+        return AlertDialog(
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(20),
+          ),
+          title: Column(
+            children: [
+              Container(
+                width: 72,
+                height: 72,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: palette.positive.withValues(alpha: 0.15),
+                ),
+                child: Icon(
+                  call.callType == 'video' ? Icons.videocam : Icons.call,
+                  size: 36,
+                  color: palette.positive,
+                ),
               ),
-              child: Icon(
-                call.callType == 'video' ? Icons.videocam : Icons.call,
-                size: 36,
-                color: Colors.greenAccent,
+              const SizedBox(height: 16),
+              Text(
+                call.callType == 'video'
+                    ? 'Incoming Video Call'
+                    : 'Incoming Call',
+                style: const TextStyle(color: Colors.white, fontSize: 20),
               ),
+            ],
+          ),
+          content: Text(
+            '${call.displayName} is calling...',
+            textAlign: TextAlign.center,
+            style: TextStyle(color: palette.textMuted, fontSize: 16),
+          ),
+          actionsAlignment: MainAxisAlignment.spaceEvenly,
+          actions: [
+            TextButton.icon(
+              onPressed: () async {
+                await ref.read(mediaActionsProvider).declineIncomingCall(call);
+                if (dialogContext.mounted) {
+                  Navigator.pop(dialogContext);
+                }
+              },
+              icon: Icon(Icons.call_end, color: palette.danger),
+              label: Text('Decline', style: TextStyle(color: palette.danger)),
             ),
-            const SizedBox(height: 16),
-            Text(
-              call.callType == 'video'
-                  ? 'Incoming Video Call'
-                  : 'Incoming Call',
-              style: const TextStyle(color: Colors.white, fontSize: 20),
+            FilledButton.icon(
+              onPressed: () async {
+                await ref.read(mediaActionsProvider).clearIncomingCall();
+                if (dialogContext.mounted) {
+                  Navigator.pop(dialogContext);
+                }
+                await _openCallScreen(
+                  peerId: call.peerId,
+                  title: call.displayName,
+                  conversationId: call.conversationId,
+                  callId: call.callId,
+                  callType: call.callType,
+                  isInitiator: false,
+                );
+              },
+              icon: const Icon(Icons.call),
+              label: const Text('Accept'),
             ),
           ],
-        ),
-        content: Text(
-          '${call.displayName} is calling...',
-          textAlign: TextAlign.center,
-          style: const TextStyle(color: Colors.grey, fontSize: 16),
-        ),
-        actionsAlignment: MainAxisAlignment.spaceEvenly,
-        actions: [
-          TextButton.icon(
-            onPressed: () async {
-              await ref.read(mediaActionsProvider).declineIncomingCall(call);
-              if (dialogContext.mounted) {
-                Navigator.pop(dialogContext);
-              }
-            },
-            icon: const Icon(Icons.call_end, color: Colors.redAccent),
-            label: const Text(
-              'Decline',
-              style: TextStyle(color: Colors.redAccent),
-            ),
-          ),
-          FilledButton.icon(
-            onPressed: () async {
-              await ref.read(mediaActionsProvider).clearIncomingCall();
-              if (dialogContext.mounted) {
-                Navigator.pop(dialogContext);
-              }
-              await _openCallScreen(
-                peerId: call.peerId,
-                title: call.displayName,
-                conversationId: call.conversationId,
-                callId: call.callId,
-                callType: call.callType,
-                isInitiator: false,
-              );
-            },
-            icon: const Icon(Icons.call),
-            label: const Text('Accept'),
-          ),
-        ],
-      ),
+        );
+      },
     );
 
     _visibleIncomingCallId = null;

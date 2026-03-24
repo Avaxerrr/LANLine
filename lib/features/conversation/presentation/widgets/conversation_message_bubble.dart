@@ -14,6 +14,7 @@ import 'package:url_launcher/url_launcher.dart';
 import '../../../../core/db/app_database.dart';
 import '../../../../core/models/chat_message.dart';
 import '../../../../core/providers/v2_data_providers.dart';
+import '../../../../core/theme/app_theme.dart';
 
 String? latestOutgoingMessageId(
   List<MessageRow> messages,
@@ -90,6 +91,7 @@ class _ConversationMessageBubbleState
 
   @override
   Widget build(BuildContext context) {
+    final palette = context.appPalette;
     if (widget.message.type == 'system') {
       return Padding(
         padding: const EdgeInsets.only(bottom: 12),
@@ -97,12 +99,12 @@ class _ConversationMessageBubbleState
           child: Container(
             padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
             decoration: BoxDecoration(
-              color: const Color(0xFF171E29).withValues(alpha: 0.84),
+              color: palette.surface.withValues(alpha: 0.9),
               borderRadius: BorderRadius.circular(999),
             ),
             child: Text(
               widget.message.textBody ?? '',
-              style: const TextStyle(color: Colors.white54, fontSize: 12),
+              style: TextStyle(color: palette.textMuted, fontSize: 12),
             ),
           ),
         ),
@@ -122,8 +124,8 @@ class _ConversationMessageBubbleState
               ? _isHovered
               : widget.showInlineActions;
           final bubbleColor = widget.isMe
-              ? const Color(0xFF274061).withValues(alpha: 0.76)
-              : const Color(0xFF171E29).withValues(alpha: 0.92);
+              ? palette.brand.withValues(alpha: 0.28)
+              : palette.surface.withValues(alpha: 0.96);
           final alignment = widget.isMe
               ? CrossAxisAlignment.end
               : CrossAxisAlignment.start;
@@ -147,7 +149,7 @@ class _ConversationMessageBubbleState
                     child: Text(
                       widget.senderLabel,
                       style: TextStyle(
-                        color: Colors.amber.withValues(alpha: 0.9),
+                        color: palette.groupAccent.withValues(alpha: 0.9),
                         fontSize: 11.5,
                         fontWeight: FontWeight.w700,
                         letterSpacing: 0.1,
@@ -199,8 +201,8 @@ class _ConversationMessageBubbleState
                                 ),
                               ),
                               border: Border.all(
-                                color: Colors.white.withValues(
-                                  alpha: widget.isMe ? 0.07 : 0.05,
+                                color: palette.border.withValues(
+                                  alpha: widget.isMe ? 0.22 : 0.18,
                                 ),
                               ),
                               boxShadow: [
@@ -249,9 +251,9 @@ class _ConversationMessageBubbleState
                       attachment: attachment,
                       isMe: widget.isMe,
                     ),
-                    style: const TextStyle(
+                    style: TextStyle(
                       fontSize: 11.5,
-                      color: Colors.white38,
+                      color: palette.textMuted.withValues(alpha: 0.55),
                       fontWeight: FontWeight.w600,
                     ),
                   ),
@@ -262,7 +264,7 @@ class _ConversationMessageBubbleState
         },
         loading: () => const SizedBox.shrink(),
         error: (error, stackTrace) =>
-            Text('$error', style: const TextStyle(color: Colors.redAccent)),
+            Text('$error', style: TextStyle(color: palette.danger)),
       ),
     );
   }
@@ -380,6 +382,7 @@ class _MessageMenuButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final palette = context.appPalette;
     return Tooltip(
       message: 'Message actions',
       child: MouseRegion(
@@ -391,9 +394,9 @@ class _MessageMenuButton extends StatelessWidget {
             width: 28,
             height: 28,
             decoration: BoxDecoration(
-              color: const Color(0xFF1A2636),
+              color: palette.surfaceRaised.withValues(alpha: 0.92),
               shape: BoxShape.circle,
-              border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
+              border: Border.all(color: palette.border.withValues(alpha: 0.24)),
             ),
             child: const Center(child: Icon(Icons.more_horiz, size: 16)),
           ),
@@ -413,30 +416,30 @@ class _MessageMenuButton extends StatelessWidget {
         overlay.size.height - globalPosition.dy - 14,
       ),
       items: [
-        const PopupMenuItem<_MessageMenuAction>(
+        PopupMenuItem<_MessageMenuAction>(
           value: _MessageMenuAction.reply,
           child: _OverflowMenuLabel(
             icon: Icons.reply_outlined,
             label: 'Reply',
-            color: Colors.greenAccent,
+            color: context.appPalette.positive,
           ),
         ),
         if (showCopy)
-          const PopupMenuItem<_MessageMenuAction>(
+          PopupMenuItem<_MessageMenuAction>(
             value: _MessageMenuAction.copy,
             child: _OverflowMenuLabel(
               icon: Icons.copy_all_outlined,
               label: 'Copy text',
-              color: Colors.blueAccent,
+              color: context.appPalette.brand,
             ),
           ),
         if (showCopy)
-          const PopupMenuItem<_MessageMenuAction>(
+          PopupMenuItem<_MessageMenuAction>(
             value: _MessageMenuAction.forward,
             child: _OverflowMenuLabel(
               icon: Icons.forward_outlined,
               label: 'Forward',
-              color: Colors.amber,
+              color: context.appPalette.groupAccent,
             ),
           ),
         PopupMenuItem<_MessageMenuAction>(
@@ -444,15 +447,15 @@ class _MessageMenuButton extends StatelessWidget {
           child: _OverflowMenuLabel(
             icon: isPinned ? Icons.push_pin : Icons.push_pin_outlined,
             label: isPinned ? 'Unpin' : 'Pin',
-            color: Colors.amber,
+            color: context.appPalette.groupAccent,
           ),
         ),
-        const PopupMenuItem<_MessageMenuAction>(
+        PopupMenuItem<_MessageMenuAction>(
           value: _MessageMenuAction.delete,
           child: _OverflowMenuLabel(
             icon: Icons.delete_outline,
             label: 'Delete from this device',
-            color: Colors.redAccent,
+            color: context.appPalette.danger,
           ),
         ),
       ],
@@ -500,7 +503,7 @@ class _MessageMenuButton extends StatelessWidget {
               FilledButton(
                 onPressed: () => Navigator.pop(dialogContext, true),
                 style: FilledButton.styleFrom(
-                  backgroundColor: Colors.redAccent,
+                  backgroundColor: context.appPalette.danger,
                 ),
                 child: const Text('Delete'),
               ),
@@ -552,6 +555,7 @@ class TextLikeMessageContent extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final palette = context.appPalette;
     final contentAlignment = textAlign == TextAlign.right
         ? CrossAxisAlignment.end
         : CrossAxisAlignment.start;
@@ -574,7 +578,7 @@ class TextLikeMessageContent extends StatelessWidget {
           Row(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Icon(icon, color: Colors.greenAccent, size: 18),
+              Icon(icon, color: palette.positive, size: 18),
               const SizedBox(width: 8),
               Flexible(
                 child: Text(
@@ -622,8 +626,8 @@ class TextLikeMessageContent extends StatelessWidget {
             fontSize: 15.5,
             height: 1.45,
           ),
-          linkStyle: const TextStyle(
-            color: Colors.lightBlueAccent,
+          linkStyle: TextStyle(
+            color: palette.brand,
             decoration: TextDecoration.underline,
             fontSize: 15.5,
           ),
@@ -651,6 +655,7 @@ class ReplyPreview extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final palette = context.appPalette;
     final alignment = textAlign == TextAlign.right
         ? CrossAxisAlignment.end
         : CrossAxisAlignment.start;
@@ -658,11 +663,11 @@ class ReplyPreview extends StatelessWidget {
       constraints: const BoxConstraints(maxWidth: 260),
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
       decoration: BoxDecoration(
-        color: Colors.white.withValues(alpha: 0.05),
+        color: palette.surfaceMuted.withValues(alpha: 0.78),
         borderRadius: BorderRadius.circular(12),
         border: Border(
           left: BorderSide(
-            color: Colors.blueAccent.withValues(alpha: 0.85),
+            color: palette.brand.withValues(alpha: 0.85),
             width: 3,
           ),
         ),
@@ -672,17 +677,17 @@ class ReplyPreview extends StatelessWidget {
         children: [
           Row(
             mainAxisSize: MainAxisSize.min,
-            children: const [
+            children: [
               Icon(
                 Icons.subdirectory_arrow_right,
-                color: Colors.blueAccent,
+                color: palette.brand,
                 size: 14,
               ),
               SizedBox(width: 4),
               Text(
                 'Replying to',
                 style: TextStyle(
-                  color: Colors.blueAccent,
+                  color: palette.brand,
                   fontSize: 12,
                   fontWeight: FontWeight.w700,
                 ),
@@ -695,8 +700,8 @@ class ReplyPreview extends StatelessWidget {
             maxLines: 2,
             overflow: TextOverflow.ellipsis,
             textAlign: textAlign,
-            style: const TextStyle(
-              color: Colors.white60,
+            style: TextStyle(
+              color: palette.textMuted,
               fontSize: 12,
               height: 1.25,
             ),
@@ -742,6 +747,7 @@ class AttachmentMessageContent extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final palette = context.appPalette;
     final progress = downloadProgress[attachment.id];
     final progressValue = progress == null || progress[1] == 0
         ? null
@@ -768,15 +774,18 @@ class AttachmentMessageContent extends ConsumerWidget {
                 fit: BoxFit.cover,
                 errorBuilder: (context, error, stackTrace) => Container(
                   padding: const EdgeInsets.all(16),
-                  color: Colors.white.withValues(alpha: 0.06),
-                  child: const Row(
+                  color: palette.surfaceMuted.withValues(alpha: 0.82),
+                  child: Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      Icon(Icons.broken_image_outlined, color: Colors.grey),
+                      Icon(
+                        Icons.broken_image_outlined,
+                        color: palette.textMuted,
+                      ),
                       SizedBox(width: 8),
                       Text(
                         'Could not preview image',
-                        style: TextStyle(color: Colors.grey),
+                        style: TextStyle(color: palette.textMuted),
                       ),
                     ],
                   ),
@@ -789,9 +798,9 @@ class AttachmentMessageContent extends ConsumerWidget {
         Container(
           padding: const EdgeInsets.all(12),
           decoration: BoxDecoration(
-            color: Colors.white.withValues(alpha: 0.04),
+            color: palette.surfaceMuted.withValues(alpha: 0.82),
             borderRadius: BorderRadius.circular(14),
-            border: Border.all(color: Colors.white.withValues(alpha: 0.05)),
+            border: Border.all(color: palette.border.withValues(alpha: 0.22)),
           ),
           child: Row(
             mainAxisSize: MainAxisSize.min,
@@ -799,7 +808,7 @@ class AttachmentMessageContent extends ConsumerWidget {
               Container(
                 padding: const EdgeInsets.all(8),
                 decoration: BoxDecoration(
-                  color: Colors.white.withValues(alpha: 0.08),
+                  color: palette.surface.withValues(alpha: 0.72),
                   borderRadius: BorderRadius.circular(10),
                 ),
                 child: Icon(
@@ -825,7 +834,7 @@ class AttachmentMessageContent extends ConsumerWidget {
                     const SizedBox(height: 2),
                     Text(
                       _formatFileSize(attachment.fileSize),
-                      style: const TextStyle(color: Colors.grey, fontSize: 12),
+                      style: TextStyle(color: palette.textMuted, fontSize: 12),
                     ),
                   ],
                 ),
@@ -841,10 +850,8 @@ class AttachmentMessageContent extends ConsumerWidget {
             child: LinearProgressIndicator(
               value: progressValue,
               minHeight: 6,
-              backgroundColor: Colors.white.withValues(alpha: 0.15),
-              valueColor: const AlwaysStoppedAnimation<Color>(
-                Colors.greenAccent,
-              ),
+              backgroundColor: palette.surface.withValues(alpha: 0.4),
+              valueColor: AlwaysStoppedAnimation<Color>(palette.positive),
             ),
           ),
         ],
@@ -867,6 +874,7 @@ class AttachmentMessageContent extends ConsumerWidget {
     if (!isMe && attachment.transferState == 'offered') {
       return [
         _actionButton(
+          context: context,
           icon: Icons.download,
           label: 'Download',
           onTap: () => ref
@@ -882,6 +890,7 @@ class AttachmentMessageContent extends ConsumerWidget {
         (!isMe && attachment.transferState == 'downloading')) {
       return [
         _actionButton(
+          context: context,
           icon: Icons.close,
           label: 'Cancel',
           onTap: () => ref
@@ -895,6 +904,7 @@ class AttachmentMessageContent extends ConsumerWidget {
         attachment.localPath != null) {
       return [
         _actionButton(
+          context: context,
           icon: Icons.open_in_new,
           label: 'Open',
           onTap: () => OpenFilex.open(
@@ -904,6 +914,7 @@ class AttachmentMessageContent extends ConsumerWidget {
         ),
         if (Platform.isAndroid)
           _actionButton(
+            context: context,
             icon: Icons.share,
             label: 'Share',
             onTap: () => SharePlus.instance.share(
@@ -912,6 +923,7 @@ class AttachmentMessageContent extends ConsumerWidget {
           )
         else
           _actionButton(
+            context: context,
             icon: Icons.folder_open,
             label: 'Folder',
             onTap: () => _openFolder(attachment.localPath!),
@@ -932,17 +944,19 @@ class AttachmentMessageContent extends ConsumerWidget {
   }
 
   Widget _actionButton({
+    required BuildContext context,
     required IconData icon,
     required String label,
     required VoidCallback onTap,
   }) {
+    final palette = context.appPalette;
     return InkWell(
       onTap: onTap,
       borderRadius: BorderRadius.circular(8),
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
         decoration: BoxDecoration(
-          color: Colors.white.withValues(alpha: 0.08),
+          color: palette.surface.withValues(alpha: 0.72),
           borderRadius: BorderRadius.circular(8),
         ),
         child: Row(

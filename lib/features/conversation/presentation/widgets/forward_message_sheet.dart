@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../../core/db/app_database.dart';
 import '../../../../core/providers/v2_data_providers.dart';
+import '../../../../core/theme/app_theme.dart';
 
 class ForwardMessageSheet extends ConsumerWidget {
   final String currentConversationId;
@@ -16,6 +17,7 @@ class ForwardMessageSheet extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final palette = context.appPalette;
     final conversationsAsync = ref.watch(conversationListProvider);
 
     return SafeArea(
@@ -30,7 +32,7 @@ class ForwardMessageSheet extends ConsumerWidget {
                 height: 4,
                 margin: const EdgeInsets.only(bottom: 12),
                 decoration: BoxDecoration(
-                  color: Colors.grey.shade600,
+                  color: palette.textMuted.withValues(alpha: 0.55),
                   borderRadius: BorderRadius.circular(2),
                 ),
               ),
@@ -53,16 +55,16 @@ class ForwardMessageSheet extends ConsumerWidget {
                       .toList();
 
                   if (targets.isEmpty) {
-                    return const Center(
+                    return Center(
                       child: Padding(
-                        padding: EdgeInsets.symmetric(
+                        padding: const EdgeInsets.symmetric(
                           horizontal: 24,
                           vertical: 24,
                         ),
                         child: Text(
                           'No other chats available to forward into yet.',
                           textAlign: TextAlign.center,
-                          style: TextStyle(color: Colors.white60),
+                          style: TextStyle(color: palette.textMuted),
                         ),
                       ),
                     );
@@ -75,21 +77,14 @@ class ForwardMessageSheet extends ConsumerWidget {
                     itemBuilder: (context, index) {
                       final conversation = targets[index];
                       final accent = conversation.type == 'group'
-                          ? Colors.amber
-                          : Colors.blueAccent;
+                          ? palette.groupAccent
+                          : palette.brand;
                       return Container(
                         decoration: BoxDecoration(
-                          gradient: LinearGradient(
-                            begin: Alignment.topLeft,
-                            end: Alignment.bottomRight,
-                            colors: [
-                              const Color(0xFF202C3D).withValues(alpha: 0.92),
-                              const Color(0xFF182230).withValues(alpha: 0.86),
-                            ],
-                          ),
+                          gradient: palette.surfaceGradient,
                           borderRadius: BorderRadius.circular(18),
                           border: Border.all(
-                            color: Colors.white.withValues(alpha: 0.03),
+                            color: palette.border.withValues(alpha: 0.18),
                           ),
                         ),
                         child: ListTile(
@@ -115,11 +110,11 @@ class ForwardMessageSheet extends ConsumerWidget {
                                 'No messages yet',
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
-                            style: const TextStyle(color: Colors.white60),
+                            style: TextStyle(color: palette.textMuted),
                           ),
-                          trailing: const Icon(
+                          trailing: Icon(
                             Icons.chevron_right,
-                            color: Colors.white38,
+                            color: palette.textMuted.withValues(alpha: 0.5),
                           ),
                         ),
                       );
@@ -136,7 +131,7 @@ class ForwardMessageSheet extends ConsumerWidget {
                     child: Text(
                       '$error',
                       textAlign: TextAlign.center,
-                      style: const TextStyle(color: Colors.redAccent),
+                      style: TextStyle(color: palette.danger),
                     ),
                   ),
                 ),

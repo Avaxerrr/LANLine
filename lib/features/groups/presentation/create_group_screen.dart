@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/db/app_database.dart';
 import '../../../core/providers/v2_data_providers.dart';
+import '../../../core/theme/app_theme.dart';
 
 class CreateGroupScreen extends ConsumerStatefulWidget {
   const CreateGroupScreen({super.key});
@@ -49,10 +50,11 @@ class _CreateGroupScreenState extends ConsumerState<CreateGroupScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final palette = context.appPalette;
     final reachableContactsAsync = ref.watch(reachableContactsProvider);
 
     return Scaffold(
-      backgroundColor: Colors.transparent,
+      backgroundColor: palette.background,
       appBar: AppBar(
         title: const Text('New Group'),
         backgroundColor: Colors.transparent,
@@ -74,9 +76,9 @@ class _CreateGroupScreenState extends ConsumerState<CreateGroupScreen> {
             style: TextStyle(fontSize: 18, fontWeight: FontWeight.w800),
           ),
           const SizedBox(height: 6),
-          const Text(
+          Text(
             'Only accepted contacts that are reachable right now can be invited.',
-            style: TextStyle(color: Colors.white60),
+            style: TextStyle(color: palette.textMuted),
           ),
           const SizedBox(height: 14),
           reachableContactsAsync.when(
@@ -85,27 +87,20 @@ class _CreateGroupScreenState extends ConsumerState<CreateGroupScreen> {
                 return Container(
                   padding: const EdgeInsets.all(18),
                   decoration: BoxDecoration(
-                    gradient: LinearGradient(
-                      begin: Alignment.topLeft,
-                      end: Alignment.bottomRight,
-                      colors: [
-                        const Color(0xFF202C3D).withValues(alpha: 0.9),
-                        const Color(0xFF182230).withValues(alpha: 0.84),
-                      ],
-                    ),
+                    gradient: palette.surfaceGradient,
                     borderRadius: BorderRadius.circular(20),
                     border: Border.all(
-                      color: Colors.white.withValues(alpha: 0.03),
+                      color: palette.border.withValues(alpha: 0.18),
                     ),
                   ),
-                  child: const Row(
+                  child: Row(
                     children: [
-                      Icon(Icons.people_alt_outlined, color: Colors.white54),
-                      SizedBox(width: 12),
+                      Icon(Icons.people_alt_outlined, color: palette.textMuted),
+                      const SizedBox(width: 12),
                       Expanded(
                         child: Text(
                           'No reachable contacts are available for a group invite right now.',
-                          style: TextStyle(color: Colors.white60),
+                          style: TextStyle(color: palette.textMuted),
                         ),
                       ),
                     ],
@@ -137,7 +132,7 @@ class _CreateGroupScreenState extends ConsumerState<CreateGroupScreen> {
               child: Center(child: CircularProgressIndicator()),
             ),
             error: (error, stackTrace) =>
-                Text('$error', style: const TextStyle(color: Colors.redAccent)),
+                Text('$error', style: TextStyle(color: palette.danger)),
           ),
           const SizedBox(height: 24),
           FilledButton.icon(
@@ -174,21 +169,22 @@ class _SelectableContactCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final palette = context.appPalette;
     return Card(
-      color: const Color(0xFF1B2738),
+      color: palette.surface.withValues(alpha: 0.94),
       margin: const EdgeInsets.only(bottom: 12),
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(18),
+        side: BorderSide(color: palette.border.withValues(alpha: 0.18)),
+      ),
       child: CheckboxListTile(
         value: selected,
         onChanged: (value) => onChanged(value ?? false),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
-        activeColor: Colors.blueAccent,
+        activeColor: palette.brand,
         secondary: CircleAvatar(
-          backgroundColor: Colors.greenAccent.withValues(alpha: 0.16),
-          child: const Icon(
-            Icons.verified_user_outlined,
-            color: Colors.greenAccent,
-          ),
+          backgroundColor: palette.positive.withValues(alpha: 0.16),
+          child: Icon(Icons.verified_user_outlined, color: palette.positive),
         ),
         title: Text(
           peer.displayName,
@@ -196,7 +192,7 @@ class _SelectableContactCard extends StatelessWidget {
         ),
         subtitle: Text(
           peer.deviceLabel ?? peer.fingerprint ?? 'Accepted contact',
-          style: const TextStyle(color: Colors.white60),
+          style: TextStyle(color: palette.textMuted),
         ),
       ),
     );
