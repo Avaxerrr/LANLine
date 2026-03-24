@@ -110,8 +110,8 @@ class _ChatsToolbar extends StatelessWidget {
             conversationCount == 0
                 ? 'Start from Requests to create a conversation.'
                 : '$conversationCount conversation${conversationCount == 1 ? '' : 's'}',
-            style: const TextStyle(
-              color: Colors.white60,
+            style: TextStyle(
+              color: palette.textMuted,
               height: 1.3,
               fontSize: 13,
               fontWeight: FontWeight.w600,
@@ -256,8 +256,8 @@ class _ConversationRow extends StatelessWidget {
                               preview,
                               maxLines: 1,
                               overflow: TextOverflow.ellipsis,
-                              style: const TextStyle(
-                                color: Colors.white60,
+                              style: TextStyle(
+                                color: palette.textMuted,
                                 height: 1.32,
                                 fontSize: 13.5,
                               ),
@@ -278,8 +278,8 @@ class _ConversationRow extends StatelessWidget {
                         Text(
                           _formatConversationTime(conversation.lastMessageAt!),
                           textAlign: TextAlign.right,
-                          style: const TextStyle(
-                            color: Colors.white38,
+                          style: TextStyle(
+                            color: palette.textMuted.withValues(alpha: 0.55),
                             fontSize: 11.5,
                             fontWeight: FontWeight.w600,
                           ),
@@ -365,10 +365,10 @@ class _EmptyChatsState extends StatelessWidget {
             style: TextStyle(fontSize: 22, fontWeight: FontWeight.w900),
           ),
           const SizedBox(height: 10),
-          const Text(
+          Text(
             'Connect from Requests or create a small group when you are ready to start talking.',
             textAlign: TextAlign.center,
-            style: TextStyle(color: Colors.white70, height: 1.45),
+            style: TextStyle(color: palette.textMuted, height: 1.45),
           ),
           const SizedBox(height: 18),
           FilledButton.icon(
@@ -390,13 +390,14 @@ class _ErrorState extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final palette = context.appPalette;
     return Center(
       child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 24),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            const Icon(Icons.error_outline, color: Colors.redAccent, size: 48),
+            Icon(Icons.error_outline, color: palette.danger, size: 48),
             const SizedBox(height: 16),
             Text(
               title,
@@ -406,7 +407,7 @@ class _ErrorState extends StatelessWidget {
             Text(
               message,
               textAlign: TextAlign.center,
-              style: const TextStyle(color: Colors.white70),
+              style: TextStyle(color: palette.textMuted),
             ),
           ],
         ),

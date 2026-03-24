@@ -863,10 +863,10 @@ class AttachmentMessageContent extends ConsumerWidget {
 
   List<Widget> _buildActions(BuildContext context, WidgetRef ref) {
     if (peerId == null) {
-      return const [
+      return [
         Text(
           'Direct-chat only for file transfers right now.',
-          style: TextStyle(color: Colors.grey, fontSize: 12),
+          style: TextStyle(color: context.appPalette.textMuted, fontSize: 12),
         ),
       ];
     }
@@ -932,10 +932,10 @@ class AttachmentMessageContent extends ConsumerWidget {
     }
 
     if (attachment.transferState == 'cancelled') {
-      return const [
+      return [
         Text(
           'Transfer cancelled',
-          style: TextStyle(color: Colors.redAccent, fontSize: 12),
+          style: TextStyle(color: context.appPalette.danger, fontSize: 12),
         ),
       ];
     }

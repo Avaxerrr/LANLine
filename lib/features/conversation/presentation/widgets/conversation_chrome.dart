@@ -106,13 +106,14 @@ class ConversationError extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final palette = context.appPalette;
     return Center(
       child: Padding(
         padding: const EdgeInsets.all(24),
         child: Text(
           message,
           textAlign: TextAlign.center,
-          style: const TextStyle(color: Colors.redAccent, height: 1.35),
+          style: TextStyle(color: palette.danger, height: 1.35),
         ),
       ),
     );

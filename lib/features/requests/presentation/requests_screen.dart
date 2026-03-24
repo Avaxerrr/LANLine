@@ -318,6 +318,7 @@ class _SectionTitle extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final palette = context.appPalette;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -332,7 +333,7 @@ class _SectionTitle extends StatelessWidget {
         const SizedBox(height: 3),
         Text(
           subtitle,
-          style: const TextStyle(color: Colors.white54, fontSize: 12.5),
+          style: TextStyle(color: palette.textMuted, fontSize: 12.5),
         ),
       ],
     );
@@ -378,7 +379,7 @@ class _EmptyState extends StatelessWidget {
           Expanded(
             child: Text(
               text,
-              style: const TextStyle(color: Colors.white70, height: 1.35),
+              style: TextStyle(color: palette.textMuted, height: 1.35),
             ),
           ),
         ],
@@ -483,7 +484,7 @@ class _NearbyPeerCard extends StatelessWidget {
                   subtitle,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(color: Colors.white60, fontSize: 13),
+                  style: TextStyle(color: palette.textMuted, fontSize: 13),
                 ),
               ],
             ),
@@ -506,13 +507,13 @@ class _NearbyPeerCard extends StatelessWidget {
                 onBlock();
               }
             },
-            itemBuilder: (context) => const [
+            itemBuilder: (context) => [
               PopupMenuItem(
                 value: _NearbyMenuAction.block,
                 child: _PopupMenuRow(
                   icon: Icons.block_outlined,
                   label: 'Block device',
-                  color: Colors.redAccent,
+                  color: palette.danger,
                 ),
               ),
             ],
@@ -591,8 +592,8 @@ class _PendingRequestCard extends StatelessWidget {
                     const SizedBox(height: 4),
                     Text(
                       subtitle,
-                      style: const TextStyle(
-                        color: Colors.white60,
+                      style: TextStyle(
+                        color: palette.textMuted,
                         height: 1.35,
                         fontSize: 13,
                       ),

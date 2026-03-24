@@ -97,13 +97,11 @@ class PeopleScreen extends ConsumerWidget {
                   children: [
                     CircleAvatar(
                       radius: 28,
-                      backgroundColor: const Color(
-                        0xFF4DE1A7,
-                      ).withValues(alpha: 0.16),
+                      backgroundColor: palette.positive.withValues(alpha: 0.16),
                       child: Text(
                         _initialsFor(peer.displayName),
-                        style: const TextStyle(
-                          color: Color(0xFF4DE1A7),
+                        style: TextStyle(
+                          color: palette.positive,
                           fontSize: 18,
                           fontWeight: FontWeight.w800,
                         ),
@@ -127,8 +125,8 @@ class PeopleScreen extends ConsumerWidget {
                             peer.lastSeenAt != null
                                 ? 'Contact available on your network'
                                 : 'Saved contact',
-                            style: const TextStyle(
-                              color: Colors.white60,
+                            style: TextStyle(
+                              color: palette.textMuted,
                               height: 1.3,
                             ),
                           ),
@@ -207,8 +205,8 @@ class PeopleScreen extends ConsumerWidget {
                   padding: const EdgeInsets.only(bottom: 14),
                   child: Text(
                     '${contacts.length} contact${contacts.length == 1 ? '' : 's'}',
-                    style: const TextStyle(
-                      color: Colors.white60,
+                    style: TextStyle(
+                      color: palette.textMuted,
                       fontSize: 13,
                       fontWeight: FontWeight.w600,
                     ),
@@ -310,7 +308,7 @@ class _SectionPlaceholder extends StatelessWidget {
           Expanded(
             child: Text(
               text,
-              style: const TextStyle(color: Colors.white70, height: 1.35),
+              style: TextStyle(color: palette.textMuted, height: 1.35),
             ),
           ),
         ],
@@ -364,8 +362,8 @@ class _ContactRow extends StatelessWidget {
                     backgroundColor: accent.withValues(alpha: 0.14),
                     child: Text(
                       _initialsFor(peer.displayName),
-                      style: const TextStyle(
-                        color: Color(0xFF4DE1A7),
+                      style: TextStyle(
+                        color: accent,
                         fontWeight: FontWeight.w800,
                       ),
                     ),
@@ -379,7 +377,7 @@ class _ContactRow extends StatelessWidget {
                       decoration: BoxDecoration(
                         color: peer.lastSeenAt != null
                             ? accent
-                            : Colors.white24,
+                            : palette.textMuted.withValues(alpha: 0.28),
                         shape: BoxShape.circle,
                         border: Border.all(color: palette.surface, width: 2),
                       ),
@@ -405,8 +403,8 @@ class _ContactRow extends StatelessWidget {
                       secondary,
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(
-                        color: Colors.white60,
+                      style: TextStyle(
+                        color: palette.textMuted,
                         fontSize: 12.5,
                       ),
                     ),
@@ -416,9 +414,12 @@ class _ContactRow extends StatelessWidget {
               const SizedBox(width: 4),
               PopupMenuButton<_ContactMenuAction>(
                 tooltip: 'Contact actions',
-                icon: const Icon(Icons.more_horiz, color: Colors.white38),
+                icon: Icon(
+                  Icons.more_horiz,
+                  color: palette.textMuted.withValues(alpha: 0.55),
+                ),
                 onSelected: onSelected,
-                itemBuilder: (context) => const [
+                itemBuilder: (context) => [
                   PopupMenuItem(
                     value: _ContactMenuAction.message,
                     child: _ContactMenuItem(
@@ -431,7 +432,7 @@ class _ContactRow extends StatelessWidget {
                     child: _ContactMenuItem(
                       icon: Icons.block_outlined,
                       label: 'Block',
-                      color: Colors.redAccent,
+                      color: palette.danger,
                     ),
                   ),
                 ],
@@ -485,17 +486,18 @@ class _ContactDetailRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final palette = context.appPalette;
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
       child: Row(
         children: [
-          Icon(detail.icon, color: Colors.white54, size: 18),
+          Icon(detail.icon, color: palette.textMuted, size: 18),
           const SizedBox(width: 12),
           Expanded(
             child: Text(
               detail.label,
-              style: const TextStyle(
-                color: Colors.white54,
+              style: TextStyle(
+                color: palette.textMuted,
                 fontSize: 13,
                 fontWeight: FontWeight.w600,
               ),

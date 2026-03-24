@@ -217,7 +217,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
           child: Text(
             'Could not load settings: $error',
             textAlign: TextAlign.center,
-            style: const TextStyle(color: Colors.white60),
+            style: TextStyle(color: context.appPalette.textMuted),
           ),
         ),
       ),
@@ -425,7 +425,9 @@ class _QrToggleButton extends StatelessWidget {
     return TextButton.icon(
       onPressed: onPressed,
       style: TextButton.styleFrom(
-        foregroundColor: enabled ? Colors.white70 : Colors.white30,
+        foregroundColor: enabled
+            ? palette.textMuted
+            : palette.textMuted.withValues(alpha: 0.4),
         backgroundColor: palette.surfaceMuted.withValues(alpha: 0.72),
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(999)),

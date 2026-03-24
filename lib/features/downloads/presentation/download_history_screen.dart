@@ -75,6 +75,7 @@ class DownloadHistoryScreen extends ConsumerWidget {
   }
 
   Color _getFileColor(String fileName) {
+    // File accents stay semantic, but use theme-aligned defaults where possible.
     final ext = p.extension(fileName).toLowerCase();
     switch (ext) {
       case '.jpg':
@@ -309,7 +310,7 @@ class _SummaryCard extends StatelessWidget {
                   historyCount == 0
                       ? 'No files received yet'
                       : '$historyCount saved file${historyCount == 1 ? '' : 's'}',
-                  style: const TextStyle(color: Colors.white70),
+                  style: TextStyle(color: palette.textMuted),
                 ),
               ],
             ),
@@ -426,7 +427,7 @@ class _DownloadHistoryItem extends StatelessWidget {
         padding: const EdgeInsets.symmetric(horizontal: 20),
         alignment: Alignment.centerRight,
         decoration: BoxDecoration(
-          color: Colors.redAccent,
+          color: context.appPalette.danger,
           borderRadius: BorderRadius.circular(20),
         ),
         child: const Icon(Icons.delete_outline, color: Colors.white),
@@ -473,7 +474,9 @@ class _DownloadHistoryItem extends StatelessWidget {
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
                           style: TextStyle(
-                            color: exists ? Colors.white : Colors.white60,
+                            color: exists
+                                ? Colors.white
+                                : context.appPalette.textMuted,
                             fontWeight: FontWeight.w700,
                             fontSize: 15,
                             decoration: exists
@@ -512,7 +515,9 @@ class _DownloadHistoryItem extends StatelessWidget {
                     child: Text(
                       exists ? timeLabel : 'File missing from disk',
                       style: TextStyle(
-                        color: exists ? Colors.white60 : Colors.redAccent,
+                        color: exists
+                            ? context.appPalette.textMuted
+                            : context.appPalette.danger,
                       ),
                     ),
                   ),
@@ -529,16 +534,16 @@ class _DownloadHistoryItem extends StatelessWidget {
                         Platform.isAndroid
                             ? Icons.share_outlined
                             : Icons.folder_open,
-                        color: Colors.orangeAccent,
+                        color: context.appPalette.warning,
                       ),
                     ),
                   ],
                   IconButton(
                     tooltip: 'Delete',
                     onPressed: onDelete,
-                    icon: const Icon(
+                    icon: Icon(
                       Icons.delete_outline,
-                      color: Colors.redAccent,
+                      color: context.appPalette.danger,
                     ),
                   ),
                 ],
