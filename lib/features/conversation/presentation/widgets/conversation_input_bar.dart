@@ -167,7 +167,7 @@ class ConversationInputBar extends StatelessWidget {
                               filled: true,
                               fillColor: const Color(
                                 0xFF171B22,
-                              ).withValues(alpha: 0.92),
+                              ).withValues(alpha: 0.72),
                               contentPadding: const EdgeInsets.symmetric(
                                 horizontal: 16,
                                 vertical: 14,
@@ -179,7 +179,7 @@ class ConversationInputBar extends StatelessWidget {
                               enabledBorder: OutlineInputBorder(
                                 borderRadius: BorderRadius.circular(18),
                                 borderSide: BorderSide(
-                                  color: Colors.white.withValues(alpha: 0.05),
+                                  color: Colors.white.withValues(alpha: 0.035),
                                 ),
                               ),
                               focusedBorder: OutlineInputBorder(
