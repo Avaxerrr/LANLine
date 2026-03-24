@@ -246,6 +246,18 @@ class _DirectConversationScreenState
     });
   }
 
+  void _handleComposerFocus() {
+    _scrollToBottom();
+    Future<void>.delayed(const Duration(milliseconds: 120), () {
+      if (!mounted) return;
+      _scrollToBottom();
+    });
+    Future<void>.delayed(const Duration(milliseconds: 260), () {
+      if (!mounted) return;
+      _scrollToBottom();
+    });
+  }
+
   void _setReply(MessageRow message) {
     setState(() {
       _replyingToMessage = message;
@@ -703,6 +715,7 @@ class _DirectConversationScreenState
               textController: _textController,
               onPickFile: _pickAndSendFile,
               onSendMessage: _sendMessage,
+              onFocusComposer: _handleComposerFocus,
               replyTitle: _replyingToMessage == null ? null : 'Replying',
               replyPreview: _replyingToMessage == null
                   ? null

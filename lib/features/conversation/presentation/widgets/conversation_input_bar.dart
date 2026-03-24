@@ -13,6 +13,7 @@ class ConversationInputBar extends StatelessWidget {
   final TextEditingController textController;
   final VoidCallback onPickFile;
   final VoidCallback onSendMessage;
+  final VoidCallback? onFocusComposer;
   final String? replyTitle;
   final String? replyPreview;
   final VoidCallback? onClearReply;
@@ -26,6 +27,7 @@ class ConversationInputBar extends StatelessWidget {
     required this.textController,
     required this.onPickFile,
     required this.onSendMessage,
+    this.onFocusComposer,
     this.replyTitle,
     this.replyPreview,
     this.onClearReply,
@@ -75,6 +77,7 @@ class ConversationInputBar extends StatelessWidget {
                 minLines: 1,
                 maxLines: 5,
                 textInputAction: TextInputAction.send,
+                onTap: onFocusComposer,
                 onSubmitted: (_) => onSendMessage(),
                 textAlignVertical: TextAlignVertical.center,
                 style: const TextStyle(color: Colors.white),
