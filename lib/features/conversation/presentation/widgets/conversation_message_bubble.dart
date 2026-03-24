@@ -391,7 +391,7 @@ class _MessageMenuButton extends StatelessWidget {
             width: 28,
             height: 28,
             decoration: BoxDecoration(
-              color: const Color(0xFF1B2431),
+              color: const Color(0xFF1A2636),
               shape: BoxShape.circle,
               border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
             ),
@@ -406,7 +406,6 @@ class _MessageMenuButton extends StatelessWidget {
     final overlay = Overlay.of(context).context.findRenderObject() as RenderBox;
     final action = await showMenu<_MessageMenuAction>(
       context: context,
-      color: const Color(0xFF1E1E1E),
       position: RelativeRect.fromLTRB(
         globalPosition.dx - 14,
         globalPosition.dy + 14,
@@ -489,7 +488,6 @@ class _MessageMenuButton extends StatelessWidget {
         final shouldDelete = await showDialog<bool>(
           context: context,
           builder: (dialogContext) => AlertDialog(
-            backgroundColor: const Color(0xFF1E1E1E),
             title: const Text('Delete message'),
             content: const Text(
               'This only removes the message from this device.',

@@ -31,8 +31,177 @@ class PeopleScreen extends ConsumerWidget {
       }
     }
 
+    Future<void> openConversation(PeerRow peer) async {
+      final conversation = await conversationActions.openDirectConversation(
+        peerId: peer.peerId,
+        title: peer.displayName,
+      );
+
+      if (!context.mounted) return;
+
+      await Navigator.of(context).push(
+        MaterialPageRoute(
+          builder: (_) => DirectConversationScreen(
+            conversationId: conversation.id,
+            peerId: peer.peerId,
+            title: peer.displayName,
+            conversationType: conversation.type,
+          ),
+        ),
+      );
+    }
+
+    Future<void> showContactSheet(PeerRow peer) async {
+      await showModalBottomSheet<void>(
+        context: context,
+        useSafeArea: true,
+        showDragHandle: true,
+        backgroundColor: const Color(0xFF162131),
+        shape: const RoundedRectangleBorder(
+          borderRadius: BorderRadius.vertical(top: Radius.circular(30)),
+        ),
+        builder: (sheetContext) {
+          final deviceLabel = peer.deviceLabel?.trim();
+          final fingerprint = peer.fingerprint?.trim();
+          final details = <_ContactDetailLine>[
+            if (deviceLabel != null && deviceLabel.isNotEmpty)
+              _ContactDetailLine(
+                icon: Icons.devices_outlined,
+                label: 'Device',
+                value: deviceLabel,
+              ),
+            if (fingerprint != null && fingerprint.isNotEmpty)
+              _ContactDetailLine(
+                icon: Icons.verified_user_outlined,
+                label: 'Fingerprint',
+                value: fingerprint,
+              ),
+            _ContactDetailLine(
+              icon: Icons.schedule_outlined,
+              label: 'Availability',
+              value: peer.lastSeenAt != null
+                  ? _formatLastSeen(peer.lastSeenAt!)
+                  : 'Not seen recently',
+            ),
+          ];
+
+          return Padding(
+            padding: const EdgeInsets.fromLTRB(20, 4, 20, 24),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    CircleAvatar(
+                      radius: 28,
+                      backgroundColor: const Color(
+                        0xFF4DE1A7,
+                      ).withValues(alpha: 0.16),
+                      child: Text(
+                        _initialsFor(peer.displayName),
+                        style: const TextStyle(
+                          color: Color(0xFF4DE1A7),
+                          fontSize: 18,
+                          fontWeight: FontWeight.w800,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 14),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            peer.displayName,
+                            style: const TextStyle(
+                              fontSize: 19,
+                              fontWeight: FontWeight.w800,
+                              letterSpacing: -0.2,
+                            ),
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            peer.lastSeenAt != null
+                                ? 'Contact available on your network'
+                                : 'Saved contact',
+                            style: const TextStyle(
+                              color: Colors.white60,
+                              height: 1.3,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 18),
+                Container(
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                      colors: [
+                        const Color(0xFF202C3D).withValues(alpha: 0.95),
+                        const Color(0xFF182230).withValues(alpha: 0.9),
+                      ],
+                    ),
+                    borderRadius: BorderRadius.circular(24),
+                    border: Border.all(
+                      color: Colors.white.withValues(alpha: 0.03),
+                    ),
+                  ),
+                  child: Column(
+                    children: [
+                      for (var index = 0; index < details.length; index++) ...[
+                        _ContactDetailRow(detail: details[index]),
+                        if (index != details.length - 1)
+                          Divider(
+                            height: 1,
+                            color: Colors.white.withValues(alpha: 0.05),
+                          ),
+                      ],
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 18),
+                Row(
+                  children: [
+                    Expanded(
+                      child: FilledButton.icon(
+                        onPressed: () async {
+                          Navigator.pop(sheetContext);
+                          await openConversation(peer);
+                        },
+                        icon: const Icon(Icons.chat_bubble_outline),
+                        label: const Text('Message'),
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: OutlinedButton.icon(
+                        onPressed: () async {
+                          Navigator.pop(sheetContext);
+                          await runPeerAction(
+                            'Blocked ${peer.displayName}',
+                            () => requestActions.blockPeer(peerId: peer.peerId),
+                          );
+                        },
+                        icon: const Icon(Icons.block_outlined),
+                        label: const Text('Block'),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          );
+        },
+      );
+    }
+
     return ListView(
-      padding: const EdgeInsets.fromLTRB(16, 16, 16, 24),
+      padding: const EdgeInsets.fromLTRB(16, 16, 16, 138),
       children: [
         contactsAsync.when(
           data: (contacts) => Column(
@@ -40,7 +209,7 @@ class PeopleScreen extends ConsumerWidget {
             children: [
               if (contacts.isNotEmpty)
                 Padding(
-                  padding: const EdgeInsets.only(bottom: 12),
+                  padding: const EdgeInsets.only(bottom: 14),
                   child: Text(
                     '${contacts.length} contact${contacts.length == 1 ? '' : 's'}',
                     style: const TextStyle(
@@ -56,47 +225,52 @@ class PeopleScreen extends ConsumerWidget {
                       text:
                           'Approve a nearby device from Requests and it will appear here.',
                     )
-                  : Column(
-                      children: [
-                        for (final peer in contacts)
-                          _ContactCard(
-                            peer: peer,
-                            onTap: () {
-                              unawaited(
-                                _openConversation(
-                                  context,
-                                  conversationActions: conversationActions,
-                                  peerId: peer.peerId,
-                                  title: peer.displayName,
-                                ),
-                              );
-                            },
-                            onSelected: (action) {
-                              switch (action) {
-                                case _ContactMenuAction.chat:
-                                  unawaited(
-                                    _openConversation(
-                                      context,
-                                      conversationActions: conversationActions,
-                                      peerId: peer.peerId,
-                                      title: peer.displayName,
-                                    ),
-                                  );
-                                  break;
-                                case _ContactMenuAction.block:
-                                  unawaited(
-                                    runPeerAction(
-                                      'Blocked ${peer.displayName}',
-                                      () => requestActions.blockPeer(
-                                        peerId: peer.peerId,
-                                      ),
-                                    ),
-                                  );
-                                  break;
-                              }
-                            },
+                  : Container(
+                      decoration: BoxDecoration(
+                        gradient: LinearGradient(
+                          begin: Alignment.topLeft,
+                          end: Alignment.bottomRight,
+                          colors: [
+                            const Color(0xFF202C3D).withValues(alpha: 0.9),
+                            const Color(0xFF182230).withValues(alpha: 0.84),
+                          ],
+                        ),
+                        borderRadius: BorderRadius.circular(26),
+                        border: Border.all(
+                          color: Colors.white.withValues(alpha: 0.03),
+                        ),
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.black.withValues(alpha: 0.12),
+                            blurRadius: 18,
+                            offset: const Offset(0, 10),
                           ),
-                      ],
+                        ],
+                      ),
+                      child: Column(
+                        children: [
+                          for (
+                            var index = 0;
+                            index < contacts.length;
+                            index++
+                          ) ...[
+                            _ContactRow(
+                              peer: contacts[index],
+                              onTap: () =>
+                                  unawaited(showContactSheet(contacts[index])),
+                              onMessage: () =>
+                                  unawaited(openConversation(contacts[index])),
+                            ),
+                            if (index != contacts.length - 1)
+                              Divider(
+                                height: 1,
+                                indent: 76,
+                                endIndent: 18,
+                                color: Colors.white.withValues(alpha: 0.05),
+                              ),
+                          ],
+                        ],
+                      ),
                     ),
             ],
           ),
@@ -105,31 +279,6 @@ class PeopleScreen extends ConsumerWidget {
               _SectionPlaceholder(icon: Icons.error_outline, text: '$error'),
         ),
       ],
-    );
-  }
-
-  Future<void> _openConversation(
-    BuildContext context, {
-    required ConversationActions conversationActions,
-    required String peerId,
-    required String title,
-  }) async {
-    final conversation = await conversationActions.openDirectConversation(
-      peerId: peerId,
-      title: title,
-    );
-
-    if (!context.mounted) return;
-
-    await Navigator.of(context).push(
-      MaterialPageRoute(
-        builder: (_) => DirectConversationScreen(
-          conversationId: conversation.id,
-          peerId: peerId,
-          title: title,
-          conversationType: conversation.type,
-        ),
-      ),
     );
   }
 }
@@ -199,190 +348,167 @@ class _SectionLoading extends StatelessWidget {
   }
 }
 
-enum _ContactMenuAction { chat, block }
-
-class _ContactCard extends StatelessWidget {
+class _ContactRow extends StatelessWidget {
   final PeerRow peer;
   final VoidCallback onTap;
-  final ValueChanged<_ContactMenuAction> onSelected;
+  final VoidCallback onMessage;
 
-  const _ContactCard({
+  const _ContactRow({
     required this.peer,
     required this.onTap,
-    required this.onSelected,
+    required this.onMessage,
   });
 
   @override
   Widget build(BuildContext context) {
     final accent = const Color(0xFF4DE1A7);
+    final secondary = _contactSecondary(peer);
+
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(26),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
+          child: Row(
+            children: [
+              Stack(
+                children: [
+                  CircleAvatar(
+                    radius: 23,
+                    backgroundColor: accent.withValues(alpha: 0.14),
+                    child: Text(
+                      _initialsFor(peer.displayName),
+                      style: const TextStyle(
+                        color: Color(0xFF4DE1A7),
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                  ),
+                  Positioned(
+                    right: 1,
+                    bottom: 1,
+                    child: Container(
+                      width: 11,
+                      height: 11,
+                      decoration: BoxDecoration(
+                        color: peer.lastSeenAt != null
+                            ? accent
+                            : Colors.white24,
+                        shape: BoxShape.circle,
+                        border: Border.all(
+                          color: const Color(0xFF182230),
+                          width: 2,
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(width: 14),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      peer.displayName,
+                      style: const TextStyle(
+                        fontWeight: FontWeight.w700,
+                        fontSize: 15.5,
+                        letterSpacing: -0.1,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      secondary,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        color: Colors.white60,
+                        fontSize: 13,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 8),
+              IconButton(
+                tooltip: 'Message',
+                onPressed: onMessage,
+                icon: const Icon(Icons.chat_bubble_outline),
+                color: Colors.white60,
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  static String _contactSecondary(PeerRow peer) {
     final deviceLabel = peer.deviceLabel?.trim();
-    final fingerprint = peer.fingerprint?.trim();
-    final subtitleParts = <String>[
+    final parts = <String>[
       if (deviceLabel != null && deviceLabel.isNotEmpty) deviceLabel,
       if (peer.lastSeenAt != null)
         _formatLastSeen(peer.lastSeenAt!)
-      else if (fingerprint != null && fingerprint.isNotEmpty)
-        fingerprint,
+      else
+        'Saved contact',
     ];
-
-    final subtitle = subtitleParts.isEmpty
-        ? 'Ready to chat'
-        : subtitleParts.join(' | ');
-
-    return Container(
-      margin: const EdgeInsets.only(bottom: 12),
-      decoration: BoxDecoration(
-        gradient: LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: [
-            const Color(0xFF202C3D).withValues(alpha: 0.9),
-            const Color(0xFF182230).withValues(alpha: 0.84),
-          ],
-        ),
-        borderRadius: BorderRadius.circular(22),
-        border: Border.all(color: Colors.white.withValues(alpha: 0.03)),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.12),
-            blurRadius: 18,
-            offset: const Offset(0, 10),
-          ),
-        ],
-      ),
-      child: Material(
-        color: Colors.transparent,
-        child: InkWell(
-          onTap: onTap,
-          borderRadius: BorderRadius.circular(22),
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 13),
-            child: Row(
-              children: [
-                Stack(
-                  children: [
-                    CircleAvatar(
-                      radius: 23,
-                      backgroundColor: accent.withValues(alpha: 0.14),
-                      child: Text(
-                        _initialsFor(peer.displayName),
-                        style: TextStyle(
-                          color: accent,
-                          fontWeight: FontWeight.w800,
-                        ),
-                      ),
-                    ),
-                    Positioned(
-                      right: 0,
-                      bottom: 0,
-                      child: Container(
-                        width: 11,
-                        height: 11,
-                        decoration: BoxDecoration(
-                          color: peer.lastSeenAt != null
-                              ? accent
-                              : Colors.white24,
-                          shape: BoxShape.circle,
-                          border: Border.all(
-                            color: const Color(0xFF151B26),
-                            width: 2,
-                          ),
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(width: 13),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        peer.displayName,
-                        style: const TextStyle(
-                          fontWeight: FontWeight.w700,
-                          fontSize: 15,
-                          letterSpacing: -0.1,
-                        ),
-                      ),
-                      const SizedBox(height: 4),
-                      Text(
-                        subtitle,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(
-                          color: Colors.white60,
-                          fontSize: 13,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                const SizedBox(width: 8),
-                PopupMenuButton<_ContactMenuAction>(
-                  tooltip: 'Contact options',
-                  icon: const Icon(Icons.more_horiz, color: Colors.white38),
-                  color: const Color(0xFF202734),
-                  onSelected: onSelected,
-                  itemBuilder: (context) => const [
-                    PopupMenuItem(
-                      value: _ContactMenuAction.chat,
-                      child: _ContactMenuRow(
-                        icon: Icons.chat_bubble_outline,
-                        label: 'Open chat',
-                      ),
-                    ),
-                    PopupMenuItem(
-                      value: _ContactMenuAction.block,
-                      child: _ContactMenuRow(
-                        icon: Icons.block_outlined,
-                        label: 'Block contact',
-                        color: Colors.redAccent,
-                      ),
-                    ),
-                  ],
-                ),
-              ],
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-
-  static String _initialsFor(String name) {
-    final parts = name
-        .trim()
-        .split(RegExp(r'\s+'))
-        .where((part) => part.isNotEmpty)
-        .toList();
-    if (parts.isEmpty) return '?';
-    if (parts.length == 1) {
-      return parts.first.characters.first.toUpperCase();
-    }
-    return '${parts.first.characters.first}${parts.last.characters.first}'
-        .toUpperCase();
+    return parts.join(' | ');
   }
 }
 
-class _ContactMenuRow extends StatelessWidget {
-  final IconData icon;
-  final String label;
-  final Color? color;
+class _ContactDetailRow extends StatelessWidget {
+  final _ContactDetailLine detail;
 
-  const _ContactMenuRow({required this.icon, required this.label, this.color});
+  const _ContactDetailRow({required this.detail});
 
   @override
   Widget build(BuildContext context) {
-    final rowColor = color ?? Colors.white;
-    return Row(
-      children: [
-        Icon(icon, size: 18, color: rowColor),
-        const SizedBox(width: 10),
-        Text(label, style: TextStyle(color: rowColor)),
-      ],
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+      child: Row(
+        children: [
+          Icon(detail.icon, color: Colors.white54, size: 18),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Text(
+              detail.label,
+              style: const TextStyle(
+                color: Colors.white54,
+                fontSize: 13,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ),
+          const SizedBox(width: 12),
+          Flexible(
+            child: Text(
+              detail.value,
+              textAlign: TextAlign.right,
+              style: const TextStyle(
+                color: Colors.white,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ),
+        ],
+      ),
     );
   }
+}
+
+class _ContactDetailLine {
+  final IconData icon;
+  final String label;
+  final String value;
+
+  const _ContactDetailLine({
+    required this.icon,
+    required this.label,
+    required this.value,
+  });
 }
 
 String _formatLastSeen(int timestamp) {
@@ -393,4 +519,18 @@ String _formatLastSeen(int timestamp) {
   if (difference.inHours < 1) return '${difference.inMinutes}m ago';
   if (difference.inDays < 1) return '${difference.inHours}h ago';
   return '${difference.inDays}d ago';
+}
+
+String _initialsFor(String name) {
+  final parts = name
+      .trim()
+      .split(RegExp(r'\s+'))
+      .where((part) => part.isNotEmpty)
+      .toList();
+  if (parts.isEmpty) return '?';
+  if (parts.length == 1) {
+    return parts.first.characters.first.toUpperCase();
+  }
+  return '${parts.first.characters.first}${parts.last.characters.first}'
+      .toUpperCase();
 }

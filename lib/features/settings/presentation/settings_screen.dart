@@ -75,7 +75,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
               });
 
         return ListView(
-          padding: const EdgeInsets.fromLTRB(16, 16, 16, 24),
+          padding: const EdgeInsets.fromLTRB(16, 16, 16, 138),
           children: [
             _SurfaceCard(
               title: 'Profile',
@@ -83,19 +83,25 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  TextField(
-                    controller: _nameController,
-                    decoration: const InputDecoration(
-                      labelText: 'Display name',
-                      prefixIcon: Icon(Icons.person_outline),
+                  _SettingsInputField(
+                    label: 'Display name',
+                    child: TextField(
+                      controller: _nameController,
+                      decoration: const InputDecoration(
+                        hintText: 'What other people see',
+                        prefixIcon: Icon(Icons.person_outline),
+                      ),
                     ),
                   ),
                   const SizedBox(height: 14),
-                  TextField(
-                    controller: _deviceLabelController,
-                    decoration: const InputDecoration(
-                      labelText: 'Device label',
-                      prefixIcon: Icon(Icons.devices_outlined),
+                  _SettingsInputField(
+                    label: 'Device label',
+                    child: TextField(
+                      controller: _deviceLabelController,
+                      decoration: const InputDecoration(
+                        hintText: 'Optional device name',
+                        prefixIcon: Icon(Icons.devices_outlined),
+                      ),
                     ),
                   ),
                   const SizedBox(height: 18),
@@ -122,15 +128,15 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
               title: 'Share Profile',
               subtitle:
                   'Reveal your QR only when you want to pair or share identity.',
-              trailing: TextButton.icon(
+              trailing: _QrToggleButton(
+                visible: _showQr,
+                enabled: identity != null,
                 onPressed: identity == null
                     ? null
                     : () => setState(() => _showQr = !_showQr),
-                icon: Icon(_showQr ? Icons.visibility_off : Icons.qr_code_2),
-                label: Text(_showQr ? 'Hide QR' : 'Show QR'),
               ),
               child: AnimatedCrossFade(
-                firstChild: const SizedBox.shrink(),
+                firstChild: _QrPreviewSummary(identity: identity),
                 secondChild: Padding(
                   padding: const EdgeInsets.only(top: 18),
                   child: qrPayload == null
@@ -139,6 +145,8 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                         )
                       : Column(
                           children: [
+                            _QrPreviewSummary(identity: identity),
+                            const SizedBox(height: 16),
                             Container(
                               padding: const EdgeInsets.all(16),
                               decoration: BoxDecoration(
@@ -151,18 +159,6 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                                 size: 210,
                                 backgroundColor: Colors.white,
                               ),
-                            ),
-                            const SizedBox(height: 14),
-                            Text(
-                              identity?.displayName ?? '',
-                              style: const TextStyle(
-                                fontWeight: FontWeight.w700,
-                              ),
-                            ),
-                            const SizedBox(height: 4),
-                            Text(
-                              identity?.fingerprint ?? '',
-                              style: const TextStyle(color: Colors.white60),
                             ),
                           ],
                         ),
@@ -293,6 +289,48 @@ class _MutedMessage extends StatelessWidget {
   }
 }
 
+class _SettingsInputField extends StatelessWidget {
+  final String label;
+  final Widget child;
+
+  const _SettingsInputField({required this.label, required this.child});
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Padding(
+          padding: const EdgeInsets.only(left: 4, bottom: 8),
+          child: Text(
+            label,
+            style: const TextStyle(
+              color: Colors.white70,
+              fontSize: 12.5,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+        ),
+        Container(
+          decoration: BoxDecoration(
+            color: const Color(0xFF111A26),
+            borderRadius: BorderRadius.circular(22),
+            border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withValues(alpha: 0.12),
+                blurRadius: 10,
+                offset: const Offset(0, 6),
+              ),
+            ],
+          ),
+          child: child,
+        ),
+      ],
+    );
+  }
+}
+
 class _InfoRow extends StatelessWidget {
   final String label;
   final String value;
@@ -334,22 +372,103 @@ class _SettingsActionCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Card(
-      color: Colors.transparent,
-      margin: EdgeInsets.zero,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(18),
-        side: BorderSide(color: Colors.white.withValues(alpha: 0.015)),
+    return Container(
+      decoration: BoxDecoration(
+        color: const Color(0xFF111A26).withValues(alpha: 0.88),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.05)),
       ),
       child: ListTile(
         leading: CircleAvatar(
-          backgroundColor: Colors.blueGrey.withValues(alpha: 0.16),
-          child: Icon(icon, color: Colors.white70),
+          backgroundColor: Colors.blueAccent.withValues(alpha: 0.14),
+          child: Icon(icon, color: Colors.blueAccent),
         ),
         title: Text(title, style: const TextStyle(fontWeight: FontWeight.w700)),
         subtitle: Text(subtitle, style: const TextStyle(color: Colors.white60)),
         trailing: const Icon(Icons.chevron_right, color: Colors.white38),
         onTap: onTap,
+      ),
+    );
+  }
+}
+
+class _QrToggleButton extends StatelessWidget {
+  final bool visible;
+  final bool enabled;
+  final VoidCallback? onPressed;
+
+  const _QrToggleButton({
+    required this.visible,
+    required this.enabled,
+    required this.onPressed,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return TextButton.icon(
+      onPressed: onPressed,
+      style: TextButton.styleFrom(
+        foregroundColor: enabled ? Colors.white70 : Colors.white30,
+        backgroundColor: Colors.white.withValues(alpha: 0.04),
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(999)),
+      ),
+      icon: Icon(visible ? Icons.visibility_off : Icons.qr_code_2, size: 18),
+      label: Text(visible ? 'Hide' : 'Reveal'),
+    );
+  }
+}
+
+class _QrPreviewSummary extends StatelessWidget {
+  final dynamic identity;
+
+  const _QrPreviewSummary({required this.identity});
+
+  @override
+  Widget build(BuildContext context) {
+    final displayName = identity?.displayName as String? ?? 'Unavailable';
+    final fingerprint = identity?.fingerprint as String? ?? '';
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: const Color(0xFF111A26).withValues(alpha: 0.88),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.05)),
+      ),
+      child: Row(
+        children: [
+          Container(
+            width: 44,
+            height: 44,
+            decoration: BoxDecoration(
+              color: Colors.blueAccent.withValues(alpha: 0.14),
+              borderRadius: BorderRadius.circular(16),
+            ),
+            child: const Icon(Icons.qr_code_2, color: Colors.blueAccent),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  displayName,
+                  style: const TextStyle(
+                    fontWeight: FontWeight.w700,
+                    fontSize: 14.5,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  fingerprint.isEmpty ? 'Identity unavailable' : fingerprint,
+                  style: const TextStyle(color: Colors.white60),
+                ),
+              ],
+            ),
+          ),
+        ],
       ),
     );
   }

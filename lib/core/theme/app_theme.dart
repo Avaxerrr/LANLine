@@ -4,9 +4,10 @@ class AppTheme {
   static const _brand = Color(0xFF5B8CFF);
   static const _darkBackground = Color(0xFF0D1118);
   static const _darkSurface = Color(0xFF151B26);
-  static const _darkSurfaceAlt = Color(0xFF1A2432);
+  static const _darkSurfaceAlt = Color(0xFF172231);
   static const _darkBorder = Color(0xFF243244);
   static const _darkTextMuted = Color(0xFF98A4B8);
+  static const _menuSurface = Color(0xFF1B2738);
 
   static final ThemeData lightTheme = ThemeData(
     useMaterial3: true,
@@ -99,7 +100,7 @@ class AppTheme {
     ),
     inputDecorationTheme: InputDecorationTheme(
       filled: true,
-      fillColor: _darkSurfaceAlt,
+      fillColor: const Color(0xFF111A26),
       hintStyle: const TextStyle(color: _darkTextMuted),
       labelStyle: const TextStyle(color: _darkTextMuted),
       prefixIconColor: _darkTextMuted,
@@ -107,11 +108,11 @@ class AppTheme {
       contentPadding: const EdgeInsets.symmetric(horizontal: 18, vertical: 16),
       border: OutlineInputBorder(
         borderRadius: BorderRadius.circular(20),
-        borderSide: const BorderSide(color: _darkBorder),
+        borderSide: BorderSide(color: Colors.white.withValues(alpha: 0.08)),
       ),
       enabledBorder: OutlineInputBorder(
         borderRadius: BorderRadius.circular(20),
-        borderSide: const BorderSide(color: _darkBorder),
+        borderSide: BorderSide(color: Colors.white.withValues(alpha: 0.08)),
       ),
       focusedBorder: OutlineInputBorder(
         borderRadius: BorderRadius.circular(20),
@@ -162,7 +163,7 @@ class AppTheme {
     ),
     progressIndicatorTheme: const ProgressIndicatorThemeData(color: _brand),
     popupMenuTheme: PopupMenuThemeData(
-      color: _darkSurfaceAlt,
+      color: _menuSurface,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
       textStyle: const TextStyle(color: Colors.white),
     ),

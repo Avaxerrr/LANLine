@@ -18,7 +18,7 @@ class ChatsScreen extends ConsumerWidget {
     return conversationsAsync.when(
       data: (conversations) {
         return ListView(
-          padding: const EdgeInsets.fromLTRB(16, 16, 16, 32),
+          padding: const EdgeInsets.fromLTRB(16, 16, 16, 138),
           children: [
             _ChatsToolbar(
               conversationCount: conversations.length,
@@ -232,7 +232,7 @@ class _ConversationRow extends StatelessWidget {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Row(
-                        crossAxisAlignment: CrossAxisAlignment.start,
+                        crossAxisAlignment: CrossAxisAlignment.center,
                         children: [
                           Expanded(
                             child: Text(
@@ -248,7 +248,7 @@ class _ConversationRow extends StatelessWidget {
                           ),
                           if (conversation.lastMessageAt != null)
                             Padding(
-                              padding: const EdgeInsets.only(left: 8, top: 1),
+                              padding: const EdgeInsets.only(left: 8),
                               child: Text(
                                 _formatConversationTime(
                                   conversation.lastMessageAt!,
@@ -262,7 +262,7 @@ class _ConversationRow extends StatelessWidget {
                             ),
                         ],
                       ),
-                      const SizedBox(height: 5),
+                      const SizedBox(height: 6),
                       Row(
                         children: [
                           if (conversation.type == 'group') ...[

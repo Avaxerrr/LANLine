@@ -34,7 +34,7 @@ class RequestsScreen extends ConsumerWidget {
     }
 
     return ListView(
-      padding: const EdgeInsets.fromLTRB(16, 16, 16, 24),
+      padding: const EdgeInsets.fromLTRB(16, 16, 16, 138),
       children: [
         _RequestSection(
           title: 'Nearby devices',
@@ -511,7 +511,6 @@ class _NearbyPeerCard extends StatelessWidget {
           ),
           PopupMenuButton<_NearbyMenuAction>(
             tooltip: 'More actions',
-            color: const Color(0xFF202734),
             onSelected: (action) {
               if (action == _NearbyMenuAction.block) {
                 onBlock();
