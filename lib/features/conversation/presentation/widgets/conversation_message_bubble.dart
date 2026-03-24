@@ -188,6 +188,18 @@ class _ConversationMessageBubbleState
                             decoration: BoxDecoration(
                               color: bubbleColor,
                               borderRadius: BorderRadius.circular(18),
+                              border: Border.all(
+                                color: Colors.white.withValues(
+                                  alpha: widget.isMe ? 0.06 : 0.04,
+                                ),
+                              ),
+                              boxShadow: [
+                                BoxShadow(
+                                  color: Colors.black.withValues(alpha: 0.16),
+                                  blurRadius: 14,
+                                  offset: const Offset(0, 6),
+                                ),
+                              ],
                             ),
                             child: attachment != null
                                 ? AttachmentMessageContent(
@@ -577,7 +589,7 @@ class TextLikeMessageContent extends StatelessWidget {
           Text(
             text,
             textAlign: textAlign,
-            style: const TextStyle(fontSize: 42, height: 1.0),
+            style: const TextStyle(fontSize: 44, height: 1.0),
           ),
         ],
       );
@@ -595,13 +607,13 @@ class TextLikeMessageContent extends StatelessWidget {
           textAlign: textAlign,
           style: const TextStyle(
             color: Colors.white,
-            fontSize: 15,
-            height: 1.35,
+            fontSize: 15.5,
+            height: 1.45,
           ),
           linkStyle: const TextStyle(
             color: Colors.lightBlueAccent,
             decoration: TextDecoration.underline,
-            fontSize: 15,
+            fontSize: 15.5,
           ),
           onOpen: (link) async {
             final uri = Uri.tryParse(link.url);
@@ -634,7 +646,7 @@ class ReplyPreview extends StatelessWidget {
       constraints: const BoxConstraints(maxWidth: 260),
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
       decoration: BoxDecoration(
-        color: Colors.white.withValues(alpha: 0.08),
+        color: Colors.white.withValues(alpha: 0.06),
         borderRadius: BorderRadius.circular(12),
         border: Border(
           left: BorderSide(
@@ -646,13 +658,24 @@ class ReplyPreview extends StatelessWidget {
       child: Column(
         crossAxisAlignment: alignment,
         children: [
-          Text(
-            'Replying to',
-            style: const TextStyle(
-              color: Colors.blueAccent,
-              fontSize: 12,
-              fontWeight: FontWeight.w700,
-            ),
+          Row(
+            mainAxisSize: MainAxisSize.min,
+            children: const [
+              Icon(
+                Icons.subdirectory_arrow_right,
+                color: Colors.blueAccent,
+                size: 14,
+              ),
+              SizedBox(width: 4),
+              Text(
+                'Replying to',
+                style: TextStyle(
+                  color: Colors.blueAccent,
+                  fontSize: 12,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+            ],
           ),
           const SizedBox(height: 4),
           Text(
@@ -660,7 +683,11 @@ class ReplyPreview extends StatelessWidget {
             maxLines: 2,
             overflow: TextOverflow.ellipsis,
             textAlign: textAlign,
-            style: const TextStyle(color: Colors.grey, fontSize: 12),
+            style: const TextStyle(
+              color: Colors.grey,
+              fontSize: 12,
+              height: 1.25,
+            ),
           ),
         ],
       ),
@@ -721,7 +748,7 @@ class AttachmentMessageContent extends ConsumerWidget {
         ],
         if (hasImagePreview) ...[
           ClipRRect(
-            borderRadius: BorderRadius.circular(12),
+            borderRadius: BorderRadius.circular(14),
             child: ConstrainedBox(
               constraints: const BoxConstraints(maxHeight: 250),
               child: Image.file(
@@ -753,8 +780,8 @@ class AttachmentMessageContent extends ConsumerWidget {
             Container(
               padding: const EdgeInsets.all(8),
               decoration: BoxDecoration(
-                color: Colors.white.withValues(alpha: 0.12),
-                borderRadius: BorderRadius.circular(8),
+                color: Colors.white.withValues(alpha: 0.1),
+                borderRadius: BorderRadius.circular(10),
               ),
               child: Icon(
                 _iconForKind(attachment.kind),
@@ -773,7 +800,7 @@ class AttachmentMessageContent extends ConsumerWidget {
                     overflow: TextOverflow.ellipsis,
                     style: const TextStyle(
                       fontWeight: FontWeight.bold,
-                      fontSize: 14,
+                      fontSize: 14.5,
                     ),
                   ),
                   const SizedBox(height: 2),

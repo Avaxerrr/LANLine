@@ -419,6 +419,10 @@ class _DirectConversationScreenState
           membersAsync: memberRowsAsync,
         ),
         backgroundColor: Colors.transparent,
+        surfaceTintColor: Colors.transparent,
+        scrolledUnderElevation: 0,
+        toolbarHeight: 74,
+        titleSpacing: 16,
         elevation: 0,
         actions: _supportsDirectMedia
             ? [
@@ -437,128 +441,187 @@ class _DirectConversationScreenState
       ),
       body: Column(
         children: [
-          if (_isGroup) const GroupConversationNotice(),
-          conversationAsync.when(
-            data: (conversation) {
-              if (conversation?.pinnedMessageId == null) {
-                return const SizedBox.shrink();
-              }
-              return messagesAsync.maybeWhen(
-                data: (messages) {
-                  MessageRow? pinned;
-                  for (final message in messages) {
-                    if (message.id == conversation!.pinnedMessageId) {
-                      pinned = message;
-                      break;
-                    }
-                  }
-                  if (pinned == null) {
+          const Positioned.fill(child: _ConversationBackdrop()),
+          Column(
+            children: [
+              if (_isGroup) const GroupConversationNotice(),
+              conversationAsync.when(
+                data: (conversation) {
+                  if (conversation?.pinnedMessageId == null) {
                     return const SizedBox.shrink();
                   }
-                  return PinnedMessageBanner(
-                    preview: _messagePreviewText(pinned),
-                    onUnpin: () => ref
-                        .read(conversationActionsProvider)
-                        .clearPinnedMessage(widget.conversationId),
+                  return messagesAsync.maybeWhen(
+                    data: (messages) {
+                      MessageRow? pinned;
+                      for (final message in messages) {
+                        if (message.id == conversation!.pinnedMessageId) {
+                          pinned = message;
+                          break;
+                        }
+                      }
+                      if (pinned == null) {
+                        return const SizedBox.shrink();
+                      }
+                      return PinnedMessageBanner(
+                        preview: _messagePreviewText(pinned),
+                        onUnpin: () => ref
+                            .read(conversationActionsProvider)
+                            .clearPinnedMessage(widget.conversationId),
+                      );
+                    },
+                    orElse: () => const SizedBox.shrink(),
                   );
                 },
-                orElse: () => const SizedBox.shrink(),
-              );
-            },
-            loading: () => const SizedBox.shrink(),
-            error: (error, stackTrace) => const SizedBox.shrink(),
-          ),
-          Expanded(
-            child: localIdentityAsync.when(
-              data: (localIdentity) => messagesAsync.when(
-                data: (messages) {
-                  if (messages.isEmpty) {
-                    return ConversationEmptyState(isGroup: _isGroup);
-                  }
-                  _maybeAutoScroll(messages, localIdentity?.peerId);
+                loading: () => const SizedBox.shrink(),
+                error: (error, stackTrace) => const SizedBox.shrink(),
+              ),
+              Expanded(
+                child: localIdentityAsync.when(
+                  data: (localIdentity) => messagesAsync.when(
+                    data: (messages) {
+                      if (messages.isEmpty) {
+                        return ConversationEmptyState(isGroup: _isGroup);
+                      }
+                      _maybeAutoScroll(messages, localIdentity?.peerId);
 
-                  return membersAsync.when(
-                    data: (members) {
-                      final memberNameByPeerId = {
-                        for (final member in members)
-                          member.peerId: member.displayName,
-                      };
-                      final messageById = {
-                        for (final message in messages) message.id: message,
-                      };
-                      final latestMessageId = latestOutgoingMessageId(
-                        messages,
-                        localIdentity?.peerId,
-                      );
+                      return membersAsync.when(
+                        data: (members) {
+                          final memberNameByPeerId = {
+                            for (final member in members)
+                              member.peerId: member.displayName,
+                          };
+                          final messageById = {
+                            for (final message in messages) message.id: message,
+                          };
+                          final latestMessageId = latestOutgoingMessageId(
+                            messages,
+                            localIdentity?.peerId,
+                          );
 
-                      return ListView.builder(
-                        controller: _scrollController,
-                        padding: const EdgeInsets.fromLTRB(16, 16, 16, 24),
-                        itemCount: messages.length,
-                        itemBuilder: (context, index) {
-                          final message = messages[index];
-                          final isMe =
-                              message.senderPeerId == localIdentity?.peerId;
-                          return ConversationMessageBubble(
-                            message: message,
-                            isMe: isMe,
-                            peerId: widget.peerId,
-                            isGroup: _isGroup,
-                            senderLabel:
-                                memberNameByPeerId[message.senderPeerId] ??
-                                message.senderPeerId,
-                            downloadProgress: mediaState.downloadProgress,
-                            showStatus: isMe && message.id == latestMessageId,
-                            repliedMessage: message.replyToMessageId == null
-                                ? null
-                                : messageById[message.replyToMessageId!],
-                            onReply: _setReply,
-                            onDelete: _deleteMessage,
-                            onForward: _forwardMessage,
-                            onTogglePin: _togglePin,
-                            showInlineActions:
-                                _activeMessageActionsId == message.id,
-                            onToggleActions: () =>
-                                _toggleMessageActions(message.id),
-                            isPinned: conversationAsync.maybeWhen(
-                              data: (conversation) =>
-                                  conversation?.pinnedMessageId == message.id,
-                              orElse: () => false,
-                            ),
+                          return ListView.builder(
+                            controller: _scrollController,
+                            padding: const EdgeInsets.fromLTRB(16, 16, 16, 24),
+                            itemCount: messages.length,
+                            itemBuilder: (context, index) {
+                              final message = messages[index];
+                              final isMe =
+                                  message.senderPeerId == localIdentity?.peerId;
+                              return ConversationMessageBubble(
+                                message: message,
+                                isMe: isMe,
+                                peerId: widget.peerId,
+                                isGroup: _isGroup,
+                                senderLabel:
+                                    memberNameByPeerId[message.senderPeerId] ??
+                                    message.senderPeerId,
+                                downloadProgress: mediaState.downloadProgress,
+                                showStatus:
+                                    isMe && message.id == latestMessageId,
+                                repliedMessage: message.replyToMessageId == null
+                                    ? null
+                                    : messageById[message.replyToMessageId!],
+                                onReply: _setReply,
+                                onDelete: _deleteMessage,
+                                onForward: _forwardMessage,
+                                onTogglePin: _togglePin,
+                                showInlineActions:
+                                    _activeMessageActionsId == message.id,
+                                onToggleActions: () =>
+                                    _toggleMessageActions(message.id),
+                                isPinned: conversationAsync.maybeWhen(
+                                  data: (conversation) =>
+                                      conversation?.pinnedMessageId ==
+                                      message.id,
+                                  orElse: () => false,
+                                ),
+                              );
+                            },
                           );
                         },
+                        loading: () =>
+                            const Center(child: CircularProgressIndicator()),
+                        error: (error, stackTrace) =>
+                            ConversationError(message: '$error'),
                       );
                     },
                     loading: () =>
                         const Center(child: CircularProgressIndicator()),
                     error: (error, stackTrace) =>
                         ConversationError(message: '$error'),
-                  );
-                },
-                loading: () => const Center(child: CircularProgressIndicator()),
-                error: (error, stackTrace) =>
-                    ConversationError(message: '$error'),
+                  ),
+                  loading: () =>
+                      const Center(child: CircularProgressIndicator()),
+                  error: (error, stackTrace) =>
+                      ConversationError(message: '$error'),
+                ),
               ),
-              loading: () => const Center(child: CircularProgressIndicator()),
-              error: (error, stackTrace) =>
-                  ConversationError(message: '$error'),
-            ),
-          ),
-          ConversationInputBar(
-            supportsDirectMedia: _supportsDirectMedia,
-            isPickingFile: _isPickingFile,
-            isSending: _isSending,
-            isGroup: _isGroup,
-            textController: _textController,
-            onPickFile: _pickAndSendFile,
-            onSendMessage: _sendMessage,
-            replyTitle: _replyingToMessage == null ? null : 'Replying',
-            replyPreview: _replyingToMessage == null
-                ? null
-                : _replyPreviewText(_replyingToMessage!),
-            onClearReply: _replyingToMessage == null ? null : _clearReply,
+              ConversationInputBar(
+                supportsDirectMedia: _supportsDirectMedia,
+                isPickingFile: _isPickingFile,
+                isSending: _isSending,
+                isGroup: _isGroup,
+                textController: _textController,
+                onPickFile: _pickAndSendFile,
+                onSendMessage: _sendMessage,
+                replyTitle: _replyingToMessage == null ? null : 'Replying',
+                replyPreview: _replyingToMessage == null
+                    ? null
+                    : _replyPreviewText(_replyingToMessage!),
+                onClearReply: _replyingToMessage == null ? null : _clearReply,
+              ),
+            ],
           ),
         ],
+      ),
+    );
+  }
+}
+
+class _ConversationBackdrop extends StatelessWidget {
+  const _ConversationBackdrop();
+
+  @override
+  Widget build(BuildContext context) {
+    return IgnorePointer(
+      child: DecoratedBox(
+        decoration: BoxDecoration(
+          gradient: RadialGradient(
+            center: const Alignment(-0.85, -1.1),
+            radius: 1.2,
+            colors: [
+              Colors.blueAccent.withValues(alpha: 0.08),
+              Colors.transparent,
+            ],
+          ),
+        ),
+        child: Stack(
+          children: [
+            Positioned(
+              right: -120,
+              top: 90,
+              child: Container(
+                width: 220,
+                height: 220,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: Colors.amber.withValues(alpha: 0.04),
+                ),
+              ),
+            ),
+            Positioned(
+              left: -100,
+              bottom: 110,
+              child: Container(
+                width: 180,
+                height: 180,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: Colors.blueAccent.withValues(alpha: 0.05),
+                ),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }

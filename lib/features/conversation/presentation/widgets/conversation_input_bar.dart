@@ -56,6 +56,20 @@ class ConversationInputBar extends StatelessWidget {
                 ),
                 child: Row(
                   children: [
+                    Container(
+                      width: 30,
+                      height: 30,
+                      decoration: BoxDecoration(
+                        color: Colors.blueAccent.withValues(alpha: 0.12),
+                        borderRadius: BorderRadius.circular(999),
+                      ),
+                      child: const Icon(
+                        Icons.reply_outlined,
+                        color: Colors.blueAccent,
+                        size: 16,
+                      ),
+                    ),
+                    const SizedBox(width: 10),
                     Expanded(
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
@@ -73,7 +87,10 @@ class ConversationInputBar extends StatelessWidget {
                             replyPreview!,
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
-                            style: const TextStyle(color: Colors.grey),
+                            style: const TextStyle(
+                              color: Colors.grey,
+                              height: 1.3,
+                            ),
                           ),
                         ],
                       ),
@@ -87,58 +104,79 @@ class ConversationInputBar extends StatelessWidget {
                 ),
               ),
             ],
-            Row(
-              children: [
-                if (supportsDirectMedia) ...[
-                  IconButton.filledTonal(
-                    onPressed: isPickingFile ? null : onPickFile,
-                    icon: isPickingFile
+            Container(
+              padding: const EdgeInsets.all(10),
+              decoration: BoxDecoration(
+                color: const Color(0xFF1B1B1B),
+                borderRadius: BorderRadius.circular(24),
+                border: Border.all(color: Colors.white.withValues(alpha: 0.06)),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withValues(alpha: 0.24),
+                    blurRadius: 18,
+                    offset: const Offset(0, 8),
+                  ),
+                ],
+              ),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.end,
+                children: [
+                  if (supportsDirectMedia) ...[
+                    IconButton.filledTonal(
+                      onPressed: isPickingFile ? null : onPickFile,
+                      icon: isPickingFile
+                          ? const SizedBox(
+                              width: 18,
+                              height: 18,
+                              child: CircularProgressIndicator(strokeWidth: 2),
+                            )
+                          : const Icon(Icons.attach_file),
+                    ),
+                    const SizedBox(width: 8),
+                  ],
+                  Expanded(
+                    child: TextField(
+                      controller: textController,
+                      minLines: 1,
+                      maxLines: 5,
+                      textInputAction: TextInputAction.send,
+                      onSubmitted: (_) => onSendMessage(),
+                      decoration: InputDecoration(
+                        hintText: isGroup
+                            ? 'Message the group'
+                            : 'Type a message',
+                        filled: true,
+                        fillColor: Colors.white.withValues(alpha: 0.03),
+                        contentPadding: const EdgeInsets.symmetric(
+                          horizontal: 16,
+                          vertical: 14,
+                        ),
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(18),
+                          borderSide: BorderSide.none,
+                        ),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  FilledButton(
+                    onPressed: isSending ? null : onSendMessage,
+                    style: FilledButton.styleFrom(
+                      backgroundColor: Colors.blueAccent,
+                      foregroundColor: Colors.white,
+                      shape: const CircleBorder(),
+                      padding: const EdgeInsets.all(14),
+                    ),
+                    child: isSending
                         ? const SizedBox(
                             width: 18,
                             height: 18,
                             child: CircularProgressIndicator(strokeWidth: 2),
                           )
-                        : const Icon(Icons.attach_file),
+                        : const Icon(Icons.send),
                   ),
-                  const SizedBox(width: 8),
                 ],
-                Expanded(
-                  child: TextField(
-                    controller: textController,
-                    minLines: 1,
-                    maxLines: 5,
-                    textInputAction: TextInputAction.send,
-                    onSubmitted: (_) => onSendMessage(),
-                    decoration: InputDecoration(
-                      hintText: isGroup
-                          ? 'Message the group'
-                          : 'Type a message',
-                      filled: true,
-                      fillColor: const Color(0xFF1B1B1B),
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(18),
-                        borderSide: BorderSide.none,
-                      ),
-                    ),
-                  ),
-                ),
-                const SizedBox(width: 12),
-                FilledButton(
-                  onPressed: isSending ? null : onSendMessage,
-                  style: FilledButton.styleFrom(
-                    backgroundColor: Colors.blueAccent,
-                    shape: const CircleBorder(),
-                    padding: const EdgeInsets.all(14),
-                  ),
-                  child: isSending
-                      ? const SizedBox(
-                          width: 18,
-                          height: 18,
-                          child: CircularProgressIndicator(strokeWidth: 2),
-                        )
-                      : const Icon(Icons.send),
-                ),
-              ],
+              ),
             ),
           ],
         ),
