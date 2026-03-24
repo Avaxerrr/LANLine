@@ -15,60 +15,38 @@ class ChatsScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final conversationsAsync = ref.watch(conversationListProvider);
 
-    return Stack(
-      children: [
-        conversationsAsync.when(
-          data: (conversations) {
-            return ListView(
-              padding: const EdgeInsets.fromLTRB(16, 16, 16, 96),
-              children: [
-                _ChatsSummary(
-                  conversationCount: conversations.length,
-                  onCreateGroup: () => _openCreateGroup(context),
-                ),
-                const SizedBox(height: 12),
-                if (conversations.isEmpty)
-                  _EmptyChatsState(onGoToRequests: onGoToRequests)
-                else ...[
-                  for (
-                    var index = 0;
-                    index < conversations.length;
-                    index++
-                  ) ...[
-                    _ConversationCard(
-                      conversation: conversations[index],
-                      onTap: () => _openConversation(
-                        context,
-                        ref,
-                        conversation: conversations[index],
-                      ),
-                    ),
-                    if (index != conversations.length - 1)
-                      const SizedBox(height: 12),
-                  ],
-                ],
-              ],
-            );
-          },
-          loading: () => const Center(child: CircularProgressIndicator()),
-          error: (error, stackTrace) =>
-              _ErrorState(title: 'Could not load chats', message: '$error'),
-        ),
-        Positioned(
-          right: 16,
-          bottom: 16,
-          child: SafeArea(
-            top: false,
-            child: FloatingActionButton.small(
-              onPressed: () => _openCreateGroup(context),
-              backgroundColor: Colors.blueAccent,
-              elevation: 8,
-              tooltip: 'Create group',
-              child: const Icon(Icons.group_add_outlined),
+    return conversationsAsync.when(
+      data: (conversations) {
+        return ListView(
+          padding: const EdgeInsets.fromLTRB(16, 16, 16, 32),
+          children: [
+            _ChatsSummary(
+              conversationCount: conversations.length,
+              onCreateGroup: () => _openCreateGroup(context),
             ),
-          ),
-        ),
-      ],
+            const SizedBox(height: 12),
+            if (conversations.isEmpty)
+              _EmptyChatsState(onGoToRequests: onGoToRequests)
+            else ...[
+              for (var index = 0; index < conversations.length; index++) ...[
+                _ConversationCard(
+                  conversation: conversations[index],
+                  onTap: () => _openConversation(
+                    context,
+                    ref,
+                    conversation: conversations[index],
+                  ),
+                ),
+                if (index != conversations.length - 1)
+                  const SizedBox(height: 12),
+              ],
+            ],
+          ],
+        );
+      },
+      loading: () => const Center(child: CircularProgressIndicator()),
+      error: (error, stackTrace) =>
+          _ErrorState(title: 'Could not load chats', message: '$error'),
     );
   }
 
