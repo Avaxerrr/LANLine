@@ -226,10 +226,7 @@ class DownloadHistoryScreen extends ConsumerWidget {
     return 'Files you receive in chat will appear here.';
   }
 
-  Future<void> _showClearAllDialog(
-    BuildContext context,
-    WidgetRef ref,
-  ) async {
+  Future<void> _showClearAllDialog(BuildContext context, WidgetRef ref) async {
     await showDialog<void>(
       context: context,
       builder: (ctx) => AlertDialog(
@@ -240,7 +237,7 @@ class DownloadHistoryScreen extends ConsumerWidget {
         ),
         content: const Text(
           'This removes downloaded files from the device and clears the history list.',
-          style: TextStyle(color: Colors.grey),
+          style: TextStyle(color: Colors.white60),
         ),
         actions: [
           TextButton(
@@ -273,14 +270,19 @@ class _SummaryCard extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
-        color: const Color(0xFF1B1B1B),
-        borderRadius: BorderRadius.circular(22),
+        gradient: const LinearGradient(
+          colors: [Color(0xFF18243B), Color(0xFF161616)],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        borderRadius: BorderRadius.circular(24),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.06)),
       ),
       child: Row(
         children: [
           Container(
-            width: 52,
-            height: 52,
+            width: 54,
+            height: 54,
             decoration: BoxDecoration(
               color: Colors.blueAccent.withValues(alpha: 0.16),
               borderRadius: BorderRadius.circular(16),
@@ -304,9 +306,25 @@ class _SummaryCard extends StatelessWidget {
                   historyCount == 0
                       ? 'No files received yet'
                       : '$historyCount saved file${historyCount == 1 ? '' : 's'}',
-                  style: const TextStyle(color: Colors.grey),
+                  style: const TextStyle(color: Colors.white70),
                 ),
               ],
+            ),
+          ),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+            decoration: BoxDecoration(
+              color: Colors.white.withValues(alpha: 0.04),
+              borderRadius: BorderRadius.circular(999),
+              border: Border.all(color: Colors.white.withValues(alpha: 0.05)),
+            ),
+            child: Text(
+              historyCount == 0 ? '0 files' : '$historyCount items',
+              style: const TextStyle(
+                color: Colors.white70,
+                fontSize: 12,
+                fontWeight: FontWeight.w600,
+              ),
             ),
           ),
         ],
@@ -327,11 +345,24 @@ class _EmptyDownloadsCard extends StatelessWidget {
       decoration: BoxDecoration(
         color: const Color(0xFF1B1B1B),
         borderRadius: BorderRadius.circular(22),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.04)),
       ),
       child: Column(
         children: [
-          Icon(Icons.file_download_done_outlined, size: 52, color: Colors.grey.shade700),
-          const SizedBox(height: 14),
+          Container(
+            width: 64,
+            height: 64,
+            decoration: BoxDecoration(
+              color: Colors.blueAccent.withValues(alpha: 0.12),
+              borderRadius: BorderRadius.circular(18),
+            ),
+            child: const Icon(
+              Icons.file_download_done_outlined,
+              size: 32,
+              color: Colors.blueAccent,
+            ),
+          ),
+          const SizedBox(height: 16),
           const Text(
             'No downloads yet',
             style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
@@ -340,7 +371,7 @@ class _EmptyDownloadsCard extends StatelessWidget {
           Text(
             platformMessage,
             textAlign: TextAlign.center,
-            style: const TextStyle(color: Colors.grey),
+            style: const TextStyle(color: Colors.white60, height: 1.35),
           ),
         ],
       ),
@@ -392,100 +423,113 @@ class _DownloadHistoryItem extends StatelessWidget {
       onDismissed: (_) => onDelete(),
       child: Container(
         margin: const EdgeInsets.only(bottom: 12),
-        padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(
           color: const Color(0xFF1B1B1B),
           borderRadius: BorderRadius.circular(20),
+          border: Border.all(color: Colors.white.withValues(alpha: 0.04)),
         ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Container(
-                  width: 48,
-                  height: 48,
-                  decoration: BoxDecoration(
-                    color: accent.withValues(alpha: 0.14),
-                    borderRadius: BorderRadius.circular(14),
-                  ),
-                  child: Icon(icon, color: accent),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        record.fileName,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: TextStyle(
-                          color: exists ? Colors.white : Colors.grey,
-                          fontWeight: FontWeight.w700,
-                          fontSize: 15,
-                          decoration: exists ? null : TextDecoration.lineThrough,
-                        ),
-                      ),
-                      const SizedBox(height: 6),
-                      Wrap(
-                        spacing: 8,
-                        runSpacing: 8,
-                        children: [
-                          _MetaPill(
-                            icon: Icons.sd_storage_outlined,
-                            label: fileSizeLabel,
-                          ),
-                          _MetaPill(
-                            icon: Icons.person_outline,
-                            label: record.senderName,
-                          ),
-                          _MetaPill(
-                            icon: Icons.chat_bubble_outline,
-                            label: conversationLabel,
-                          ),
-                        ],
-                      ),
-                    ],
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 14),
-            Row(
-              children: [
-                Expanded(
-                  child: Text(
-                    exists ? timeLabel : 'File missing from disk',
-                    style: TextStyle(
-                      color: exists ? Colors.grey : Colors.redAccent,
+        child: Padding(
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Container(
+                    width: 50,
+                    height: 50,
+                    decoration: BoxDecoration(
+                      color: accent.withValues(alpha: 0.14),
+                      borderRadius: BorderRadius.circular(15),
                     ),
+                    child: Icon(icon, color: accent),
                   ),
-                ),
-                if (exists) ...[
-                  IconButton(
-                    tooltip: 'Open',
-                    onPressed: onOpen,
-                    icon: const Icon(Icons.open_in_new, color: Colors.blueAccent),
-                  ),
-                  IconButton(
-                    tooltip: Platform.isAndroid ? 'Share' : 'Open folder',
-                    onPressed: onShareOrReveal,
-                    icon: Icon(
-                      Platform.isAndroid ? Icons.share_outlined : Icons.folder_open,
-                      color: Colors.orangeAccent,
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          record.fileName,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(
+                            color: exists ? Colors.white : Colors.white60,
+                            fontWeight: FontWeight.w700,
+                            fontSize: 15,
+                            decoration: exists
+                                ? null
+                                : TextDecoration.lineThrough,
+                          ),
+                        ),
+                        const SizedBox(height: 6),
+                        Wrap(
+                          spacing: 8,
+                          runSpacing: 8,
+                          children: [
+                            _MetaPill(
+                              icon: Icons.sd_storage_outlined,
+                              label: fileSizeLabel,
+                            ),
+                            _MetaPill(
+                              icon: Icons.person_outline,
+                              label: record.senderName,
+                            ),
+                            _MetaPill(
+                              icon: Icons.chat_bubble_outline,
+                              label: conversationLabel,
+                            ),
+                          ],
+                        ),
+                      ],
                     ),
                   ),
                 ],
-                IconButton(
-                  tooltip: 'Delete',
-                  onPressed: onDelete,
-                  icon: const Icon(Icons.delete_outline, color: Colors.redAccent),
-                ),
-              ],
-            ),
-          ],
+              ),
+              const SizedBox(height: 14),
+              Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      exists ? timeLabel : 'File missing from disk',
+                      style: TextStyle(
+                        color: exists ? Colors.white60 : Colors.redAccent,
+                      ),
+                    ),
+                  ),
+                  if (exists) ...[
+                    IconButton(
+                      tooltip: 'Open',
+                      onPressed: onOpen,
+                      icon: const Icon(
+                        Icons.open_in_new,
+                        color: Colors.blueAccent,
+                      ),
+                    ),
+                    IconButton(
+                      tooltip: Platform.isAndroid ? 'Share' : 'Open folder',
+                      onPressed: onShareOrReveal,
+                      icon: Icon(
+                        Platform.isAndroid
+                            ? Icons.share_outlined
+                            : Icons.folder_open,
+                        color: Colors.orangeAccent,
+                      ),
+                    ),
+                  ],
+                  IconButton(
+                    tooltip: 'Delete',
+                    onPressed: onDelete,
+                    icon: const Icon(
+                      Icons.delete_outline,
+                      color: Colors.redAccent,
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
         ),
       ),
     );
@@ -509,11 +553,11 @@ class _MetaPill extends StatelessWidget {
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(icon, size: 14, color: Colors.grey),
+          Icon(icon, size: 14, color: Colors.white60),
           const SizedBox(width: 6),
           Text(
             label,
-            style: const TextStyle(color: Colors.grey, fontSize: 12),
+            style: const TextStyle(color: Colors.white60, fontSize: 12),
           ),
         ],
       ),

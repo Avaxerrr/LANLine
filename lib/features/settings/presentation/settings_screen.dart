@@ -77,17 +77,31 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
         return ListView(
           padding: const EdgeInsets.fromLTRB(16, 16, 16, 24),
           children: [
+            _HeroCard(
+              title: 'Settings',
+              subtitle:
+                  'Keep your profile, sharing identity, and download history in one place.',
+              accent: Colors.blueAccent,
+              icon: Icons.settings_outlined,
+              chips: [
+                _HeroChip(
+                  icon: Icons.fingerprint,
+                  label: identity?.fingerprint ?? 'Unavailable',
+                ),
+                _HeroChip(
+                  icon: Icons.verified_outlined,
+                  label: 'Local identity',
+                ),
+                _HeroChip(icon: Icons.download_done_outlined, label: version),
+              ],
+            ),
+            const SizedBox(height: 16),
             _SurfaceCard(
+              title: 'Profile',
+              subtitle: 'Update how other devices identify you.',
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(
-                    'Profile',
-                    style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                      fontWeight: FontWeight.w800,
-                    ),
-                  ),
-                  const SizedBox(height: 18),
                   TextField(
                     controller: _nameController,
                     decoration: const InputDecoration(
@@ -110,10 +124,10 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                   ),
                   const SizedBox(height: 8),
                   _InfoRow(label: 'App version', value: version),
-                  const SizedBox(height: 20),
+                  const SizedBox(height: 18),
                   SizedBox(
                     width: double.infinity,
-                    child: ElevatedButton.icon(
+                    child: FilledButton.icon(
                       onPressed: _saveProfile,
                       icon: const Icon(Icons.save_outlined),
                       label: const Text('Save Profile'),
@@ -124,114 +138,74 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
             ),
             const SizedBox(height: 18),
             _SurfaceCard(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    children: [
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
+              title: 'Share Profile',
+              subtitle:
+                  'Reveal your QR only when you want to pair or share identity.',
+              trailing: TextButton.icon(
+                onPressed: identity == null
+                    ? null
+                    : () => setState(() => _showQr = !_showQr),
+                icon: Icon(_showQr ? Icons.visibility_off : Icons.qr_code_2),
+                label: Text(_showQr ? 'Hide QR' : 'Show QR'),
+              ),
+              child: AnimatedCrossFade(
+                firstChild: const SizedBox.shrink(),
+                secondChild: Padding(
+                  padding: const EdgeInsets.only(top: 18),
+                  child: qrPayload == null
+                      ? const _MutedMessage(
+                          text: 'Identity is unavailable right now.',
+                        )
+                      : Column(
                           children: [
+                            Container(
+                              padding: const EdgeInsets.all(16),
+                              decoration: BoxDecoration(
+                                color: Colors.white,
+                                borderRadius: BorderRadius.circular(22),
+                              ),
+                              child: QrImageView(
+                                data: qrPayload,
+                                version: QrVersions.auto,
+                                size: 210,
+                                backgroundColor: Colors.white,
+                              ),
+                            ),
+                            const SizedBox(height: 14),
                             Text(
-                              'Share Profile',
-                              style: Theme.of(context).textTheme.titleMedium
-                                  ?.copyWith(fontWeight: FontWeight.w800),
+                              identity?.displayName ?? '',
+                              style: const TextStyle(
+                                fontWeight: FontWeight.w700,
+                              ),
                             ),
                             const SizedBox(height: 4),
-                            const Text(
-                              'Reveal your QR only when you need to share your LANLine identity.',
-                              style: TextStyle(color: Colors.grey),
+                            Text(
+                              identity?.fingerprint ?? '',
+                              style: const TextStyle(color: Colors.white60),
                             ),
                           ],
                         ),
-                      ),
-                      TextButton.icon(
-                        onPressed: identity == null
-                            ? null
-                            : () => setState(() => _showQr = !_showQr),
-                        icon: Icon(
-                          _showQr ? Icons.visibility_off : Icons.qr_code_2,
-                        ),
-                        label: Text(_showQr ? 'Hide QR' : 'Show QR'),
-                      ),
-                    ],
-                  ),
-                  AnimatedCrossFade(
-                    firstChild: const SizedBox.shrink(),
-                    secondChild: Padding(
-                      padding: const EdgeInsets.only(top: 18),
-                      child: qrPayload == null
-                          ? const _MutedMessage(
-                              text: 'Identity is unavailable right now.',
-                            )
-                          : Column(
-                              children: [
-                                Container(
-                                  padding: const EdgeInsets.all(16),
-                                  decoration: BoxDecoration(
-                                    color: Colors.white,
-                                    borderRadius: BorderRadius.circular(22),
-                                  ),
-                                  child: QrImageView(
-                                    data: qrPayload,
-                                    version: QrVersions.auto,
-                                    size: 210,
-                                    backgroundColor: Colors.white,
-                                  ),
-                                ),
-                                const SizedBox(height: 14),
-                                Text(
-                                  identity?.displayName ?? '',
-                                  style: const TextStyle(
-                                    fontWeight: FontWeight.w700,
-                                  ),
-                                ),
-                                const SizedBox(height: 4),
-                                Text(
-                                  identity?.fingerprint ?? '',
-                                  style: const TextStyle(color: Colors.grey),
-                                ),
-                              ],
-                            ),
-                    ),
-                    crossFadeState: _showQr
-                        ? CrossFadeState.showSecond
-                        : CrossFadeState.showFirst,
-                    duration: const Duration(milliseconds: 220),
-                  ),
-                ],
+                ),
+                crossFadeState: _showQr
+                    ? CrossFadeState.showSecond
+                    : CrossFadeState.showFirst,
+                duration: const Duration(milliseconds: 220),
               ),
             ),
             const SizedBox(height: 18),
             _SurfaceCard(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    'History',
-                    style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                      fontWeight: FontWeight.w800,
-                    ),
+              title: 'History',
+              subtitle: 'Review received files and manage stored downloads.',
+              child: _SettingsActionCard(
+                icon: Icons.download_rounded,
+                title: 'Downloads',
+                subtitle: 'Browse files you already received',
+                onTap: () => Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) => const DownloadHistoryScreen(),
                   ),
-                  const SizedBox(height: 4),
-                  const Text(
-                    'Open the download history for received files.',
-                    style: TextStyle(color: Colors.grey),
-                  ),
-                  const SizedBox(height: 14),
-                  _SettingsActionCard(
-                    icon: Icons.download_rounded,
-                    title: 'Downloads',
-                    subtitle: 'Browse files you already received',
-                    onTap: () => Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (_) => const DownloadHistoryScreen(),
-                      ),
-                    ),
-                  ),
-                ],
+                ),
               ),
             ),
           ],
@@ -244,7 +218,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
           child: Text(
             'Could not load settings: $error',
             textAlign: TextAlign.center,
-            style: const TextStyle(color: Colors.grey),
+            style: const TextStyle(color: Colors.white60),
           ),
         ),
       ),
@@ -252,10 +226,128 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
   }
 }
 
-class _SurfaceCard extends StatelessWidget {
-  final Widget child;
+class _HeroCard extends StatelessWidget {
+  final String title;
+  final String subtitle;
+  final Color accent;
+  final IconData icon;
+  final List<Widget> chips;
 
-  const _SurfaceCard({required this.child});
+  const _HeroCard({
+    required this.title,
+    required this.subtitle,
+    required this.accent,
+    required this.icon,
+    required this.chips,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        gradient: const LinearGradient(
+          colors: [Color(0xFF1A2233), Color(0xFF161616)],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        borderRadius: BorderRadius.circular(24),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.06)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Container(
+                width: 52,
+                height: 52,
+                decoration: BoxDecoration(
+                  color: accent.withValues(alpha: 0.14),
+                  borderRadius: BorderRadius.circular(16),
+                ),
+                child: Icon(icon, color: accent),
+              ),
+              const SizedBox(width: 14),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      title,
+                      style: const TextStyle(
+                        fontSize: 22,
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                    const SizedBox(height: 6),
+                    Text(
+                      subtitle,
+                      style: const TextStyle(
+                        color: Colors.white70,
+                        height: 1.35,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 16),
+          Wrap(spacing: 10, runSpacing: 10, children: chips),
+        ],
+      ),
+    );
+  }
+}
+
+class _HeroChip extends StatelessWidget {
+  final IconData icon;
+  final String label;
+
+  const _HeroChip({required this.icon, required this.label});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      decoration: BoxDecoration(
+        color: Colors.white.withValues(alpha: 0.04),
+        borderRadius: BorderRadius.circular(999),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.05)),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 14, color: Colors.lightBlueAccent),
+          const SizedBox(width: 8),
+          Text(
+            label,
+            style: const TextStyle(
+              color: Colors.white70,
+              fontSize: 12,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _SurfaceCard extends StatelessWidget {
+  final String title;
+  final String subtitle;
+  final Widget child;
+  final Widget? trailing;
+
+  const _SurfaceCard({
+    required this.title,
+    required this.subtitle,
+    required this.child,
+    this.trailing,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -264,8 +356,42 @@ class _SurfaceCard extends StatelessWidget {
       decoration: BoxDecoration(
         color: const Color(0xFF1B1B1B),
         borderRadius: BorderRadius.circular(22),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.04)),
       ),
-      child: child,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      title,
+                      style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      subtitle,
+                      style: const TextStyle(
+                        color: Colors.white60,
+                        height: 1.35,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              if (trailing != null) ...[trailing!],
+            ],
+          ),
+          const SizedBox(height: 18),
+          child,
+        ],
+      ),
     );
   }
 }
@@ -277,7 +403,7 @@ class _MutedMessage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Text(text, style: const TextStyle(color: Colors.grey));
+    return Text(text, style: const TextStyle(color: Colors.white60));
   }
 }
 
@@ -292,7 +418,7 @@ class _InfoRow extends StatelessWidget {
     return Row(
       children: [
         Expanded(
-          child: Text(label, style: const TextStyle(color: Colors.grey)),
+          child: Text(label, style: const TextStyle(color: Colors.white60)),
         ),
         const SizedBox(width: 12),
         Flexible(
@@ -332,8 +458,8 @@ class _SettingsActionCard extends StatelessWidget {
           child: Icon(icon, color: Colors.white70),
         ),
         title: Text(title, style: const TextStyle(fontWeight: FontWeight.w700)),
-        subtitle: Text(subtitle, style: const TextStyle(color: Colors.grey)),
-        trailing: const Icon(Icons.chevron_right, color: Colors.grey),
+        subtitle: Text(subtitle, style: const TextStyle(color: Colors.white60)),
+        trailing: const Icon(Icons.chevron_right, color: Colors.white38),
         onTap: onTap,
       ),
     );

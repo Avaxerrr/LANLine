@@ -34,35 +34,39 @@ class PeopleScreen extends ConsumerWidget {
     return ListView(
       padding: const EdgeInsets.fromLTRB(16, 16, 16, 24),
       children: [
-        const _SectionHeader(
+        const _HeroCard(
           title: 'Contacts',
-          subtitle: 'Your approved contacts live here.',
+          subtitle:
+              'Approved contacts live here. Open a chat instantly or use the overflow menu for more actions.',
+          primaryLabel: 'Approved contacts only',
+          secondaryLabel: 'Tap a card to continue chatting',
+          icon: Icons.people_alt_outlined,
+          accent: Colors.greenAccent,
         ),
         const SizedBox(height: 16),
         contactsAsync.when(
-          data: (contacts) => contacts.isEmpty
-              ? const _SectionPlaceholder(
-                  icon: Icons.people_alt_outlined,
-                  text: 'No contacts yet',
-                )
-              : Column(
-                  children: [
-                    for (final peer in contacts)
-                      _ContactCard(
-                        peer: peer,
-                        onTap: () {
-                          unawaited(
-                            _openConversation(
-                              context,
-                              conversationActions: conversationActions,
-                              peerId: peer.peerId,
-                              title: peer.displayName,
-                            ),
-                          );
-                        },
-                        onSelected: (action) {
-                          switch (action) {
-                            case _ContactMenuAction.chat:
+          data: (contacts) => Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              _SectionHeader(
+                title: 'Contacts',
+                subtitle: contacts.isEmpty
+                    ? 'No approved contacts yet'
+                    : '${contacts.length} approved contact${contacts.length == 1 ? '' : 's'}',
+              ),
+              const SizedBox(height: 14),
+              contacts.isEmpty
+                  ? const _SectionPlaceholder(
+                      icon: Icons.people_alt_outlined,
+                      text:
+                          'Approve a nearby device from Requests and it will appear here.',
+                    )
+                  : Column(
+                      children: [
+                        for (final peer in contacts)
+                          _ContactCard(
+                            peer: peer,
+                            onTap: () {
                               unawaited(
                                 _openConversation(
                                   context,
@@ -71,22 +75,36 @@ class PeopleScreen extends ConsumerWidget {
                                   title: peer.displayName,
                                 ),
                               );
-                              break;
-                            case _ContactMenuAction.block:
-                              unawaited(
-                                runPeerAction(
-                                  'Blocked ${peer.displayName}',
-                                  () => requestActions.blockPeer(
-                                    peerId: peer.peerId,
-                                  ),
-                                ),
-                              );
-                              break;
-                          }
-                        },
-                      ),
-                  ],
-                ),
+                            },
+                            onSelected: (action) {
+                              switch (action) {
+                                case _ContactMenuAction.chat:
+                                  unawaited(
+                                    _openConversation(
+                                      context,
+                                      conversationActions: conversationActions,
+                                      peerId: peer.peerId,
+                                      title: peer.displayName,
+                                    ),
+                                  );
+                                  break;
+                                case _ContactMenuAction.block:
+                                  unawaited(
+                                    runPeerAction(
+                                      'Blocked ${peer.displayName}',
+                                      () => requestActions.blockPeer(
+                                        peerId: peer.peerId,
+                                      ),
+                                    ),
+                                  );
+                                  break;
+                              }
+                            },
+                          ),
+                      ],
+                    ),
+            ],
+          ),
           loading: () => const _SectionLoading(),
           error: (error, stackTrace) =>
               _SectionPlaceholder(icon: Icons.error_outline, text: '$error'),
@@ -121,6 +139,125 @@ class PeopleScreen extends ConsumerWidget {
   }
 }
 
+class _HeroCard extends StatelessWidget {
+  final String title;
+  final String subtitle;
+  final String primaryLabel;
+  final String secondaryLabel;
+  final IconData icon;
+  final Color accent;
+
+  const _HeroCard({
+    required this.title,
+    required this.subtitle,
+    required this.primaryLabel,
+    required this.secondaryLabel,
+    required this.icon,
+    required this.accent,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        gradient: const LinearGradient(
+          colors: [Color(0xFF1A2233), Color(0xFF171717)],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        borderRadius: BorderRadius.circular(24),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.06)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Container(
+                width: 52,
+                height: 52,
+                decoration: BoxDecoration(
+                  color: accent.withValues(alpha: 0.14),
+                  borderRadius: BorderRadius.circular(16),
+                ),
+                child: Icon(icon, color: accent),
+              ),
+              const SizedBox(width: 14),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      title,
+                      style: const TextStyle(
+                        fontSize: 22,
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                    const SizedBox(height: 6),
+                    Text(
+                      subtitle,
+                      style: const TextStyle(
+                        color: Colors.white70,
+                        height: 1.35,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 16),
+          Wrap(
+            spacing: 10,
+            runSpacing: 10,
+            children: [
+              _InfoChip(label: primaryLabel, icon: Icons.verified_outlined),
+              _InfoChip(label: secondaryLabel, icon: Icons.chat_bubble_outline),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _InfoChip extends StatelessWidget {
+  final String label;
+  final IconData icon;
+
+  const _InfoChip({required this.label, required this.icon});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      decoration: BoxDecoration(
+        color: Colors.white.withValues(alpha: 0.04),
+        borderRadius: BorderRadius.circular(999),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.05)),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 14, color: Colors.greenAccent),
+          const SizedBox(width: 8),
+          Text(
+            label,
+            style: const TextStyle(
+              color: Colors.white70,
+              fontSize: 12,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 class _SectionHeader extends StatelessWidget {
   final String title;
   final String subtitle;
@@ -137,7 +274,7 @@ class _SectionHeader extends StatelessWidget {
           style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w800),
         ),
         const SizedBox(height: 4),
-        Text(subtitle, style: const TextStyle(color: Colors.grey)),
+        Text(subtitle, style: const TextStyle(color: Colors.white60)),
       ],
     );
   }
@@ -155,14 +292,26 @@ class _SectionPlaceholder extends StatelessWidget {
       padding: const EdgeInsets.all(18),
       decoration: BoxDecoration(
         color: const Color(0xFF1B1B1B),
-        borderRadius: BorderRadius.circular(18),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.04)),
       ),
       child: Row(
         children: [
-          Icon(icon, color: Colors.grey),
+          Container(
+            width: 42,
+            height: 42,
+            decoration: BoxDecoration(
+              color: Colors.white.withValues(alpha: 0.04),
+              borderRadius: BorderRadius.circular(14),
+            ),
+            child: Icon(icon, color: Colors.grey),
+          ),
           const SizedBox(width: 12),
           Expanded(
-            child: Text(text, style: const TextStyle(color: Colors.grey)),
+            child: Text(
+              text,
+              style: const TextStyle(color: Colors.white70, height: 1.35),
+            ),
           ),
         ],
       ),
@@ -207,62 +356,91 @@ class _ContactCard extends StatelessWidget {
 
     final subtitle = subtitleParts.isEmpty
         ? 'Tap to open chat'
-        : subtitleParts.join('  •  ');
+        : subtitleParts.join(' | ');
 
-    return Card(
-      color: const Color(0xFF1B1B1B),
+    return Container(
       margin: const EdgeInsets.only(bottom: 12),
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(18),
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
-          child: ListTile(
-            leading: CircleAvatar(
-              radius: 24,
-              backgroundColor: accent.withValues(alpha: 0.16),
-              child: Text(
-                _initialsFor(peer.displayName),
-                style: TextStyle(
-                  color: accent,
-                  fontWeight: FontWeight.w800,
-                ),
-              ),
-            ),
-            title: Text(
-              peer.displayName,
-              style: const TextStyle(fontWeight: FontWeight.w700),
-            ),
-            subtitle: Padding(
-              padding: const EdgeInsets.only(top: 4),
-              child: Text(
-                subtitle,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: const TextStyle(color: Colors.grey),
-              ),
-            ),
-            trailing: PopupMenuButton<_ContactMenuAction>(
-              tooltip: 'Contact options',
-              icon: const Icon(Icons.more_horiz, color: Colors.grey),
-              color: const Color(0xFF252525),
-              onSelected: onSelected,
-              itemBuilder: (context) => const [
-                PopupMenuItem(
-                  value: _ContactMenuAction.chat,
-                  child: _ContactMenuRow(
-                    icon: Icons.chat_bubble_outline,
-                    label: 'Open chat',
+      decoration: BoxDecoration(
+        color: const Color(0xFF1B1B1B),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.05)),
+      ),
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: onTap,
+          borderRadius: BorderRadius.circular(20),
+          child: Padding(
+            padding: const EdgeInsets.all(14),
+            child: Row(
+              children: [
+                CircleAvatar(
+                  radius: 24,
+                  backgroundColor: accent.withValues(alpha: 0.16),
+                  child: Text(
+                    _initialsFor(peer.displayName),
+                    style: TextStyle(
+                      color: accent,
+                      fontWeight: FontWeight.w800,
+                    ),
                   ),
                 ),
-                PopupMenuItem(
-                  value: _ContactMenuAction.block,
-                  child: _ContactMenuRow(
-                    icon: Icons.block_outlined,
-                    label: 'Block contact',
-                    color: Colors.redAccent,
+                const SizedBox(width: 14),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          Expanded(
+                            child: Text(
+                              peer.displayName,
+                              style: const TextStyle(
+                                fontWeight: FontWeight.w700,
+                                fontSize: 15,
+                              ),
+                            ),
+                          ),
+                          const Icon(
+                            Icons.chevron_right,
+                            color: Colors.white38,
+                            size: 20,
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        subtitle,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(color: Colors.white60),
+                      ),
+                    ],
                   ),
+                ),
+                const SizedBox(width: 8),
+                PopupMenuButton<_ContactMenuAction>(
+                  tooltip: 'Contact options',
+                  icon: const Icon(Icons.more_horiz, color: Colors.white54),
+                  color: const Color(0xFF252525),
+                  onSelected: onSelected,
+                  itemBuilder: (context) => const [
+                    PopupMenuItem(
+                      value: _ContactMenuAction.chat,
+                      child: _ContactMenuRow(
+                        icon: Icons.chat_bubble_outline,
+                        label: 'Open chat',
+                      ),
+                    ),
+                    PopupMenuItem(
+                      value: _ContactMenuAction.block,
+                      child: _ContactMenuRow(
+                        icon: Icons.block_outlined,
+                        label: 'Block contact',
+                        color: Colors.redAccent,
+                      ),
+                    ),
+                  ],
                 ),
               ],
             ),
@@ -292,11 +470,7 @@ class _ContactMenuRow extends StatelessWidget {
   final String label;
   final Color? color;
 
-  const _ContactMenuRow({
-    required this.icon,
-    required this.label,
-    this.color,
-  });
+  const _ContactMenuRow({required this.icon, required this.label, this.color});
 
   @override
   Widget build(BuildContext context) {

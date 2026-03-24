@@ -36,286 +36,257 @@ class RequestsScreen extends ConsumerWidget {
     return ListView(
       padding: const EdgeInsets.fromLTRB(16, 16, 16, 24),
       children: [
-        const _SectionHeader(
+        const _HeroCard(
           title: 'Requests',
           subtitle:
-              'Discover nearby devices, approve people, and manage pending invitations.',
+              'Discover nearby devices, approve contacts, and manage group invites from one place.',
+          primaryLabel: 'Live discovery',
+          secondaryLabel: 'Requests and invites',
+          icon: Icons.radar_outlined,
+          accent: Colors.blueAccent,
         ),
         const SizedBox(height: 16),
-        _SectionSurface(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const _SectionTitle(
-                title: 'Nearby devices',
-                subtitle: 'Only devices you have not added yet appear here.',
-              ),
-              const SizedBox(height: 14),
-              discoveredAsync.when(
-                data: (peers) => peers.isEmpty
-                    ? const _EmptyState(
-                        icon: Icons.radar_outlined,
-                        text: 'No new nearby devices right now',
-                      )
-                    : Column(
-                        children: [
-                          for (final peer in peers)
-                            _NearbyPeerCard(
-                              peer: peer,
-                              onConnect: () {
+        _RequestSection(
+          title: 'Nearby devices',
+          subtitle: 'Only devices you have not added yet appear here.',
+          child: discoveredAsync.when(
+            data: (peers) => peers.isEmpty
+                ? const _EmptyState(
+                    icon: Icons.radar_outlined,
+                    text: 'No new nearby devices right now',
+                  )
+                : Column(
+                    children: [
+                      for (final peer in peers)
+                        _NearbyPeerCard(
+                          peer: peer,
+                          onConnect: () {
+                            unawaited(
+                              runRequestAction(
+                                'Request sent to ${peer.displayName}',
+                                () => requestActions.sendConnectionRequest(
+                                  peerId: peer.peerId,
+                                ),
+                              ),
+                            );
+                          },
+                          onBlock: () {
+                            unawaited(
+                              runRequestAction(
+                                'Blocked ${peer.displayName}',
+                                () => requestActions.blockPeer(
+                                  peerId: peer.peerId,
+                                ),
+                              ),
+                            );
+                          },
+                        ),
+                    ],
+                  ),
+            loading: () => const _SectionLoading(),
+            error: (error, stackTrace) =>
+                _EmptyState(icon: Icons.error_outline, text: '$error'),
+          ),
+        ),
+        const SizedBox(height: 18),
+        _RequestSection(
+          title: 'Incoming requests',
+          subtitle: 'Approve, decline, or block people who want to connect.',
+          child: incomingAsync.when(
+            data: (requests) => requests.isEmpty
+                ? const _EmptyState(
+                    icon: Icons.mark_email_unread_outlined,
+                    text: 'No incoming requests',
+                  )
+                : Column(
+                    children: [
+                      for (final request in requests)
+                        _PendingRequestCard(
+                          title: request.peerId,
+                          subtitle:
+                              request.message ??
+                              'This device wants to connect with you.',
+                          accent: Colors.blueAccent,
+                          statusLabel: 'Incoming',
+                          icon: Icons.mark_email_unread_outlined,
+                          actions: [
+                            _ActionButton(
+                              label: 'Accept',
+                              icon: Icons.check_circle_outline,
+                              foreground: Colors.greenAccent,
+                              onPressed: () {
                                 unawaited(
                                   runRequestAction(
-                                    'Request sent to ${peer.displayName}',
-                                    () => requestActions.sendConnectionRequest(
-                                      peerId: peer.peerId,
+                                    'Accepted request from ${request.peerId}',
+                                    () => requestActions.acceptRequest(
+                                      request.id,
                                     ),
                                   ),
                                 );
                               },
-                              onBlock: () {
+                            ),
+                            _ActionButton(
+                              label: 'Decline',
+                              icon: Icons.close_outlined,
+                              foreground: Colors.orangeAccent,
+                              outlined: true,
+                              onPressed: () {
                                 unawaited(
                                   runRequestAction(
-                                    'Blocked ${peer.displayName}',
+                                    'Declined request from ${request.peerId}',
+                                    () => requestActions.declineRequest(
+                                      request.id,
+                                    ),
+                                  ),
+                                );
+                              },
+                            ),
+                            _ActionButton(
+                              label: 'Block',
+                              icon: Icons.block_outlined,
+                              foreground: Colors.redAccent,
+                              outlined: true,
+                              onPressed: () {
+                                unawaited(
+                                  runRequestAction(
+                                    'Blocked ${request.peerId}',
                                     () => requestActions.blockPeer(
-                                      peerId: peer.peerId,
+                                      peerId: request.peerId,
+                                      requestId: request.id,
                                     ),
                                   ),
                                 );
                               },
                             ),
-                        ],
-                      ),
-                loading: () => const _SectionLoading(),
-                error: (error, stackTrace) =>
-                    _EmptyState(icon: Icons.error_outline, text: '$error'),
-              ),
-            ],
+                          ],
+                        ),
+                    ],
+                  ),
+            loading: () => const _SectionLoading(),
+            error: (error, stackTrace) =>
+                _EmptyState(icon: Icons.error_outline, text: '$error'),
           ),
         ),
         const SizedBox(height: 18),
-        _SectionSurface(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const _SectionTitle(
-                title: 'Incoming requests',
-                subtitle: 'Approve, decline, or block people who want to connect.',
-              ),
-              const SizedBox(height: 14),
-              incomingAsync.when(
-                data: (requests) => requests.isEmpty
-                    ? const _EmptyState(
-                        icon: Icons.mark_email_unread_outlined,
-                        text: 'No incoming requests',
-                      )
-                    : Column(
-                        children: [
-                          for (final request in requests)
-                            _PendingRequestCard(
-                              title: request.peerId,
-                              subtitle:
-                                  request.message ??
-                                  'This device wants to connect with you.',
-                              accent: Colors.blueAccent,
-                              statusLabel: 'Incoming',
-                              actions: [
-                                _ActionButton(
-                                  label: 'Accept',
-                                  icon: Icons.check_circle_outline,
-                                  foreground: Colors.greenAccent,
-                                  onPressed: () {
-                                    unawaited(
-                                      runRequestAction(
-                                        'Accepted request from ${request.peerId}',
-                                        () => requestActions.acceptRequest(
-                                          request.id,
-                                        ),
-                                      ),
-                                    );
-                                  },
-                                ),
-                                _ActionButton(
-                                  label: 'Decline',
-                                  icon: Icons.close_outlined,
-                                  foreground: Colors.orangeAccent,
-                                  outlined: true,
-                                  onPressed: () {
-                                    unawaited(
-                                      runRequestAction(
-                                        'Declined request from ${request.peerId}',
-                                        () => requestActions.declineRequest(
-                                          request.id,
-                                        ),
-                                      ),
-                                    );
-                                  },
-                                ),
-                                _ActionButton(
-                                  label: 'Block',
-                                  icon: Icons.block_outlined,
-                                  foreground: Colors.redAccent,
-                                  outlined: true,
-                                  onPressed: () {
-                                    unawaited(
-                                      runRequestAction(
-                                        'Blocked ${request.peerId}',
-                                        () => requestActions.blockPeer(
-                                          peerId: request.peerId,
-                                          requestId: request.id,
-                                        ),
-                                      ),
-                                    );
-                                  },
-                                ),
-                              ],
+        _RequestSection(
+          title: 'Group invites',
+          subtitle: 'Join or decline invitations to group chats.',
+          child: groupInvitesAsync.when(
+            data: (conversations) => conversations.isEmpty
+                ? const _EmptyState(
+                    icon: Icons.groups_2_outlined,
+                    text: 'No pending group invites',
+                  )
+                : Column(
+                    children: [
+                      for (final conversation in conversations)
+                        _PendingRequestCard(
+                          title: conversation.title ?? 'Group invite',
+                          subtitle: 'Invitation pending for this conversation.',
+                          accent: Colors.amber,
+                          statusLabel: 'Invite',
+                          icon: Icons.groups_2_outlined,
+                          actions: [
+                            _ActionButton(
+                              label: 'Join',
+                              icon: Icons.check_circle_outline,
+                              foreground: Colors.greenAccent,
+                              onPressed: () {
+                                unawaited(
+                                  runRequestAction(
+                                    'Joined ${conversation.title ?? 'group'}',
+                                    () => conversationActions.acceptGroupInvite(
+                                      conversation.id,
+                                    ),
+                                  ),
+                                );
+                              },
                             ),
-                        ],
-                      ),
-                loading: () => const _SectionLoading(),
-                error: (error, stackTrace) =>
-                    _EmptyState(icon: Icons.error_outline, text: '$error'),
-              ),
-            ],
+                            _ActionButton(
+                              label: 'Decline',
+                              icon: Icons.close_outlined,
+                              foreground: Colors.orangeAccent,
+                              outlined: true,
+                              onPressed: () {
+                                unawaited(
+                                  runRequestAction(
+                                    'Declined ${conversation.title ?? 'group'}',
+                                    () => conversationActions
+                                        .declineGroupInvite(conversation.id),
+                                  ),
+                                );
+                              },
+                            ),
+                          ],
+                        ),
+                    ],
+                  ),
+            loading: () => const _SectionLoading(),
+            error: (error, stackTrace) =>
+                _EmptyState(icon: Icons.error_outline, text: '$error'),
           ),
         ),
         const SizedBox(height: 18),
-        _SectionSurface(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const _SectionTitle(
-                title: 'Group invites',
-                subtitle: 'Join or decline invitations to group chats.',
-              ),
-              const SizedBox(height: 14),
-              groupInvitesAsync.when(
-                data: (conversations) => conversations.isEmpty
-                    ? const _EmptyState(
-                        icon: Icons.groups_2_outlined,
-                        text: 'No pending group invites',
-                      )
-                    : Column(
-                        children: [
-                          for (final conversation in conversations)
-                            _PendingRequestCard(
-                              title: conversation.title ?? 'Group invite',
-                              subtitle:
-                                  'Invitation pending for this conversation.',
-                              accent: Colors.amber,
-                              statusLabel: 'Invite',
-                              actions: [
-                                _ActionButton(
-                                  label: 'Join',
-                                  icon: Icons.check_circle_outline,
-                                  foreground: Colors.greenAccent,
-                                  onPressed: () {
-                                    unawaited(
-                                      runRequestAction(
-                                        'Joined ${conversation.title ?? 'group'}',
-                                        () =>
-                                            conversationActions.acceptGroupInvite(
-                                          conversation.id,
-                                        ),
-                                      ),
-                                    );
-                                  },
-                                ),
-                                _ActionButton(
-                                  label: 'Decline',
-                                  icon: Icons.close_outlined,
-                                  foreground: Colors.orangeAccent,
-                                  outlined: true,
-                                  onPressed: () {
-                                    unawaited(
-                                      runRequestAction(
-                                        'Declined ${conversation.title ?? 'group'}',
-                                        () =>
-                                            conversationActions.declineGroupInvite(
-                                          conversation.id,
-                                        ),
-                                      ),
-                                    );
-                                  },
-                                ),
-                              ],
+        _RequestSection(
+          title: 'Outgoing requests',
+          subtitle: 'Track requests you already sent.',
+          child: outgoingAsync.when(
+            data: (requests) => requests.isEmpty
+                ? const _EmptyState(
+                    icon: Icons.outgoing_mail,
+                    text: 'No outgoing requests',
+                  )
+                : Column(
+                    children: [
+                      for (final request in requests)
+                        _PendingRequestCard(
+                          title: request.peerId,
+                          subtitle:
+                              request.message ??
+                              'Waiting for this person to approve you.',
+                          accent: Colors.orangeAccent,
+                          statusLabel: 'Sent',
+                          icon: Icons.outgoing_mail,
+                          actions: [
+                            _ActionButton(
+                              label: 'Cancel',
+                              icon: Icons.remove_circle_outline,
+                              foreground: Colors.orangeAccent,
+                              onPressed: () {
+                                unawaited(
+                                  runRequestAction(
+                                    'Cancelled request to ${request.peerId}',
+                                    () => requestActions.cancelRequest(
+                                      request.id,
+                                    ),
+                                  ),
+                                );
+                              },
                             ),
-                        ],
-                      ),
-                loading: () => const _SectionLoading(),
-                error: (error, stackTrace) =>
-                    _EmptyState(icon: Icons.error_outline, text: '$error'),
-              ),
-            ],
-          ),
-        ),
-        const SizedBox(height: 18),
-        _SectionSurface(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const _SectionTitle(
-                title: 'Outgoing requests',
-                subtitle: 'Track requests you already sent.',
-              ),
-              const SizedBox(height: 14),
-              outgoingAsync.when(
-                data: (requests) => requests.isEmpty
-                    ? const _EmptyState(
-                        icon: Icons.outgoing_mail,
-                        text: 'No outgoing requests',
-                      )
-                    : Column(
-                        children: [
-                          for (final request in requests)
-                            _PendingRequestCard(
-                              title: request.peerId,
-                              subtitle:
-                                  request.message ??
-                                  'Waiting for this person to approve you.',
-                              accent: Colors.orangeAccent,
-                              statusLabel: 'Sent',
-                              actions: [
-                                _ActionButton(
-                                  label: 'Cancel',
-                                  icon: Icons.remove_circle_outline,
-                                  foreground: Colors.orangeAccent,
-                                  onPressed: () {
-                                    unawaited(
-                                      runRequestAction(
-                                        'Cancelled request to ${request.peerId}',
-                                        () => requestActions.cancelRequest(
-                                          request.id,
-                                        ),
-                                      ),
-                                    );
-                                  },
-                                ),
-                                _ActionButton(
-                                  label: 'Block',
-                                  icon: Icons.block_outlined,
-                                  foreground: Colors.redAccent,
-                                  outlined: true,
-                                  onPressed: () {
-                                    unawaited(
-                                      runRequestAction(
-                                        'Blocked ${request.peerId}',
-                                        () => requestActions.blockPeer(
-                                          peerId: request.peerId,
-                                          requestId: request.id,
-                                        ),
-                                      ),
-                                    );
-                                  },
-                                ),
-                              ],
+                            _ActionButton(
+                              label: 'Block',
+                              icon: Icons.block_outlined,
+                              foreground: Colors.redAccent,
+                              outlined: true,
+                              onPressed: () {
+                                unawaited(
+                                  runRequestAction(
+                                    'Blocked ${request.peerId}',
+                                    () => requestActions.blockPeer(
+                                      peerId: request.peerId,
+                                      requestId: request.id,
+                                    ),
+                                  ),
+                                );
+                              },
                             ),
-                        ],
-                      ),
-                loading: () => const _SectionLoading(),
-                error: (error, stackTrace) =>
-                    _EmptyState(icon: Icons.error_outline, text: '$error'),
-              ),
-            ],
+                          ],
+                        ),
+                    ],
+                  ),
+            loading: () => const _SectionLoading(),
+            error: (error, stackTrace) =>
+                _EmptyState(icon: Icons.error_outline, text: '$error'),
           ),
         ),
       ],
@@ -323,32 +294,135 @@ class RequestsScreen extends ConsumerWidget {
   }
 }
 
-class _SectionHeader extends StatelessWidget {
+class _HeroCard extends StatelessWidget {
   final String title;
   final String subtitle;
+  final String primaryLabel;
+  final String secondaryLabel;
+  final IconData icon;
+  final Color accent;
 
-  const _SectionHeader({required this.title, required this.subtitle});
+  const _HeroCard({
+    required this.title,
+    required this.subtitle,
+    required this.primaryLabel,
+    required this.secondaryLabel,
+    required this.icon,
+    required this.accent,
+  });
 
   @override
   Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          title,
-          style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w800),
+    return Container(
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        gradient: const LinearGradient(
+          colors: [Color(0xFF18243B), Color(0xFF161616)],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
         ),
-        const SizedBox(height: 4),
-        Text(subtitle, style: const TextStyle(color: Colors.grey)),
-      ],
+        borderRadius: BorderRadius.circular(24),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.06)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Container(
+                width: 52,
+                height: 52,
+                decoration: BoxDecoration(
+                  color: accent.withValues(alpha: 0.14),
+                  borderRadius: BorderRadius.circular(16),
+                ),
+                child: Icon(icon, color: accent),
+              ),
+              const SizedBox(width: 14),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      title,
+                      style: const TextStyle(
+                        fontSize: 22,
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                    const SizedBox(height: 6),
+                    Text(
+                      subtitle,
+                      style: const TextStyle(
+                        color: Colors.white70,
+                        height: 1.35,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 16),
+          Wrap(
+            spacing: 10,
+            runSpacing: 10,
+            children: [
+              _InfoChip(label: primaryLabel, icon: Icons.radar_outlined),
+              _InfoChip(label: secondaryLabel, icon: Icons.mail_outline),
+            ],
+          ),
+        ],
+      ),
     );
   }
 }
 
-class _SectionSurface extends StatelessWidget {
+class _InfoChip extends StatelessWidget {
+  final String label;
+  final IconData icon;
+
+  const _InfoChip({required this.label, required this.icon});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      decoration: BoxDecoration(
+        color: Colors.white.withValues(alpha: 0.04),
+        borderRadius: BorderRadius.circular(999),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.05)),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 14, color: Colors.lightBlueAccent),
+          const SizedBox(width: 8),
+          Text(
+            label,
+            style: const TextStyle(
+              color: Colors.white70,
+              fontSize: 12,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _RequestSection extends StatelessWidget {
+  final String title;
+  final String subtitle;
   final Widget child;
 
-  const _SectionSurface({required this.child});
+  const _RequestSection({
+    required this.title,
+    required this.subtitle,
+    required this.child,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -357,8 +431,16 @@ class _SectionSurface extends StatelessWidget {
       decoration: BoxDecoration(
         color: const Color(0xFF1B1B1B),
         borderRadius: BorderRadius.circular(22),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.04)),
       ),
-      child: child,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          _SectionTitle(title: title, subtitle: subtitle),
+          const SizedBox(height: 14),
+          child,
+        ],
+      ),
     );
   }
 }
@@ -379,7 +461,7 @@ class _SectionTitle extends StatelessWidget {
           style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w800),
         ),
         const SizedBox(height: 4),
-        Text(subtitle, style: const TextStyle(color: Colors.grey)),
+        Text(subtitle, style: const TextStyle(color: Colors.white60)),
       ],
     );
   }
@@ -402,10 +484,21 @@ class _EmptyState extends StatelessWidget {
       ),
       child: Row(
         children: [
-          Icon(icon, color: Colors.grey),
+          Container(
+            width: 42,
+            height: 42,
+            decoration: BoxDecoration(
+              color: Colors.white.withValues(alpha: 0.04),
+              borderRadius: BorderRadius.circular(14),
+            ),
+            child: Icon(icon, color: Colors.grey),
+          ),
           const SizedBox(width: 12),
           Expanded(
-            child: Text(text, style: const TextStyle(color: Colors.grey)),
+            child: Text(
+              text,
+              style: const TextStyle(color: Colors.white70, height: 1.35),
+            ),
           ),
         ],
       ),
@@ -445,7 +538,9 @@ class _NearbyPeerCard extends StatelessWidget {
         peer.fingerprint!.trim(),
     ];
 
-    final subtitle = subtitleParts.isEmpty ? 'Reachable right now' : subtitleParts.join('  •  ');
+    final subtitle = subtitleParts.isEmpty
+        ? 'Reachable right now'
+        : subtitleParts.join(' | ');
 
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
@@ -453,6 +548,7 @@ class _NearbyPeerCard extends StatelessWidget {
       decoration: BoxDecoration(
         color: Colors.white.withValues(alpha: 0.03),
         borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.04)),
       ),
       child: Row(
         children: [
@@ -474,14 +570,17 @@ class _NearbyPeerCard extends StatelessWidget {
               children: [
                 Text(
                   peer.displayName,
-                  style: const TextStyle(fontWeight: FontWeight.w700),
+                  style: const TextStyle(
+                    fontWeight: FontWeight.w700,
+                    fontSize: 15,
+                  ),
                 ),
                 const SizedBox(height: 4),
                 Text(
                   subtitle,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(color: Colors.grey),
+                  style: const TextStyle(color: Colors.white60),
                 ),
               ],
             ),
@@ -528,6 +627,7 @@ class _PendingRequestCard extends StatelessWidget {
   final String subtitle;
   final Color accent;
   final String statusLabel;
+  final IconData icon;
   final List<Widget> actions;
 
   const _PendingRequestCard({
@@ -535,6 +635,7 @@ class _PendingRequestCard extends StatelessWidget {
     required this.subtitle,
     required this.accent,
     required this.statusLabel,
+    required this.icon,
     required this.actions,
   });
 
@@ -546,24 +647,42 @@ class _PendingRequestCard extends StatelessWidget {
       decoration: BoxDecoration(
         color: Colors.white.withValues(alpha: 0.03),
         borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.04)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
+              Container(
+                width: 46,
+                height: 46,
+                decoration: BoxDecoration(
+                  color: accent.withValues(alpha: 0.14),
+                  borderRadius: BorderRadius.circular(14),
+                ),
+                child: Icon(icon, color: accent),
+              ),
+              const SizedBox(width: 12),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
                       title,
-                      style: const TextStyle(fontWeight: FontWeight.w700),
+                      style: const TextStyle(
+                        fontWeight: FontWeight.w700,
+                        fontSize: 15,
+                      ),
                     ),
                     const SizedBox(height: 4),
                     Text(
                       subtitle,
-                      style: const TextStyle(color: Colors.grey),
+                      style: const TextStyle(
+                        color: Colors.white60,
+                        height: 1.35,
+                      ),
                     ),
                   ],
                 ),
