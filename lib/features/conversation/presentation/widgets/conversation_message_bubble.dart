@@ -152,34 +152,32 @@ class _ConversationMessageBubbleState
                 Stack(
                   clipBehavior: Clip.none,
                   children: [
-                    Container(
-                      constraints: const BoxConstraints(maxWidth: 320),
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 14,
-                        vertical: 12,
-                      ),
-                      decoration: BoxDecoration(
-                        color: bubbleColor,
-                        borderRadius: BorderRadius.circular(18),
-                        border: desktopActionsVisible
-                            ? Border.all(
-                                color: Colors.white.withValues(alpha: 0.12),
+                    GestureDetector(
+                      onTap: _supportsHover ? null : widget.onToggleActions,
+                      child: Container(
+                        constraints: const BoxConstraints(maxWidth: 320),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 14,
+                          vertical: 12,
+                        ),
+                        decoration: BoxDecoration(
+                          color: bubbleColor,
+                          borderRadius: BorderRadius.circular(18),
+                        ),
+                        child: attachment != null
+                            ? AttachmentMessageContent(
+                                attachment: attachment,
+                                peerId: widget.peerId,
+                                isMe: widget.isMe,
+                                downloadProgress: widget.downloadProgress,
+                                repliedMessage: widget.repliedMessage,
                               )
-                            : null,
+                            : TextLikeMessageContent(
+                                message: widget.message,
+                                textAlign: textAlign,
+                                repliedMessage: widget.repliedMessage,
+                              ),
                       ),
-                      child: attachment != null
-                          ? AttachmentMessageContent(
-                              attachment: attachment,
-                              peerId: widget.peerId,
-                              isMe: widget.isMe,
-                              downloadProgress: widget.downloadProgress,
-                              repliedMessage: widget.repliedMessage,
-                            )
-                          : TextLikeMessageContent(
-                              message: widget.message,
-                              textAlign: textAlign,
-                              repliedMessage: widget.repliedMessage,
-                            ),
                     ),
                     if (_supportsHover)
                       Positioned(
@@ -208,18 +206,25 @@ class _ConversationMessageBubbleState
                     if (!_supportsHover)
                       Positioned(
                         top: -10,
-                        right: widget.isMe ? -6 : null,
-                        left: widget.isMe ? null : -6,
-                        child: _MobileMessageMenuButton(
-                          message: widget.message,
-                          isPinned: widget.isPinned,
-                          showCopy:
-                              (widget.message.textBody?.trim().isNotEmpty ??
-                              false),
-                          onReply: widget.onReply,
-                          onForward: widget.onForward,
-                          onTogglePin: widget.onTogglePin,
-                          onDelete: widget.onDelete,
+                        left: widget.isMe ? -6 : null,
+                        right: widget.isMe ? null : -6,
+                        child: AnimatedOpacity(
+                          opacity: widget.showInlineActions ? 1 : 0,
+                          duration: const Duration(milliseconds: 120),
+                          child: IgnorePointer(
+                            ignoring: !widget.showInlineActions,
+                            child: _MobileMessageMenuButton(
+                              message: widget.message,
+                              isPinned: widget.isPinned,
+                              showCopy:
+                                  (widget.message.textBody?.trim().isNotEmpty ??
+                                  false),
+                              onReply: widget.onReply,
+                              onForward: widget.onForward,
+                              onTogglePin: widget.onTogglePin,
+                              onDelete: widget.onDelete,
+                            ),
+                          ),
                         ),
                       ),
                   ],
