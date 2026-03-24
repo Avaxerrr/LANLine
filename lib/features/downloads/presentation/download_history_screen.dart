@@ -186,8 +186,10 @@ class DownloadHistoryScreen extends ConsumerWidget {
       body: ListView(
         padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
         children: [
-          _SummaryCard(historyCount: history.length),
-          const SizedBox(height: 18),
+          if (history.isNotEmpty) ...[
+            _SummaryCard(historyCount: history.length),
+            const SizedBox(height: 18),
+          ],
           if (history.isEmpty)
             _EmptyDownloadsCard(platformMessage: _emptyPlatformMessage())
           else

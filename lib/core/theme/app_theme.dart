@@ -1,12 +1,12 @@
 import 'package:flutter/material.dart';
 
 class AppTheme {
-  static const _brand = Color(0xFF4C8DFF);
-  static const _darkBackground = Color(0xFF0F1218);
-  static const _darkSurface = Color(0xFF171B22);
-  static const _darkSurfaceAlt = Color(0xFF1D2430);
-  static const _darkBorder = Color(0xFF293243);
-  static const _darkTextMuted = Color(0xFF98A2B3);
+  static const _brand = Color(0xFF5B8CFF);
+  static const _darkBackground = Color(0xFF0D1118);
+  static const _darkSurface = Color(0xFF151B26);
+  static const _darkSurfaceAlt = Color(0xFF1B2431);
+  static const _darkBorder = Color(0xFF273244);
+  static const _darkTextMuted = Color(0xFF98A4B8);
 
   static final ThemeData lightTheme = ThemeData(
     useMaterial3: true,

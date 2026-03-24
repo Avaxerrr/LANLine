@@ -202,37 +202,35 @@ class _AppShellState extends ConsumerState<AppShell> {
     return Container(
       decoration: const BoxDecoration(
         gradient: LinearGradient(
-          begin: Alignment.topCenter,
+          begin: Alignment.topLeft,
           end: Alignment.bottomCenter,
-          colors: [Color(0xFF151515), Color(0xFF101010)],
+          colors: [Color(0xFF161D2A), Color(0xFF0D1118)],
         ),
       ),
       child: Scaffold(
         backgroundColor: Colors.transparent,
         appBar: AppBar(
-          toolbarHeight: 72,
+          toolbarHeight: 60,
           titleSpacing: 20,
-          title: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                'LANLine',
-                style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                  color: Colors.white70,
-                  fontWeight: FontWeight.w700,
-                  letterSpacing: 1.2,
-                ),
-              ),
-              const SizedBox(height: 4),
-              Text(
-                titles[_selectedIndex],
-                style: const TextStyle(
-                  fontSize: 24,
-                  fontWeight: FontWeight.w900,
-                ),
-              ),
-            ],
+          title: Text(
+            titles[_selectedIndex],
+            style: const TextStyle(fontSize: 24, fontWeight: FontWeight.w900),
           ),
+          actions: [
+            Padding(
+              padding: const EdgeInsets.only(right: 16),
+              child: Center(
+                child: Text(
+                  'LANLine',
+                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                    color: Colors.white54,
+                    fontWeight: FontWeight.w700,
+                    letterSpacing: 0.8,
+                  ),
+                ),
+              ),
+            ),
+          ],
           backgroundColor: Colors.transparent,
           elevation: 0,
           centerTitle: false,

@@ -22,20 +22,11 @@ class ChatsScreen extends ConsumerWidget {
             return ListView(
               padding: const EdgeInsets.fromLTRB(16, 16, 16, 96),
               children: [
-                _ChatsHeader(
+                _ChatsSummary(
                   conversationCount: conversations.length,
                   onGoToRequests: onGoToRequests,
                 ),
-                const SizedBox(height: 18),
-                _SectionLabel(
-                  title: conversations.isEmpty
-                      ? 'Nothing active yet'
-                      : 'Recent conversations',
-                  subtitle: conversations.isEmpty
-                      ? 'Connect from Requests or create a group to start talking.'
-                      : 'Direct chats and groups appear here in one place.',
-                ),
-                const SizedBox(height: 14),
+                const SizedBox(height: 12),
                 if (conversations.isEmpty)
                   _EmptyChatsState(onGoToRequests: onGoToRequests)
                 else ...[
@@ -68,12 +59,12 @@ class ChatsScreen extends ConsumerWidget {
           bottom: 16,
           child: SafeArea(
             top: false,
-            child: FloatingActionButton.extended(
+            child: FloatingActionButton.small(
               onPressed: () => _openCreateGroup(context),
               backgroundColor: Colors.blueAccent,
               elevation: 8,
-              icon: const Icon(Icons.group_add_outlined),
-              label: const Text('New Group'),
+              tooltip: 'Create group',
+              child: const Icon(Icons.group_add_outlined),
             ),
           ),
         ),
@@ -121,153 +112,69 @@ class ChatsScreen extends ConsumerWidget {
   }
 }
 
-class _ChatsHeader extends StatelessWidget {
+class _ChatsSummary extends StatelessWidget {
   final int conversationCount;
   final VoidCallback? onGoToRequests;
 
-  const _ChatsHeader({
+  const _ChatsSummary({
     required this.conversationCount,
     required this.onGoToRequests,
   });
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(18),
-      decoration: BoxDecoration(
-        gradient: LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: [
-            Colors.blueAccent.withValues(alpha: 0.18),
-            Colors.white.withValues(alpha: 0.04),
-          ],
+    return Row(
+      children: [
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                conversationCount == 0 ? 'No conversations yet' : 'Recent',
+                style: const TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.w800,
+                ),
+              ),
+              const SizedBox(height: 4),
+              Text(
+                conversationCount == 0
+                    ? 'Connect from Requests to start a conversation.'
+                    : '$conversationCount active conversation${conversationCount == 1 ? '' : 's'}',
+                style: const TextStyle(color: Colors.white60, height: 1.3),
+              ),
+            ],
+          ),
         ),
-        borderRadius: BorderRadius.circular(24),
-        border: Border.all(color: Colors.white.withValues(alpha: 0.06)),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Container(
-                width: 44,
-                height: 44,
-                decoration: BoxDecoration(
-                  color: Colors.blueAccent.withValues(alpha: 0.18),
-                  shape: BoxShape.circle,
-                ),
-                child: const Icon(
-                  Icons.forum_outlined,
-                  color: Colors.blueAccent,
-                ),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    const Text(
-                      'Chats',
-                      style: TextStyle(
-                        fontSize: 20,
-                        fontWeight: FontWeight.w900,
-                      ),
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      conversationCount == 0
-                          ? 'No active conversations yet'
-                          : '$conversationCount active conversation${conversationCount == 1 ? '' : 's'}',
-                      style: const TextStyle(color: Colors.white70),
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 16),
-          Wrap(
-            spacing: 10,
-            runSpacing: 10,
-            children: [
-              _HeaderChip(
-                icon: Icons.inbox_outlined,
-                label: 'Requests',
-                onTap: onGoToRequests,
-              ),
-              const _HeaderChip(
-                icon: Icons.group_add_outlined,
-                label: 'Create group',
-              ),
-            ],
-          ),
-        ],
-      ),
+        if (onGoToRequests != null)
+          TextButton(onPressed: onGoToRequests, child: const Text('Requests')),
+      ],
     );
   }
 }
 
-class _HeaderChip extends StatelessWidget {
-  final IconData icon;
+class _TypePill extends StatelessWidget {
   final String label;
-  final VoidCallback? onTap;
+  final Color accent;
 
-  const _HeaderChip({required this.icon, required this.label, this.onTap});
+  const _TypePill({required this.label, required this.accent});
 
   @override
   Widget build(BuildContext context) {
-    final chip = Container(
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
       decoration: BoxDecoration(
-        color: Colors.black.withValues(alpha: 0.16),
+        color: accent.withValues(alpha: 0.14),
         borderRadius: BorderRadius.circular(999),
       ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(icon, size: 18, color: Colors.white70),
-          const SizedBox(width: 8),
-          Text(label, style: const TextStyle(fontWeight: FontWeight.w700)),
-        ],
+      child: Text(
+        label,
+        style: TextStyle(
+          color: accent,
+          fontSize: 11,
+          fontWeight: FontWeight.w800,
+        ),
       ),
-    );
-
-    if (onTap == null) {
-      return chip;
-    }
-
-    return InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(999),
-      child: chip,
-    );
-  }
-}
-
-class _SectionLabel extends StatelessWidget {
-  final String title;
-  final String subtitle;
-
-  const _SectionLabel({required this.title, required this.subtitle});
-
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          title,
-          style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w800),
-        ),
-        const SizedBox(height: 4),
-        Text(
-          subtitle,
-          style: const TextStyle(color: Colors.white70, height: 1.35),
-        ),
-      ],
     );
   }
 }
@@ -395,32 +302,6 @@ class _ConversationCard extends StatelessWidget {
   }
 }
 
-class _TypePill extends StatelessWidget {
-  final String label;
-  final Color accent;
-
-  const _TypePill({required this.label, required this.accent});
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-      decoration: BoxDecoration(
-        color: accent.withValues(alpha: 0.14),
-        borderRadius: BorderRadius.circular(999),
-      ),
-      child: Text(
-        label,
-        style: TextStyle(
-          color: accent,
-          fontSize: 11,
-          fontWeight: FontWeight.w800,
-        ),
-      ),
-    );
-  }
-}
-
 class _EmptyChatsState extends StatelessWidget {
   final VoidCallback? onGoToRequests;
 
@@ -457,7 +338,7 @@ class _EmptyChatsState extends StatelessWidget {
           ),
           const SizedBox(height: 10),
           const Text(
-            'Connect from Requests or create a group to start your first conversation.',
+            'Connect from Requests or create a small group when you are ready to start talking.',
             textAlign: TextAlign.center,
             style: TextStyle(color: Colors.white70, height: 1.45),
           ),
@@ -473,12 +354,6 @@ class _EmptyChatsState extends StatelessWidget {
                 label: const Text('Open Requests'),
               ),
             ],
-          ),
-          const SizedBox(height: 12),
-          const Text(
-            'Use the floating New Group button when you are ready to start a group chat.',
-            textAlign: TextAlign.center,
-            style: TextStyle(color: Colors.white70),
           ),
         ],
       ),
