@@ -232,7 +232,7 @@ class _ConversationRow extends StatelessWidget {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Row(
-                        crossAxisAlignment: CrossAxisAlignment.center,
+                        crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Expanded(
                             child: Text(
@@ -246,20 +246,6 @@ class _ConversationRow extends StatelessWidget {
                               ),
                             ),
                           ),
-                          if (conversation.lastMessageAt != null)
-                            Padding(
-                              padding: const EdgeInsets.only(left: 8),
-                              child: Text(
-                                _formatConversationTime(
-                                  conversation.lastMessageAt!,
-                                ),
-                                style: const TextStyle(
-                                  color: Colors.white38,
-                                  fontSize: 11.5,
-                                  fontWeight: FontWeight.w600,
-                                ),
-                              ),
-                            ),
                         ],
                       ),
                       const SizedBox(height: 6),
@@ -287,33 +273,54 @@ class _ConversationRow extends StatelessWidget {
                   ),
                 ),
                 const SizedBox(width: 12),
-                if (conversation.unreadCount > 0)
-                  Container(
-                    constraints: const BoxConstraints(minWidth: 22),
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 8,
-                      vertical: 5,
-                    ),
-                    decoration: BoxDecoration(
-                      color: Colors.blueAccent,
-                      borderRadius: BorderRadius.circular(999),
-                    ),
-                    child: Text(
-                      '${conversation.unreadCount}',
-                      textAlign: TextAlign.center,
-                      style: const TextStyle(
-                        fontSize: 11,
-                        fontWeight: FontWeight.bold,
-                        color: Colors.white,
-                      ),
-                    ),
-                  )
-                else
-                  Icon(
-                    Icons.chevron_right,
-                    size: 20,
-                    color: Colors.white.withValues(alpha: 0.28),
+                SizedBox(
+                  width: 54,
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.end,
+                    children: [
+                      if (conversation.lastMessageAt != null)
+                        Text(
+                          _formatConversationTime(conversation.lastMessageAt!),
+                          textAlign: TextAlign.right,
+                          style: const TextStyle(
+                            color: Colors.white38,
+                            fontSize: 11.5,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        )
+                      else
+                        const SizedBox(height: 14),
+                      const SizedBox(height: 10),
+                      if (conversation.unreadCount > 0)
+                        Container(
+                          constraints: const BoxConstraints(minWidth: 22),
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 8,
+                            vertical: 5,
+                          ),
+                          decoration: BoxDecoration(
+                            color: Colors.blueAccent,
+                            borderRadius: BorderRadius.circular(999),
+                          ),
+                          child: Text(
+                            '${conversation.unreadCount}',
+                            textAlign: TextAlign.center,
+                            style: const TextStyle(
+                              fontSize: 11,
+                              fontWeight: FontWeight.bold,
+                              color: Colors.white,
+                            ),
+                          ),
+                        )
+                      else
+                        Icon(
+                          Icons.chevron_right,
+                          size: 20,
+                          color: Colors.white.withValues(alpha: 0.28),
+                        ),
+                    ],
                   ),
+                ),
               ],
             ),
           ),

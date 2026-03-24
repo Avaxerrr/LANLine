@@ -27,7 +27,9 @@ class _CreateGroupScreenState extends ConsumerState<CreateGroupScreen> {
 
     setState(() => _isCreating = true);
     try {
-      final conversation = await ref.read(conversationActionsProvider).createGroupConversation(
+      final conversation = await ref
+          .read(conversationActionsProvider)
+          .createGroupConversation(
             title: _titleController.text,
             invitedPeerIds: _selectedPeerIds.toList(),
           );
@@ -50,7 +52,7 @@ class _CreateGroupScreenState extends ConsumerState<CreateGroupScreen> {
     final reachableContactsAsync = ref.watch(reachableContactsProvider);
 
     return Scaffold(
-      backgroundColor: const Color(0xFF121212),
+      backgroundColor: Colors.transparent,
       appBar: AppBar(
         title: const Text('New Group'),
         backgroundColor: Colors.transparent,
@@ -61,15 +63,9 @@ class _CreateGroupScreenState extends ConsumerState<CreateGroupScreen> {
         children: [
           TextField(
             controller: _titleController,
-            decoration: InputDecoration(
+            decoration: const InputDecoration(
               labelText: 'Group name',
               hintText: 'Weekend LAN party',
-              filled: true,
-              fillColor: const Color(0xFF1B1B1B),
-              border: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(18),
-                borderSide: BorderSide.none,
-              ),
             ),
           ),
           const SizedBox(height: 20),
@@ -80,7 +76,7 @@ class _CreateGroupScreenState extends ConsumerState<CreateGroupScreen> {
           const SizedBox(height: 6),
           const Text(
             'Only accepted contacts that are reachable right now can be invited.',
-            style: TextStyle(color: Colors.grey),
+            style: TextStyle(color: Colors.white60),
           ),
           const SizedBox(height: 14),
           reachableContactsAsync.when(
@@ -89,17 +85,27 @@ class _CreateGroupScreenState extends ConsumerState<CreateGroupScreen> {
                 return Container(
                   padding: const EdgeInsets.all(18),
                   decoration: BoxDecoration(
-                    color: const Color(0xFF1B1B1B),
-                    borderRadius: BorderRadius.circular(18),
+                    gradient: LinearGradient(
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                      colors: [
+                        const Color(0xFF202C3D).withValues(alpha: 0.9),
+                        const Color(0xFF182230).withValues(alpha: 0.84),
+                      ],
+                    ),
+                    borderRadius: BorderRadius.circular(20),
+                    border: Border.all(
+                      color: Colors.white.withValues(alpha: 0.03),
+                    ),
                   ),
                   child: const Row(
                     children: [
-                      Icon(Icons.people_alt_outlined, color: Colors.grey),
+                      Icon(Icons.people_alt_outlined, color: Colors.white54),
                       SizedBox(width: 12),
                       Expanded(
                         child: Text(
                           'No reachable contacts are available for a group invite right now.',
-                          style: TextStyle(color: Colors.grey),
+                          style: TextStyle(color: Colors.white60),
                         ),
                       ),
                     ],
@@ -130,10 +136,8 @@ class _CreateGroupScreenState extends ConsumerState<CreateGroupScreen> {
               padding: EdgeInsets.symmetric(vertical: 20),
               child: Center(child: CircularProgressIndicator()),
             ),
-            error: (error, stackTrace) => Text(
-              '$error',
-              style: const TextStyle(color: Colors.redAccent),
-            ),
+            error: (error, stackTrace) =>
+                Text('$error', style: const TextStyle(color: Colors.redAccent)),
           ),
           const SizedBox(height: 24),
           FilledButton.icon(
@@ -171,7 +175,7 @@ class _SelectableContactCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Card(
-      color: const Color(0xFF1B1B1B),
+      color: const Color(0xFF1B2738),
       margin: const EdgeInsets.only(bottom: 12),
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
       child: CheckboxListTile(
@@ -181,7 +185,10 @@ class _SelectableContactCard extends StatelessWidget {
         activeColor: Colors.blueAccent,
         secondary: CircleAvatar(
           backgroundColor: Colors.greenAccent.withValues(alpha: 0.16),
-          child: const Icon(Icons.verified_user_outlined, color: Colors.greenAccent),
+          child: const Icon(
+            Icons.verified_user_outlined,
+            color: Colors.greenAccent,
+          ),
         ),
         title: Text(
           peer.displayName,
@@ -189,7 +196,7 @@ class _SelectableContactCard extends StatelessWidget {
         ),
         subtitle: Text(
           peer.deviceLabel ?? peer.fingerprint ?? 'Accepted contact',
-          style: const TextStyle(color: Colors.grey),
+          style: const TextStyle(color: Colors.white60),
         ),
       ),
     );

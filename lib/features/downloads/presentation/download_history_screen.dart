@@ -232,7 +232,6 @@ class DownloadHistoryScreen extends ConsumerWidget {
     await showDialog<void>(
       context: context,
       builder: (ctx) => AlertDialog(
-        backgroundColor: const Color(0xFF252525),
         title: const Text(
           'Clear all downloads?',
           style: TextStyle(color: Colors.white),

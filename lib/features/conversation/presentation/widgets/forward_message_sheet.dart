@@ -62,7 +62,7 @@ class ForwardMessageSheet extends ConsumerWidget {
                         child: Text(
                           'No other chats available to forward into yet.',
                           textAlign: TextAlign.center,
-                          style: TextStyle(color: Colors.grey),
+                          style: TextStyle(color: Colors.white60),
                         ),
                       ),
                     );
@@ -77,10 +77,20 @@ class ForwardMessageSheet extends ConsumerWidget {
                       final accent = conversation.type == 'group'
                           ? Colors.amber
                           : Colors.blueAccent;
-                      return Card(
-                        color: const Color(0xFF1B1B1B),
-                        shape: RoundedRectangleBorder(
+                      return Container(
+                        decoration: BoxDecoration(
+                          gradient: LinearGradient(
+                            begin: Alignment.topLeft,
+                            end: Alignment.bottomRight,
+                            colors: [
+                              const Color(0xFF202C3D).withValues(alpha: 0.92),
+                              const Color(0xFF182230).withValues(alpha: 0.86),
+                            ],
+                          ),
                           borderRadius: BorderRadius.circular(18),
+                          border: Border.all(
+                            color: Colors.white.withValues(alpha: 0.03),
+                          ),
                         ),
                         child: ListTile(
                           onTap: () => onSelectConversation(conversation),
@@ -105,11 +115,11 @@ class ForwardMessageSheet extends ConsumerWidget {
                                 'No messages yet',
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
-                            style: const TextStyle(color: Colors.grey),
+                            style: const TextStyle(color: Colors.white60),
                           ),
                           trailing: const Icon(
                             Icons.chevron_right,
-                            color: Colors.grey,
+                            color: Colors.white38,
                           ),
                         ),
                       );

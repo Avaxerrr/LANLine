@@ -241,7 +241,7 @@ class _DirectConversationScreenState
 
     final targetConversation = await showModalBottomSheet<ConversationRow>(
       context: context,
-      backgroundColor: const Color(0xFF1E1E1E),
+      backgroundColor: const Color(0xFF1B2738),
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),
