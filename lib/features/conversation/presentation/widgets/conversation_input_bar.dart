@@ -166,8 +166,8 @@ class ConversationInputBar extends StatelessWidget {
                               ),
                               filled: true,
                               fillColor: const Color(
-                                0xFF121A26,
-                              ).withValues(alpha: 0.86),
+                                0xFF171B22,
+                              ).withValues(alpha: 0.92),
                               contentPadding: const EdgeInsets.symmetric(
                                 horizontal: 16,
                                 vertical: 14,
