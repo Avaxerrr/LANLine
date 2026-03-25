@@ -402,6 +402,9 @@ class V2MediaProtocolNotifier extends Notifier<V2MediaProtocolState> {
         case 'call_decline':
           await _handleIncomingCallDecline(data);
           break;
+        case 'call_video_toggle':
+          _handleIncomingVideoToggle(data);
+          break;
       }
     } catch (error) {
       debugPrint(
@@ -778,6 +781,16 @@ class V2MediaProtocolNotifier extends Notifier<V2MediaProtocolState> {
     await _emitNotice(
       '${data['senderDisplayName']?.toString() ?? 'Contact'} declined the call.',
     );
+  }
+
+  void _handleIncomingVideoToggle(Map<String, dynamic> data) {
+    final senderPeerId = data['senderPeerId']?.toString();
+    if (senderPeerId == null) return;
+    final videoEnabled = data['videoEnabled'] == true;
+    ref
+        .read(webRtcCallServiceProvider)
+        .onRemoteVideoToggle
+        ?.call(senderPeerId, videoEnabled);
   }
 
   Future<void> _emitNotice(String message) async {

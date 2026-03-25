@@ -54,11 +54,13 @@ class _CallScreenState extends ConsumerState<CallScreen>
   // Video renderers
   final RTCVideoRenderer _localRenderer = RTCVideoRenderer();
   final Map<String, RTCVideoRenderer> _remoteRenderers = {};
+  bool _remoteVideoEnabled = false;
 
   @override
   void initState() {
     super.initState();
     _isVideoEnabled = widget.callType == 'video';
+    _remoteVideoEnabled = widget.callType == 'video';
     _callService = ref.read(webRtcCallServiceProvider);
     _callService.sendSignal = widget.sendSignal;
 
@@ -95,19 +97,24 @@ class _CallScreenState extends ConsumerState<CallScreen>
     };
 
     _callService.onRemoteStream = (stream, participantId) {
-      if (mounted && widget.callType == 'video') {
-        setState(() {
-          if (!_remoteRenderers.containsKey(participantId)) {
-            final renderer = RTCVideoRenderer();
-            renderer.initialize().then((_) {
-              renderer.srcObject = stream;
-              if (mounted) setState(() {});
-            });
-            _remoteRenderers[participantId] = renderer;
-          } else {
-            _remoteRenderers[participantId]!.srcObject = stream;
-          }
-        });
+      if (!mounted) return;
+      setState(() {
+        if (!_remoteRenderers.containsKey(participantId)) {
+          final renderer = RTCVideoRenderer();
+          renderer.initialize().then((_) {
+            renderer.srcObject = stream;
+            if (mounted) setState(() {});
+          });
+          _remoteRenderers[participantId] = renderer;
+        } else {
+          _remoteRenderers[participantId]!.srcObject = stream;
+        }
+      });
+    };
+
+    _callService.onRemoteVideoToggle = (participant, videoEnabled) {
+      if (mounted) {
+        setState(() => _remoteVideoEnabled = videoEnabled);
       }
     };
 
@@ -117,9 +124,7 @@ class _CallScreenState extends ConsumerState<CallScreen>
   }
 
   Future<void> _initRenderers() async {
-    if (widget.callType == 'video') {
-      await _localRenderer.initialize();
-    }
+    await _localRenderer.initialize();
   }
 
   Future<void> _acquireProximityLock() async {
@@ -198,8 +203,9 @@ class _CallScreenState extends ConsumerState<CallScreen>
         _isConnected = true;
       }
 
-      // Assign local stream to renderer for video
-      if (widget.callType == 'video' && _callService.localStream != null) {
+      // Assign local stream to renderer (needed for both call types
+      // since video can be toggled on during an audio call)
+      if (_callService.localStream != null) {
         _localRenderer.srcObject = _callService.localStream;
       }
 
@@ -378,7 +384,9 @@ class _CallScreenState extends ConsumerState<CallScreen>
       },
       child: Scaffold(
         backgroundColor: const Color(0xFF0D0D0D),
-        body: _isVideoEnabled ? _buildVideoLayout() : _buildAudioLayout(),
+        body: (_isVideoEnabled || _remoteVideoEnabled)
+            ? _buildVideoLayout()
+            : _buildAudioLayout(),
       ),
     );
   }
@@ -629,7 +637,7 @@ class _CallScreenState extends ConsumerState<CallScreen>
           ),
 
         // Local video (picture-in-picture style, top right)
-        if (_callService.localStream != null)
+        if (_isVideoEnabled && _callService.localStream != null)
           Positioned(
             top: MediaQuery.of(context).padding.top + 16,
             right: 16,

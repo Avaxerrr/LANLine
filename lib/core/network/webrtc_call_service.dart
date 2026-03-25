@@ -39,6 +39,7 @@ class WebRtcCallService {
   void Function(CallState state)? onCallStateChanged;
   void Function(String participant, bool joined)? onParticipantChanged;
   void Function(MediaStream stream, String participantId)? onRemoteStream;
+  void Function(String participant, bool videoEnabled)? onRemoteVideoToggle;
 
   // Callback to send signaling messages over WebSocket
   void Function(String message)? sendSignal;

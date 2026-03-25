@@ -71,7 +71,7 @@ class _AppShellState extends ConsumerState<AppShell> {
       ),
     );
 
-    if (result != null && result > 0) {
+    if (isInitiator && result != null && result > 0) {
       await ref
           .read(mediaActionsProvider)
           .addLocalCallSummary(
