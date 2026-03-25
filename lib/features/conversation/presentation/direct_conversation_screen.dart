@@ -48,7 +48,6 @@ class _DirectConversationScreenState
   bool _didInitialAutoScroll = false;
   int _lastObservedMessageCount = 0;
   bool _isLoadingOlder = false;
-  double _lastKeyboardInset = 0;
   double _measuredComposerHeight = 0;
 
   bool get _isGroup => widget.conversationType == 'group';
@@ -58,7 +57,6 @@ class _DirectConversationScreenState
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
-    _composerFocusNode.addListener(_handleComposerFocusChange);
     Future.microtask(() async {
       ref
               .read(
@@ -80,9 +78,7 @@ class _DirectConversationScreenState
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
-    _composerFocusNode
-      ..removeListener(_handleComposerFocusChange)
-      ..dispose();
+    _composerFocusNode.dispose();
     _textController.dispose();
     _scrollController.dispose();
     ref
@@ -101,8 +97,7 @@ class _DirectConversationScreenState
   void didChangeMetrics() {
     super.didChangeMetrics();
     _updateComposerHeight();
-    if (!_composerFocusNode.hasFocus) return;
-    _scheduleKeepLatestVisible();
+    _keepAtBottom();
   }
 
   Future<void> _sendMessage() async {
@@ -252,11 +247,15 @@ class _DirectConversationScreenState
     });
   }
 
-  void _scheduleKeepLatestVisible() {
-    _scrollToBottom();
-    Future<void>.delayed(const Duration(milliseconds: 80), _scrollToBottom);
-    Future<void>.delayed(const Duration(milliseconds: 180), _scrollToBottom);
-    Future<void>.delayed(const Duration(milliseconds: 300), _scrollToBottom);
+  void _keepAtBottom() {
+    if (!_composerFocusNode.hasFocus) return;
+    if (!_scrollController.hasClients) return;
+    if (_scrollController.offset > 120) return;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (_scrollController.hasClients) {
+        _scrollController.jumpTo(0);
+      }
+    });
   }
 
   void _updateComposerHeight() {
@@ -267,20 +266,7 @@ class _DirectConversationScreenState
       final nextHeight = renderObject.size.height;
       if ((nextHeight - _measuredComposerHeight).abs() < 1) return;
       setState(() => _measuredComposerHeight = nextHeight);
-      if (_composerFocusNode.hasFocus) {
-        _scheduleKeepLatestVisible();
-      }
     });
-  }
-
-  void _handleComposerFocus() {
-    _scheduleKeepLatestVisible();
-  }
-
-  void _handleComposerFocusChange() {
-    if (_composerFocusNode.hasFocus) {
-      _scheduleKeepLatestVisible();
-    }
   }
 
   void _setReply(MessageRow message) {
@@ -503,9 +489,6 @@ class _DirectConversationScreenState
   Widget build(BuildContext context) {
     final mediaQuery = MediaQuery.of(context);
     final keyboardInset = mediaQuery.viewInsets.bottom;
-    if (keyboardInset != _lastKeyboardInset) {
-      _lastKeyboardInset = keyboardInset;
-    }
     final fallbackComposerHeight = _replyingToMessage == null ? 116.0 : 196.0;
     final composerHeight = _measuredComposerHeight > 0
         ? _measuredComposerHeight
@@ -645,9 +628,9 @@ class _DirectConversationScreenState
                               reverse: true,
                               padding: EdgeInsets.fromLTRB(
                                 16,
+                                16,
+                                16,
                                 composerBottomInset,
-                                16,
-                                16,
                               ),
                               itemCount: reversedMessages.length,
                               itemBuilder: (context, index) {
@@ -713,7 +696,7 @@ class _DirectConversationScreenState
             left: 0,
             right: 0,
             bottom: keyboardInset,
-            height: composerBottomInset + 28,
+            height: composerHeight + 40,
             duration: const Duration(milliseconds: 180),
             curve: Curves.easeOutCubic,
             child: IgnorePointer(
@@ -750,7 +733,6 @@ class _DirectConversationScreenState
               focusNode: _composerFocusNode,
               onPickFile: _pickAndSendFile,
               onSendMessage: _sendMessage,
-              onFocusComposer: _handleComposerFocus,
               replyTitle: _replyingToMessage == null ? null : 'Replying',
               replyPreview: _replyingToMessage == null
                   ? null
