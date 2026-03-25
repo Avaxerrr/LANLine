@@ -43,6 +43,12 @@ class V2RequestSignalingService {
         final socket = await WebSocketTransformer.upgrade(request);
         socket.listen(
           (message) {
+            // Check raw size before decoding to avoid processing oversized payloads
+            if (message is List<int> &&
+                message.length > kMaxProtocolPayloadBytes) {
+              unawaited(socket.close(WebSocketStatus.messageTooBig));
+              return;
+            }
             final text = switch (message) {
               String value => value,
               List<int> value => String.fromCharCodes(value),

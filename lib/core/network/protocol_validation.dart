@@ -5,7 +5,7 @@ const int kMaxProtocolDeviceLabelLength = 80;
 const int kMaxProtocolFingerprintLength = 32;
 const int kMaxProtocolSigningPublicKeyLength = 128;
 const int kMaxProtocolSignatureLength = 160;
-const int kMaxProtocolTextLength = 4000;
+const int kMaxProtocolTextLength = 50000;
 const int kMaxProtocolRequestMessageLength = 280;
 const int kMaxProtocolGroupTitleLength = 80;
 

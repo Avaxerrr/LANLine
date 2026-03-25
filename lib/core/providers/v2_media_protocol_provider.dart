@@ -9,6 +9,7 @@ import 'package:path/path.dart' as p;
 import '../db/app_database.dart';
 import '../identity/identity_service.dart';
 import '../network/file_transfer_manager.dart';
+import '../network/protocol_validation.dart';
 import '../network/v2_request_signaling_service.dart';
 import '../network/webrtc_call_service.dart';
 import '../repositories/attachments_repository.dart';
@@ -425,13 +426,27 @@ class V2MediaProtocolNotifier extends Notifier<V2MediaProtocolState> {
         clientGeneratedId == null) {
       return;
     }
+    if (!isValidProtocolIdentifier(senderPeerId) ||
+        !isValidProtocolIdentifier(messageId) ||
+        !isValidProtocolIdentifier(attachmentId) ||
+        !isValidProtocolIdentifier(clientGeneratedId)) {
+      return;
+    }
 
     final displayName = data['senderDisplayName']?.toString() ?? senderPeerId;
+    if (!isValidProtocolDisplayName(displayName)) return;
+    final deviceLabel = data['senderDeviceLabel']?.toString();
+    final fingerprint = data['senderFingerprint']?.toString();
+    if (!isValidOptionalProtocolText(deviceLabel, maxLength: kMaxProtocolDeviceLabelLength) ||
+        !isValidOptionalProtocolText(fingerprint, maxLength: kMaxProtocolFingerprintLength)) {
+      return;
+    }
+
     final conversation = await _ensureIncomingConversation(
       peerId: senderPeerId,
       displayName: displayName,
-      deviceLabel: data['senderDeviceLabel']?.toString(),
-      fingerprint: data['senderFingerprint']?.toString(),
+      deviceLabel: deviceLabel,
+      fingerprint: fingerprint,
       conversationId: data['conversationId']?.toString(),
       conversationTitle: data['conversationTitle']?.toString(),
     );
@@ -461,6 +476,18 @@ class V2MediaProtocolNotifier extends Notifier<V2MediaProtocolState> {
       }
     }
 
+    final fileSize = data['fileSize'] as int? ?? 0;
+    if (fileSize < 0 || fileSize > FileTransferManager.maxFileSize) return;
+
+    final rawFileName = data['fileName']?.toString() ?? 'File';
+    final rawKind = data['kind']?.toString() ?? 'file';
+    final rawMimeType = data['mimeType']?.toString();
+    if (!isValidOptionalProtocolText(rawFileName, maxLength: 255) ||
+        !isValidOptionalProtocolText(rawKind, maxLength: kMaxProtocolIdentifierLength) ||
+        !isValidOptionalProtocolText(rawMimeType, maxLength: kMaxProtocolIdentifierLength)) {
+      return;
+    }
+
     final existingAttachment = await _attachmentsRepository.getAttachmentById(
       attachmentId,
     );
@@ -468,15 +495,13 @@ class V2MediaProtocolNotifier extends Notifier<V2MediaProtocolState> {
       await _attachmentsRepository.insertAttachment(
         id: attachmentId,
         messageId: messageId,
-        kind: data['kind']?.toString() ?? 'file',
-        fileName: data['fileName']?.toString() ?? 'File',
-        fileSize: data['fileSize'] as int? ?? 0,
-        mimeType: data['mimeType']?.toString(),
+        kind: rawKind,
+        fileName: rawFileName,
+        fileSize: fileSize,
+        mimeType: rawMimeType,
         transferState: 'offered',
       );
     }
-
-    final fileSize = data['fileSize'] as int? ?? 0;
     final senderPresence = await _peersRepository.getPresenceByPeerId(
       senderPeerId,
     );
@@ -564,12 +589,28 @@ class V2MediaProtocolNotifier extends Notifier<V2MediaProtocolState> {
         clientGeneratedId == null) {
       return;
     }
+    if (!isValidProtocolIdentifier(senderPeerId) ||
+        !isValidProtocolIdentifier(attachmentId) ||
+        !isValidProtocolIdentifier(messageId) ||
+        !isValidProtocolIdentifier(clientGeneratedId)) {
+      return;
+    }
+
+    final chunkDisplayName =
+        data['senderDisplayName']?.toString() ?? senderPeerId;
+    if (!isValidProtocolDisplayName(chunkDisplayName)) return;
+    final chunkDeviceLabel = data['senderDeviceLabel']?.toString();
+    final chunkFingerprint = data['senderFingerprint']?.toString();
+    if (!isValidOptionalProtocolText(chunkDeviceLabel, maxLength: kMaxProtocolDeviceLabelLength) ||
+        !isValidOptionalProtocolText(chunkFingerprint, maxLength: kMaxProtocolFingerprintLength)) {
+      return;
+    }
 
     final conversation = await _ensureIncomingConversation(
       peerId: senderPeerId,
-      displayName: data['senderDisplayName']?.toString() ?? senderPeerId,
-      deviceLabel: data['senderDeviceLabel']?.toString(),
-      fingerprint: data['senderFingerprint']?.toString(),
+      displayName: chunkDisplayName,
+      deviceLabel: chunkDeviceLabel,
+      fingerprint: chunkFingerprint,
       conversationId: data['conversationId']?.toString(),
       conversationTitle: data['conversationTitle']?.toString(),
     );
@@ -590,6 +631,20 @@ class V2MediaProtocolNotifier extends Notifier<V2MediaProtocolState> {
       );
     }
 
+    final chunkFileSize = data['fileSize'] as int? ?? 0;
+    if (chunkFileSize < 0 || chunkFileSize > FileTransferManager.maxFileSize) {
+      return;
+    }
+
+    final rawFileName = data['filename']?.toString() ?? 'File';
+    final rawKind = data['kind']?.toString() ?? 'file';
+    final rawMimeType = data['mimeType']?.toString();
+    if (!isValidOptionalProtocolText(rawFileName, maxLength: 255) ||
+        !isValidOptionalProtocolText(rawKind, maxLength: kMaxProtocolIdentifierLength) ||
+        !isValidOptionalProtocolText(rawMimeType, maxLength: kMaxProtocolIdentifierLength)) {
+      return;
+    }
+
     final attachment = await _attachmentsRepository.getAttachmentById(
       attachmentId,
     );
@@ -597,10 +652,10 @@ class V2MediaProtocolNotifier extends Notifier<V2MediaProtocolState> {
       await _attachmentsRepository.insertAttachment(
         id: attachmentId,
         messageId: messageId,
-        kind: data['kind']?.toString() ?? 'file',
-        fileName: data['filename']?.toString() ?? 'File',
-        fileSize: data['fileSize'] as int? ?? 0,
-        mimeType: data['mimeType']?.toString(),
+        kind: rawKind,
+        fileName: rawFileName,
+        fileSize: chunkFileSize,
+        mimeType: rawMimeType,
         transferState: 'downloading',
       );
     } else if (attachment.transferState != 'downloading') {
@@ -612,6 +667,8 @@ class V2MediaProtocolNotifier extends Notifier<V2MediaProtocolState> {
 
     final total = data['total_chunks'] as int? ?? 1;
     final chunkIndex = data['chunk_index'] as int? ?? 0;
+    if (total <= 0 || chunkIndex < 0 || chunkIndex >= total) return;
+
     final updatedProgress = Map<String, List<int>>.from(state.downloadProgress)
       ..[attachmentId] = [chunkIndex + 1, total];
     state = state.copyWith(downloadProgress: updatedProgress);
