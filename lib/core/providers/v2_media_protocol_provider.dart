@@ -77,11 +77,17 @@ class V2MediaProtocolNotifier extends Notifier<V2MediaProtocolState> {
   StreamSubscription<String>? _messageSubscription;
   Future<void>? _startFuture;
   LocalIdentityRow? _localIdentity;
+  Future<bool> Function(HttpRequest request)? _httpRequestHandler;
 
   @override
   V2MediaProtocolState build() {
+    final signalingService = _signalingService;
     ref.onDispose(() {
       unawaited(_messageSubscription?.cancel());
+      final httpRequestHandler = _httpRequestHandler;
+      if (httpRequestHandler != null) {
+        signalingService.unregisterHttpHandler(httpRequestHandler);
+      }
     });
     unawaited(start());
     return const V2MediaProtocolState();
@@ -109,6 +115,8 @@ class V2MediaProtocolNotifier extends Notifier<V2MediaProtocolState> {
   Future<void> _start() async {
     _localIdentity ??= await _identityService.bootstrap();
     await _signalingService.startServer();
+    _httpRequestHandler ??= _fileTransferManager.handleHttpRequest;
+    _signalingService.registerHttpHandler(_httpRequestHandler!);
     _messageSubscription ??= _signalingService.onMessageReceived.listen(
       _handleIncomingSignal,
     );
@@ -370,8 +378,8 @@ class V2MediaProtocolNotifier extends Notifier<V2MediaProtocolState> {
         case 'file_accept':
           await _handleIncomingFileAccept(data);
           break;
-        case 'file_chunk':
-          await _handleIncomingFileChunk(data);
+        case 'file_ready':
+          await _handleIncomingFileReady(data);
           break;
         case 'file_downloaded':
           await _handleIncomingFileDownloaded(data);
@@ -437,8 +445,14 @@ class V2MediaProtocolNotifier extends Notifier<V2MediaProtocolState> {
     if (!isValidProtocolDisplayName(displayName)) return;
     final deviceLabel = data['senderDeviceLabel']?.toString();
     final fingerprint = data['senderFingerprint']?.toString();
-    if (!isValidOptionalProtocolText(deviceLabel, maxLength: kMaxProtocolDeviceLabelLength) ||
-        !isValidOptionalProtocolText(fingerprint, maxLength: kMaxProtocolFingerprintLength)) {
+    if (!isValidOptionalProtocolText(
+          deviceLabel,
+          maxLength: kMaxProtocolDeviceLabelLength,
+        ) ||
+        !isValidOptionalProtocolText(
+          fingerprint,
+          maxLength: kMaxProtocolFingerprintLength,
+        )) {
       return;
     }
 
@@ -477,14 +491,20 @@ class V2MediaProtocolNotifier extends Notifier<V2MediaProtocolState> {
     }
 
     final fileSize = data['fileSize'] as int? ?? 0;
-    if (fileSize < 0 || fileSize > FileTransferManager.maxFileSize) return;
+    if (fileSize < 0) return;
 
     final rawFileName = data['fileName']?.toString() ?? 'File';
     final rawKind = data['kind']?.toString() ?? 'file';
     final rawMimeType = data['mimeType']?.toString();
     if (!isValidOptionalProtocolText(rawFileName, maxLength: 255) ||
-        !isValidOptionalProtocolText(rawKind, maxLength: kMaxProtocolIdentifierLength) ||
-        !isValidOptionalProtocolText(rawMimeType, maxLength: kMaxProtocolIdentifierLength)) {
+        !isValidOptionalProtocolText(
+          rawKind,
+          maxLength: kMaxProtocolIdentifierLength,
+        ) ||
+        !isValidOptionalProtocolText(
+          rawMimeType,
+          maxLength: kMaxProtocolIdentifierLength,
+        )) {
       return;
     }
 
@@ -548,155 +568,127 @@ class V2MediaProtocolNotifier extends Notifier<V2MediaProtocolState> {
       transferState: 'transferring',
     );
 
-    final payloads = await _fileTransferManager.splitFileIntoChunks(
-      file,
-      _localIdentity!.displayName,
+    final preparedTransfer = await _fileTransferManager.prepareOutgoingTransfer(
       attachmentId: attachment.id,
-      messageId: message.id,
-      clientGeneratedId: message.clientGeneratedId,
-      senderPeerId: _localIdentity!.peerId,
-      senderDisplayName: _localIdentity!.displayName,
+      filePath: file.path,
+      fileName: attachment.fileName,
       mimeType: attachment.mimeType,
-      kind: attachment.kind,
-      sentAt: message.sentAt,
     );
 
     final senderPeerId = data['senderPeerId']?.toString();
     if (senderPeerId == null) return;
-    final presence = await _requireReachablePresence(senderPeerId);
-
-    for (final payload in payloads) {
-      final chunk = jsonDecode(payload) as Map<String, dynamic>;
-      chunk['protocol'] = 'lanline_v2_media';
-      chunk['action'] = 'file_chunk';
-
-      await _signalingService.sendMessage(
-        host: presence.host!,
-        port: presence.port ?? V2RequestSignalingService.defaultPort,
-        payload: jsonEncode(chunk),
-      );
-    }
-  }
-
-  Future<void> _handleIncomingFileChunk(Map<String, dynamic> data) async {
-    final senderPeerId = data['senderPeerId']?.toString();
-    final attachmentId = data['attachmentId']?.toString();
-    final messageId = data['messageId']?.toString();
-    final clientGeneratedId = data['clientGeneratedId']?.toString();
-    if (senderPeerId == null ||
-        attachmentId == null ||
-        messageId == null ||
-        clientGeneratedId == null) {
-      return;
-    }
-    if (!isValidProtocolIdentifier(senderPeerId) ||
-        !isValidProtocolIdentifier(attachmentId) ||
-        !isValidProtocolIdentifier(messageId) ||
-        !isValidProtocolIdentifier(clientGeneratedId)) {
-      return;
-    }
-
-    final chunkDisplayName =
-        data['senderDisplayName']?.toString() ?? senderPeerId;
-    if (!isValidProtocolDisplayName(chunkDisplayName)) return;
-    final chunkDeviceLabel = data['senderDeviceLabel']?.toString();
-    final chunkFingerprint = data['senderFingerprint']?.toString();
-    if (!isValidOptionalProtocolText(chunkDeviceLabel, maxLength: kMaxProtocolDeviceLabelLength) ||
-        !isValidOptionalProtocolText(chunkFingerprint, maxLength: kMaxProtocolFingerprintLength)) {
-      return;
-    }
-
-    final conversation = await _ensureIncomingConversation(
-      peerId: senderPeerId,
-      displayName: chunkDisplayName,
-      deviceLabel: chunkDeviceLabel,
-      fingerprint: chunkFingerprint,
-      conversationId: data['conversationId']?.toString(),
-      conversationTitle: data['conversationTitle']?.toString(),
-    );
-
-    final existingMessage = await _messagesRepository
-        .getMessageByClientGeneratedId(clientGeneratedId);
-    if (existingMessage == null) {
-      await _messagesRepository.insertMessage(
-        id: messageId,
-        clientGeneratedId: clientGeneratedId,
-        conversationId: conversation.id,
-        senderPeerId: senderPeerId,
-        type: 'file',
-        textBody: data['filename']?.toString(),
-        status: 'delivered',
-        sentAt: data['sentAt'] as int?,
-        receivedAt: DateTime.now().millisecondsSinceEpoch,
-      );
-    }
-
-    final chunkFileSize = data['fileSize'] as int? ?? 0;
-    if (chunkFileSize < 0 || chunkFileSize > FileTransferManager.maxFileSize) {
-      return;
-    }
-
-    final rawFileName = data['filename']?.toString() ?? 'File';
-    final rawKind = data['kind']?.toString() ?? 'file';
-    final rawMimeType = data['mimeType']?.toString();
-    if (!isValidOptionalProtocolText(rawFileName, maxLength: 255) ||
-        !isValidOptionalProtocolText(rawKind, maxLength: kMaxProtocolIdentifierLength) ||
-        !isValidOptionalProtocolText(rawMimeType, maxLength: kMaxProtocolIdentifierLength)) {
-      return;
-    }
-
-    final attachment = await _attachmentsRepository.getAttachmentById(
-      attachmentId,
-    );
-    if (attachment == null) {
-      await _attachmentsRepository.insertAttachment(
-        id: attachmentId,
-        messageId: messageId,
-        kind: rawKind,
-        fileName: rawFileName,
-        fileSize: chunkFileSize,
-        mimeType: rawMimeType,
-        transferState: 'downloading',
-      );
-    } else if (attachment.transferState != 'downloading') {
-      await _attachmentsRepository.updateAttachmentTransferMetadata(
-        attachmentId: attachmentId,
-        transferState: 'downloading',
-      );
-    }
-
-    final total = data['total_chunks'] as int? ?? 1;
-    final chunkIndex = data['chunk_index'] as int? ?? 0;
-    if (total <= 0 || chunkIndex < 0 || chunkIndex >= total) return;
-
-    final updatedProgress = Map<String, List<int>>.from(state.downloadProgress)
-      ..[attachmentId] = [chunkIndex + 1, total];
-    state = state.copyWith(downloadProgress: updatedProgress);
-
-    final file = await _fileTransferManager.handleChunk(data);
-    if (file == null) return;
-
-    updatedProgress.remove(attachmentId);
-    state = state.copyWith(downloadProgress: updatedProgress);
-
-    await _attachmentsRepository.updateAttachmentTransferMetadata(
-      attachmentId: attachmentId,
-      transferState: 'completed',
-      localPath: file.path,
-    );
-
     final presence = await _requireReachablePresence(senderPeerId);
     await _signalingService.sendMessage(
       host: presence.host!,
       port: presence.port ?? V2RequestSignalingService.defaultPort,
       payload: jsonEncode({
         'protocol': 'lanline_v2_media',
-        'action': 'file_downloaded',
+        'action': 'file_ready',
         'senderPeerId': _localIdentity!.peerId,
         'senderDisplayName': _localIdentity!.displayName,
         'attachmentId': attachmentId,
+        'messageId': message.id,
+        'clientGeneratedId': message.clientGeneratedId,
+        'fileName': attachment.fileName,
+        'fileSize': attachment.fileSize,
+        'mimeType': attachment.mimeType,
+        'kind': attachment.kind,
+        'transferToken': preparedTransfer.token,
+        'transferPath': preparedTransfer.path,
       }),
     );
+  }
+
+  Future<void> _handleIncomingFileReady(Map<String, dynamic> data) async {
+    final senderPeerId = data['senderPeerId']?.toString();
+    final attachmentId = data['attachmentId']?.toString();
+    final transferToken = data['transferToken']?.toString();
+    final transferPath = data['transferPath']?.toString();
+    if (senderPeerId == null ||
+        attachmentId == null ||
+        transferToken == null ||
+        transferPath == null) {
+      return;
+    }
+    if (!isValidProtocolIdentifier(senderPeerId) ||
+        !isValidProtocolIdentifier(attachmentId) ||
+        !isValidProtocolIdentifier(transferToken) ||
+        !isValidOptionalProtocolText(
+          transferPath,
+          maxLength: kMaxProtocolTextLength,
+        )) {
+      return;
+    }
+
+    final attachment = await _attachmentsRepository.getAttachmentById(
+      attachmentId,
+    );
+    if (attachment == null || attachment.transferState == 'cancelled') {
+      return;
+    }
+
+    final presence = await _requireReachablePresence(senderPeerId);
+    await _attachmentsRepository.updateAttachmentTransferMetadata(
+      attachmentId: attachmentId,
+      transferState: 'downloading',
+    );
+
+    final updatedProgress = Map<String, List<int>>.from(state.downloadProgress)
+      ..[attachmentId] = [0, attachment.fileSize > 0 ? attachment.fileSize : 1];
+    state = state.copyWith(downloadProgress: updatedProgress);
+
+    try {
+      final file = await _fileTransferManager.downloadFile(
+        host: presence.host!,
+        port: presence.port ?? V2RequestSignalingService.defaultPort,
+        transferPath: transferPath,
+        attachmentId: attachmentId,
+        fileName: attachment.fileName,
+        onProgress: (bytesReceived, totalBytes) {
+          final latestProgress = Map<String, List<int>>.from(
+            state.downloadProgress,
+          )..[attachmentId] = [bytesReceived, totalBytes];
+          state = state.copyWith(downloadProgress: latestProgress);
+        },
+      );
+
+      final completedProgress = Map<String, List<int>>.from(
+        state.downloadProgress,
+      )..remove(attachmentId);
+      state = state.copyWith(downloadProgress: completedProgress);
+
+      await _attachmentsRepository.updateAttachmentTransferMetadata(
+        attachmentId: attachmentId,
+        transferState: 'completed',
+        localPath: file.path,
+      );
+
+      await _signalingService.sendMessage(
+        host: presence.host!,
+        port: presence.port ?? V2RequestSignalingService.defaultPort,
+        payload: jsonEncode({
+          'protocol': 'lanline_v2_media',
+          'action': 'file_downloaded',
+          'senderPeerId': _localIdentity!.peerId,
+          'senderDisplayName': _localIdentity!.displayName,
+          'attachmentId': attachmentId,
+        }),
+      );
+    } catch (error) {
+      final failedProgress = Map<String, List<int>>.from(state.downloadProgress)
+        ..remove(attachmentId);
+      state = state.copyWith(downloadProgress: failedProgress);
+
+      final refreshedAttachment = await _attachmentsRepository
+          .getAttachmentById(attachmentId);
+      if (refreshedAttachment?.transferState != 'cancelled') {
+        await _attachmentsRepository.updateAttachmentTransferMetadata(
+          attachmentId: attachmentId,
+          transferState: 'failed',
+        );
+      }
+      debugPrint('[V2MediaProtocolNotifier] HTTP file download failed: $error');
+    }
   }
 
   Future<void> _handleIncomingFileDownloaded(Map<String, dynamic> data) async {

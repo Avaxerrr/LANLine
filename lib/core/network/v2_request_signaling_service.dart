@@ -18,8 +18,20 @@ class V2RequestSignalingService {
   HttpServer? _server;
   final StreamController<String> _messageController =
       StreamController<String>.broadcast();
+  final List<Future<bool> Function(HttpRequest request)> _httpHandlers = [];
 
   Stream<String> get onMessageReceived => _messageController.stream;
+
+  void registerHttpHandler(Future<bool> Function(HttpRequest request) handler) {
+    if (_httpHandlers.contains(handler)) return;
+    _httpHandlers.add(handler);
+  }
+
+  void unregisterHttpHandler(
+    Future<bool> Function(HttpRequest request) handler,
+  ) {
+    _httpHandlers.remove(handler);
+  }
 
   Future<void> startServer({
     int port = defaultPort,
@@ -35,7 +47,14 @@ class V2RequestSignalingService {
       _server = await HttpServer.bind(address, port, shared: true);
       _server?.listen((request) async {
         if (!WebSocketTransformer.isUpgradeRequest(request)) {
-          request.response.statusCode = HttpStatus.badRequest;
+          for (final handler in List.of(_httpHandlers)) {
+            final handled = await handler(request);
+            if (handled) {
+              return;
+            }
+          }
+
+          request.response.statusCode = HttpStatus.notFound;
           await request.response.close();
           return;
         }
