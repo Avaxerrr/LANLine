@@ -331,8 +331,11 @@ class _CallScreenState extends ConsumerState<CallScreen>
     setState(() => _isOnHold = !_isOnHold);
     final stream = _callService.localStream;
     if (stream != null) {
-      for (var track in stream.getTracks()) {
-        track.enabled = !_isOnHold;
+      for (var track in stream.getAudioTracks()) {
+        track.enabled = _isOnHold ? false : !_isMuted;
+      }
+      for (var track in stream.getVideoTracks()) {
+        track.enabled = _isOnHold ? false : _isVideoEnabled;
       }
     }
     _callService.sendSignal?.call(

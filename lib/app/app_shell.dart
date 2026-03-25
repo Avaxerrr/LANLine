@@ -71,13 +71,14 @@ class _AppShellState extends ConsumerState<AppShell> {
       ),
     );
 
-    if (isInitiator && result != null && result > 0) {
+    if (result != null && result > 0) {
       await ref
           .read(mediaActionsProvider)
           .addLocalCallSummary(
             conversationId: conversationId,
             callType: callType,
             durationSeconds: result,
+            senderPeerId: isInitiator ? null : peerId,
           );
     }
   }

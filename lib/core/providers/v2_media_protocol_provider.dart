@@ -327,6 +327,7 @@ class V2MediaProtocolNotifier extends Notifier<V2MediaProtocolState> {
     required String conversationId,
     required String callType,
     required int durationSeconds,
+    String? senderPeerId,
   }) async {
     await start();
     final m = (durationSeconds ~/ 60).toString().padLeft(2, '0');
@@ -336,7 +337,7 @@ class V2MediaProtocolNotifier extends Notifier<V2MediaProtocolState> {
 
     await _messagesRepository.insertMessage(
       conversationId: conversationId,
-      senderPeerId: _localIdentity!.peerId,
+      senderPeerId: senderPeerId ?? _localIdentity!.peerId,
       type: 'call_summary',
       textBody: '$icon call • $m:$s',
       status: 'read',

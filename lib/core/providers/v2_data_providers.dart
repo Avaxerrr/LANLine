@@ -334,11 +334,13 @@ class MediaActions {
     required String conversationId,
     required String callType,
     required int durationSeconds,
+    String? senderPeerId,
   }) {
     return _notifier.addLocalCallSummary(
       conversationId: conversationId,
       callType: callType,
       durationSeconds: durationSeconds,
+      senderPeerId: senderPeerId,
     );
   }
 
