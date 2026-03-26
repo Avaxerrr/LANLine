@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:flutter/foundation.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 final discoveryServiceProvider = Provider<DiscoveryService>((ref) {
@@ -52,11 +53,13 @@ sealed class DiscoverySignal {
 }
 
 class DiscoveryService {
+  static const _networkChannel = MethodChannel('com.lanline.lanline/network');
+
   RawDatagramSocket? _listenSocket;
-  RawDatagramSocket? _broadcastSocket;
   final int _discoveryPort = 55555;
   Timer? _peerBroadcastTimer;
   StreamSubscription? _listenSubscription;
+  bool _multicastLockHeld = false;
 
   StreamController<DiscoveredPeerPresence> _peerDiscoveredController =
       StreamController<DiscoveredPeerPresence>.broadcast();
@@ -75,13 +78,27 @@ class DiscoveryService {
     }
 
     try {
+      if (Platform.isAndroid && !_multicastLockHeld) {
+        try {
+          await _networkChannel.invokeMethod('acquireMulticastLock');
+          _multicastLockHeld = true;
+          debugPrint('[DiscoveryService] Multicast lock acquired.');
+        } catch (error) {
+          debugPrint(
+            '[DiscoveryService] Failed to acquire multicast lock: $error',
+          );
+        }
+      }
+
       _listenSocket = await RawDatagramSocket.bind(
         InternetAddress.anyIPv4,
         _discoveryPort,
         reuseAddress: true,
-        reusePort: !Platform.isWindows,
       );
       _listenSocket?.broadcastEnabled = true;
+      debugPrint(
+        '[DiscoveryService] UDP listener bound on port $_discoveryPort.',
+      );
 
       _listenSubscription = _listenSocket?.listen((RawSocketEvent event) {
         if (event != RawSocketEvent.read) return;
@@ -91,6 +108,10 @@ class DiscoveryService {
 
         final message = String.fromCharCodes(datagram.data);
         final senderIp = datagram.address.address;
+        debugPrint(
+          '[DiscoveryService] Received UDP from $senderIp '
+          '(${datagram.data.length} bytes).',
+        );
         final signal = DiscoveryService.parseDiscoveryMessage(
           message,
           senderIp,
@@ -128,12 +149,6 @@ class DiscoveryService {
     int? port,
     String? bindAddress,
   }) async {
-    _broadcastSocket ??= await RawDatagramSocket.bind(
-      InternetAddress.anyIPv4,
-      0,
-    );
-    _broadcastSocket?.broadcastEnabled = true;
-
     _peerBroadcastTimer?.cancel();
     _peerBroadcastTimer = Timer.periodic(const Duration(seconds: 5), (_) {
       unawaited(
@@ -166,7 +181,25 @@ class DiscoveryService {
   void stopPeerBroadcasting() {
     _peerBroadcastTimer?.cancel();
     _peerBroadcastTimer = null;
-    _closeBroadcastSocketIfIdle();
+  }
+
+  /// Returns all usable local IPv4 addresses with their interface labels.
+  Future<List<({String label, String address})>> listLocalInterfaces() async {
+    final interfaces = await NetworkInterface.list(
+      type: InternetAddressType.IPv4,
+      includeLinkLocal: true,
+    );
+    final results = <({String label, String address})>[];
+
+    for (final interface in interfaces) {
+      for (final address in interface.addresses) {
+        if (address.isLoopback) continue;
+        final ip = address.address;
+        if (ip.startsWith('169.254.')) continue;
+        results.add((label: interface.name, address: ip));
+      }
+    }
+    return results;
   }
 
   /// Finds our own local IP address with smart filtering.
@@ -199,19 +232,41 @@ class DiscoveryService {
   }
 
   Future<void> _sendPayloadToBroadcastTargets(String payload) async {
-    if (_broadcastSocket == null) return;
-
     final bytes = payload.codeUnits;
-    final targets = await _resolveBroadcastTargets();
+    final interfaces = await NetworkInterface.list(
+      type: InternetAddressType.IPv4,
+      includeLinkLocal: true,
+    );
 
-    for (final target in targets) {
-      try {
-        _broadcastSocket?.send(bytes, target, _discoveryPort);
-      } catch (error) {
-        debugPrint(
-          '[DiscoveryService] Failed to broadcast to ${target.address}: '
-          '$error',
-        );
+    for (final interface in interfaces) {
+      for (final address in interface.addresses) {
+        if (address.isLoopback) continue;
+        final ip = address.address;
+        if (ip.startsWith('169.254.')) continue;
+
+        final directed = _deriveDirectedBroadcast(ip);
+        if (directed == null) continue;
+
+        try {
+          final socket = await RawDatagramSocket.bind(address, 0);
+          socket.broadcastEnabled = true;
+          socket.send(
+            bytes,
+            InternetAddress(directed),
+            _discoveryPort,
+          );
+          socket.send(
+            bytes,
+            InternetAddress('255.255.255.255'),
+            _discoveryPort,
+          );
+          socket.close();
+        } catch (error) {
+          debugPrint(
+            '[DiscoveryService] Failed to broadcast on ${interface.name} '
+            '($ip): $error',
+          );
+        }
       }
     }
   }
@@ -246,42 +301,23 @@ class DiscoveryService {
     await _sendPayloadToBroadcastTargets(payload);
   }
 
-  Future<List<InternetAddress>> _resolveBroadcastTargets() async {
-    final interfaces = await NetworkInterface.list(
-      type: InternetAddressType.IPv4,
-      includeLinkLocal: true,
-    );
-
-    final interfaceIps = <String>[];
-    for (final interface in interfaces) {
-      for (final address in interface.addresses) {
-        if (address.isLoopback) continue;
-        interfaceIps.add(address.address);
-      }
-    }
-
-    final targets = buildBroadcastTargets(interfaceIps);
-    return [
-      for (final address in targets) InternetAddress(address),
-    ];
-  }
-
   /// Full stop - closes everything including the stream controllers.
   void stop() {
     _peerBroadcastTimer?.cancel();
     _peerBroadcastTimer = null;
     stopListening();
-    _broadcastSocket?.close();
-    _broadcastSocket = null;
     if (!_peerDiscoveredController.isClosed) {
       _peerDiscoveredController.close();
     }
+    _releaseMulticastLock();
   }
 
-  void _closeBroadcastSocketIfIdle() {
-    if (_peerBroadcastTimer == null) {
-      _broadcastSocket?.close();
-      _broadcastSocket = null;
+  void _releaseMulticastLock() {
+    if (Platform.isAndroid && _multicastLockHeld) {
+      try {
+        _networkChannel.invokeMethod('releaseMulticastLock');
+        _multicastLockHeld = false;
+      } catch (_) {}
     }
   }
 

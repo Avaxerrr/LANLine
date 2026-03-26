@@ -9,6 +9,10 @@ class PeersTable extends Table {
   TextColumn get fingerprint => text().nullable()();
   TextColumn get signingPublicKey =>
       text().named('signing_public_key').nullable()();
+  BoolColumn get useTunnel =>
+      boolean().named('use_tunnel').withDefault(const Constant(false))();
+  TextColumn get tunnelHost => text().named('tunnel_host').nullable()();
+  IntColumn get tunnelPort => integer().named('tunnel_port').nullable()();
   TextColumn get relationshipState => text().named('relationship_state')();
   BoolColumn get isBlocked =>
       boolean().named('is_blocked').withDefault(const Constant(false))();

@@ -112,10 +112,21 @@ class V2RequestSignalingService {
       throw StateError('Payload exceeds the signaling size limit.');
     }
 
+    debugPrint(
+      '[V2SignalingService] Connecting to ws://$normalizedHost:$port',
+    );
+
     WebSocket? socket;
 
     try {
-      socket = await WebSocket.connect('ws://$normalizedHost:$port');
+      socket = await WebSocket.connect(
+        'ws://$normalizedHost:$port',
+      ).timeout(
+        const Duration(seconds: 10),
+        onTimeout: () => throw TimeoutException(
+          'Connection to $normalizedHost:$port timed out after 10s',
+        ),
+      );
       socket.add(payload);
       await socket.close();
     } finally {

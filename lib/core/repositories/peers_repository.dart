@@ -106,6 +106,28 @@ class PeersRepository {
     return (await getPeerByPeerId(peerId))!;
   }
 
+  Future<void> saveTunnelSettings({
+    required String peerId,
+    required bool useTunnel,
+    String? tunnelHost,
+    int? tunnelPort,
+  }) async {
+    final normalized = tunnelHost?.trim();
+    final now = DateTime.now().millisecondsSinceEpoch;
+    await (_database.update(
+      _database.peersTable,
+    )..where((tbl) => tbl.peerId.equals(peerId))).write(
+      PeersTableCompanion(
+        useTunnel: drift.Value(useTunnel),
+        tunnelHost: drift.Value(
+          normalized == null || normalized.isEmpty ? null : normalized,
+        ),
+        tunnelPort: drift.Value(tunnelPort),
+        updatedAt: drift.Value(now),
+      ),
+    );
+  }
+
   Future<void> updateRelationshipState(
     String peerId,
     String relationshipState,
@@ -181,10 +203,49 @@ class PeersRepository {
     );
   }
 
+  Future<void> removePeer(String peerId) async {
+    await (_database.delete(_database.presenceTable)
+          ..where((tbl) => tbl.peerId.equals(peerId)))
+        .go();
+    await (_database.delete(_database.contactRequestsTable)
+          ..where((tbl) => tbl.peerId.equals(peerId)))
+        .go();
+    await (_database.delete(_database.peersTable)
+          ..where((tbl) => tbl.peerId.equals(peerId)))
+        .go();
+  }
+
   Future<List<PeerRow>> getPeersByPeerIds(List<String> peerIds) async {
     if (peerIds.isEmpty) return const [];
     return (_database.select(
       _database.peersTable,
     )..where((tbl) => tbl.peerId.isIn(peerIds))).get();
+  }
+
+  Future<List<PeerRow>> getTunnelPeers() {
+    return (_database.select(_database.peersTable)
+          ..where(
+            (tbl) =>
+                tbl.useTunnel.equals(true) &
+                tbl.tunnelHost.isNotNull(),
+          ))
+        .get();
+  }
+
+  Future<void> markStalePresenceUnreachable(int cutoffMillis) async {
+    final now = DateTime.now().millisecondsSinceEpoch;
+    await (_database.update(_database.presenceTable)
+          ..where(
+            (tbl) =>
+                tbl.isReachable.equals(true) &
+                tbl.lastHeartbeatAt.isSmallerThanValue(cutoffMillis),
+          ))
+        .write(
+      PresenceTableCompanion(
+        isReachable: const drift.Value(false),
+        status: const drift.Value('offline'),
+        updatedAt: drift.Value(now),
+      ),
+    );
   }
 }

@@ -89,7 +89,7 @@ class V2DirectMessageProtocolController {
     }
 
     final peer = await _requirePeer(peerId);
-    final presence = await _requireReachablePresence(peerId);
+    final endpoint = await _resolveEndpoint(peerId);
     final conversation = conversationId != null
         ? (await _conversationsRepository.getConversationById(
                 conversationId,
@@ -131,8 +131,8 @@ class V2DirectMessageProtocolController {
 
     try {
       await _signalingService.sendMessage(
-        host: presence.host!,
-        port: presence.port ?? V2RequestSignalingService.defaultPort,
+        host: endpoint.host,
+        port: endpoint.port,
         payload: payload,
       );
       await _messagesRepository.updateMessageStatus(message.id, 'sent');
@@ -318,7 +318,7 @@ class V2DirectMessageProtocolController {
     required String peerId,
     required String clientGeneratedId,
   }) async {
-    final presence = await _requireReachablePresence(peerId);
+    final endpoint = await _resolveEndpoint(peerId);
     final payload = await _buildSignedPayload({
       'protocol': 'lanline_v2_message',
       'action': 'delivered',
@@ -328,8 +328,8 @@ class V2DirectMessageProtocolController {
 
     try {
       await _signalingService.sendMessage(
-        host: presence.host!,
-        port: presence.port ?? V2RequestSignalingService.defaultPort,
+        host: endpoint.host,
+        port: endpoint.port,
         payload: payload,
       );
     } catch (error) {
@@ -348,12 +348,35 @@ class V2DirectMessageProtocolController {
     return peer;
   }
 
-  Future<PresenceRow> _requireReachablePresence(String peerId) async {
+  Future<({String host, int port})> _resolveEndpoint(String peerId) async {
+    final peer = await _peersRepository.getPeerByPeerId(peerId);
+    if (peer != null && peer.useTunnel) {
+      final host = peer.tunnelHost?.trim();
+      if (host == null || host.isEmpty) {
+        throw StateError(
+          'Tunnel is enabled but no tunnel host is configured.',
+        );
+      }
+      final port = peer.tunnelPort ?? V2RequestSignalingService.defaultPort;
+      debugPrint(
+        '[V2DirectMessage] Resolved endpoint via TUNNEL: $host:$port',
+      );
+      return (host: host, port: port);
+    }
+
     final presence = await _peersRepository.getPresenceByPeerId(peerId);
     if (presence == null || !presence.isReachable || presence.host == null) {
       throw StateError('Peer is not reachable right now.');
     }
-    return presence;
+    debugPrint(
+      '[V2DirectMessage] Resolved endpoint via LAN: '
+      '${presence.host}:${presence.port ?? V2RequestSignalingService.defaultPort} '
+      '(useTunnel=${peer?.useTunnel})',
+    );
+    return (
+      host: presence.host!,
+      port: presence.port ?? V2RequestSignalingService.defaultPort,
+    );
   }
 
   Future<void> dispose() async {

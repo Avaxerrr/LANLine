@@ -610,6 +610,43 @@ class $PeersTableTable extends PeersTable
     type: DriftSqlType.string,
     requiredDuringInsert: false,
   );
+  static const VerificationMeta _useTunnelMeta = const VerificationMeta(
+    'useTunnel',
+  );
+  @override
+  late final GeneratedColumn<bool> useTunnel = GeneratedColumn<bool>(
+    'use_tunnel',
+    aliasedName,
+    false,
+    type: DriftSqlType.bool,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'CHECK ("use_tunnel" IN (0, 1))',
+    ),
+    defaultValue: const Constant(false),
+  );
+  static const VerificationMeta _tunnelHostMeta = const VerificationMeta(
+    'tunnelHost',
+  );
+  @override
+  late final GeneratedColumn<String> tunnelHost = GeneratedColumn<String>(
+    'tunnel_host',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _tunnelPortMeta = const VerificationMeta(
+    'tunnelPort',
+  );
+  @override
+  late final GeneratedColumn<int> tunnelPort = GeneratedColumn<int>(
+    'tunnel_port',
+    aliasedName,
+    true,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+  );
   static const VerificationMeta _relationshipStateMeta = const VerificationMeta(
     'relationshipState',
   );
@@ -678,6 +715,9 @@ class $PeersTableTable extends PeersTable
     deviceLabel,
     fingerprint,
     signingPublicKey,
+    useTunnel,
+    tunnelHost,
+    tunnelPort,
     relationshipState,
     isBlocked,
     lastSeenAt,
@@ -745,6 +785,24 @@ class $PeersTableTable extends PeersTable
           data['signing_public_key']!,
           _signingPublicKeyMeta,
         ),
+      );
+    }
+    if (data.containsKey('use_tunnel')) {
+      context.handle(
+        _useTunnelMeta,
+        useTunnel.isAcceptableOrUnknown(data['use_tunnel']!, _useTunnelMeta),
+      );
+    }
+    if (data.containsKey('tunnel_host')) {
+      context.handle(
+        _tunnelHostMeta,
+        tunnelHost.isAcceptableOrUnknown(data['tunnel_host']!, _tunnelHostMeta),
+      );
+    }
+    if (data.containsKey('tunnel_port')) {
+      context.handle(
+        _tunnelPortMeta,
+        tunnelPort.isAcceptableOrUnknown(data['tunnel_port']!, _tunnelPortMeta),
       );
     }
     if (data.containsKey('relationship_state')) {
@@ -826,6 +884,18 @@ class $PeersTableTable extends PeersTable
         DriftSqlType.string,
         data['${effectivePrefix}signing_public_key'],
       ),
+      useTunnel: attachedDatabase.typeMapping.read(
+        DriftSqlType.bool,
+        data['${effectivePrefix}use_tunnel'],
+      )!,
+      tunnelHost: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}tunnel_host'],
+      ),
+      tunnelPort: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}tunnel_port'],
+      ),
       relationshipState: attachedDatabase.typeMapping.read(
         DriftSqlType.string,
         data['${effectivePrefix}relationship_state'],
@@ -862,6 +932,9 @@ class PeerRow extends DataClass implements Insertable<PeerRow> {
   final String? deviceLabel;
   final String? fingerprint;
   final String? signingPublicKey;
+  final bool useTunnel;
+  final String? tunnelHost;
+  final int? tunnelPort;
   final String relationshipState;
   final bool isBlocked;
   final int? lastSeenAt;
@@ -874,6 +947,9 @@ class PeerRow extends DataClass implements Insertable<PeerRow> {
     this.deviceLabel,
     this.fingerprint,
     this.signingPublicKey,
+    required this.useTunnel,
+    this.tunnelHost,
+    this.tunnelPort,
     required this.relationshipState,
     required this.isBlocked,
     this.lastSeenAt,
@@ -894,6 +970,13 @@ class PeerRow extends DataClass implements Insertable<PeerRow> {
     }
     if (!nullToAbsent || signingPublicKey != null) {
       map['signing_public_key'] = Variable<String>(signingPublicKey);
+    }
+    map['use_tunnel'] = Variable<bool>(useTunnel);
+    if (!nullToAbsent || tunnelHost != null) {
+      map['tunnel_host'] = Variable<String>(tunnelHost);
+    }
+    if (!nullToAbsent || tunnelPort != null) {
+      map['tunnel_port'] = Variable<int>(tunnelPort);
     }
     map['relationship_state'] = Variable<String>(relationshipState);
     map['is_blocked'] = Variable<bool>(isBlocked);
@@ -919,6 +1002,13 @@ class PeerRow extends DataClass implements Insertable<PeerRow> {
       signingPublicKey: signingPublicKey == null && nullToAbsent
           ? const Value.absent()
           : Value(signingPublicKey),
+      useTunnel: Value(useTunnel),
+      tunnelHost: tunnelHost == null && nullToAbsent
+          ? const Value.absent()
+          : Value(tunnelHost),
+      tunnelPort: tunnelPort == null && nullToAbsent
+          ? const Value.absent()
+          : Value(tunnelPort),
       relationshipState: Value(relationshipState),
       isBlocked: Value(isBlocked),
       lastSeenAt: lastSeenAt == null && nullToAbsent
@@ -941,6 +1031,9 @@ class PeerRow extends DataClass implements Insertable<PeerRow> {
       deviceLabel: serializer.fromJson<String?>(json['deviceLabel']),
       fingerprint: serializer.fromJson<String?>(json['fingerprint']),
       signingPublicKey: serializer.fromJson<String?>(json['signingPublicKey']),
+      useTunnel: serializer.fromJson<bool>(json['useTunnel']),
+      tunnelHost: serializer.fromJson<String?>(json['tunnelHost']),
+      tunnelPort: serializer.fromJson<int?>(json['tunnelPort']),
       relationshipState: serializer.fromJson<String>(json['relationshipState']),
       isBlocked: serializer.fromJson<bool>(json['isBlocked']),
       lastSeenAt: serializer.fromJson<int?>(json['lastSeenAt']),
@@ -958,6 +1051,9 @@ class PeerRow extends DataClass implements Insertable<PeerRow> {
       'deviceLabel': serializer.toJson<String?>(deviceLabel),
       'fingerprint': serializer.toJson<String?>(fingerprint),
       'signingPublicKey': serializer.toJson<String?>(signingPublicKey),
+      'useTunnel': serializer.toJson<bool>(useTunnel),
+      'tunnelHost': serializer.toJson<String?>(tunnelHost),
+      'tunnelPort': serializer.toJson<int?>(tunnelPort),
       'relationshipState': serializer.toJson<String>(relationshipState),
       'isBlocked': serializer.toJson<bool>(isBlocked),
       'lastSeenAt': serializer.toJson<int?>(lastSeenAt),
@@ -973,6 +1069,9 @@ class PeerRow extends DataClass implements Insertable<PeerRow> {
     Value<String?> deviceLabel = const Value.absent(),
     Value<String?> fingerprint = const Value.absent(),
     Value<String?> signingPublicKey = const Value.absent(),
+    bool? useTunnel,
+    Value<String?> tunnelHost = const Value.absent(),
+    Value<int?> tunnelPort = const Value.absent(),
     String? relationshipState,
     bool? isBlocked,
     Value<int?> lastSeenAt = const Value.absent(),
@@ -987,6 +1086,9 @@ class PeerRow extends DataClass implements Insertable<PeerRow> {
     signingPublicKey: signingPublicKey.present
         ? signingPublicKey.value
         : this.signingPublicKey,
+    useTunnel: useTunnel ?? this.useTunnel,
+    tunnelHost: tunnelHost.present ? tunnelHost.value : this.tunnelHost,
+    tunnelPort: tunnelPort.present ? tunnelPort.value : this.tunnelPort,
     relationshipState: relationshipState ?? this.relationshipState,
     isBlocked: isBlocked ?? this.isBlocked,
     lastSeenAt: lastSeenAt.present ? lastSeenAt.value : this.lastSeenAt,
@@ -1009,6 +1111,13 @@ class PeerRow extends DataClass implements Insertable<PeerRow> {
       signingPublicKey: data.signingPublicKey.present
           ? data.signingPublicKey.value
           : this.signingPublicKey,
+      useTunnel: data.useTunnel.present ? data.useTunnel.value : this.useTunnel,
+      tunnelHost: data.tunnelHost.present
+          ? data.tunnelHost.value
+          : this.tunnelHost,
+      tunnelPort: data.tunnelPort.present
+          ? data.tunnelPort.value
+          : this.tunnelPort,
       relationshipState: data.relationshipState.present
           ? data.relationshipState.value
           : this.relationshipState,
@@ -1030,6 +1139,9 @@ class PeerRow extends DataClass implements Insertable<PeerRow> {
           ..write('deviceLabel: $deviceLabel, ')
           ..write('fingerprint: $fingerprint, ')
           ..write('signingPublicKey: $signingPublicKey, ')
+          ..write('useTunnel: $useTunnel, ')
+          ..write('tunnelHost: $tunnelHost, ')
+          ..write('tunnelPort: $tunnelPort, ')
           ..write('relationshipState: $relationshipState, ')
           ..write('isBlocked: $isBlocked, ')
           ..write('lastSeenAt: $lastSeenAt, ')
@@ -1047,6 +1159,9 @@ class PeerRow extends DataClass implements Insertable<PeerRow> {
     deviceLabel,
     fingerprint,
     signingPublicKey,
+    useTunnel,
+    tunnelHost,
+    tunnelPort,
     relationshipState,
     isBlocked,
     lastSeenAt,
@@ -1063,6 +1178,9 @@ class PeerRow extends DataClass implements Insertable<PeerRow> {
           other.deviceLabel == this.deviceLabel &&
           other.fingerprint == this.fingerprint &&
           other.signingPublicKey == this.signingPublicKey &&
+          other.useTunnel == this.useTunnel &&
+          other.tunnelHost == this.tunnelHost &&
+          other.tunnelPort == this.tunnelPort &&
           other.relationshipState == this.relationshipState &&
           other.isBlocked == this.isBlocked &&
           other.lastSeenAt == this.lastSeenAt &&
@@ -1077,6 +1195,9 @@ class PeersTableCompanion extends UpdateCompanion<PeerRow> {
   final Value<String?> deviceLabel;
   final Value<String?> fingerprint;
   final Value<String?> signingPublicKey;
+  final Value<bool> useTunnel;
+  final Value<String?> tunnelHost;
+  final Value<int?> tunnelPort;
   final Value<String> relationshipState;
   final Value<bool> isBlocked;
   final Value<int?> lastSeenAt;
@@ -1090,6 +1211,9 @@ class PeersTableCompanion extends UpdateCompanion<PeerRow> {
     this.deviceLabel = const Value.absent(),
     this.fingerprint = const Value.absent(),
     this.signingPublicKey = const Value.absent(),
+    this.useTunnel = const Value.absent(),
+    this.tunnelHost = const Value.absent(),
+    this.tunnelPort = const Value.absent(),
     this.relationshipState = const Value.absent(),
     this.isBlocked = const Value.absent(),
     this.lastSeenAt = const Value.absent(),
@@ -1104,6 +1228,9 @@ class PeersTableCompanion extends UpdateCompanion<PeerRow> {
     this.deviceLabel = const Value.absent(),
     this.fingerprint = const Value.absent(),
     this.signingPublicKey = const Value.absent(),
+    this.useTunnel = const Value.absent(),
+    this.tunnelHost = const Value.absent(),
+    this.tunnelPort = const Value.absent(),
     required String relationshipState,
     this.isBlocked = const Value.absent(),
     this.lastSeenAt = const Value.absent(),
@@ -1123,6 +1250,9 @@ class PeersTableCompanion extends UpdateCompanion<PeerRow> {
     Expression<String>? deviceLabel,
     Expression<String>? fingerprint,
     Expression<String>? signingPublicKey,
+    Expression<bool>? useTunnel,
+    Expression<String>? tunnelHost,
+    Expression<int>? tunnelPort,
     Expression<String>? relationshipState,
     Expression<bool>? isBlocked,
     Expression<int>? lastSeenAt,
@@ -1137,6 +1267,9 @@ class PeersTableCompanion extends UpdateCompanion<PeerRow> {
       if (deviceLabel != null) 'device_label': deviceLabel,
       if (fingerprint != null) 'fingerprint': fingerprint,
       if (signingPublicKey != null) 'signing_public_key': signingPublicKey,
+      if (useTunnel != null) 'use_tunnel': useTunnel,
+      if (tunnelHost != null) 'tunnel_host': tunnelHost,
+      if (tunnelPort != null) 'tunnel_port': tunnelPort,
       if (relationshipState != null) 'relationship_state': relationshipState,
       if (isBlocked != null) 'is_blocked': isBlocked,
       if (lastSeenAt != null) 'last_seen_at': lastSeenAt,
@@ -1153,6 +1286,9 @@ class PeersTableCompanion extends UpdateCompanion<PeerRow> {
     Value<String?>? deviceLabel,
     Value<String?>? fingerprint,
     Value<String?>? signingPublicKey,
+    Value<bool>? useTunnel,
+    Value<String?>? tunnelHost,
+    Value<int?>? tunnelPort,
     Value<String>? relationshipState,
     Value<bool>? isBlocked,
     Value<int?>? lastSeenAt,
@@ -1167,6 +1303,9 @@ class PeersTableCompanion extends UpdateCompanion<PeerRow> {
       deviceLabel: deviceLabel ?? this.deviceLabel,
       fingerprint: fingerprint ?? this.fingerprint,
       signingPublicKey: signingPublicKey ?? this.signingPublicKey,
+      useTunnel: useTunnel ?? this.useTunnel,
+      tunnelHost: tunnelHost ?? this.tunnelHost,
+      tunnelPort: tunnelPort ?? this.tunnelPort,
       relationshipState: relationshipState ?? this.relationshipState,
       isBlocked: isBlocked ?? this.isBlocked,
       lastSeenAt: lastSeenAt ?? this.lastSeenAt,
@@ -1196,6 +1335,15 @@ class PeersTableCompanion extends UpdateCompanion<PeerRow> {
     }
     if (signingPublicKey.present) {
       map['signing_public_key'] = Variable<String>(signingPublicKey.value);
+    }
+    if (useTunnel.present) {
+      map['use_tunnel'] = Variable<bool>(useTunnel.value);
+    }
+    if (tunnelHost.present) {
+      map['tunnel_host'] = Variable<String>(tunnelHost.value);
+    }
+    if (tunnelPort.present) {
+      map['tunnel_port'] = Variable<int>(tunnelPort.value);
     }
     if (relationshipState.present) {
       map['relationship_state'] = Variable<String>(relationshipState.value);
@@ -1227,6 +1375,9 @@ class PeersTableCompanion extends UpdateCompanion<PeerRow> {
           ..write('deviceLabel: $deviceLabel, ')
           ..write('fingerprint: $fingerprint, ')
           ..write('signingPublicKey: $signingPublicKey, ')
+          ..write('useTunnel: $useTunnel, ')
+          ..write('tunnelHost: $tunnelHost, ')
+          ..write('tunnelPort: $tunnelPort, ')
           ..write('relationshipState: $relationshipState, ')
           ..write('isBlocked: $isBlocked, ')
           ..write('lastSeenAt: $lastSeenAt, ')
@@ -5923,6 +6074,9 @@ typedef $$PeersTableTableCreateCompanionBuilder =
       Value<String?> deviceLabel,
       Value<String?> fingerprint,
       Value<String?> signingPublicKey,
+      Value<bool> useTunnel,
+      Value<String?> tunnelHost,
+      Value<int?> tunnelPort,
       required String relationshipState,
       Value<bool> isBlocked,
       Value<int?> lastSeenAt,
@@ -5938,6 +6092,9 @@ typedef $$PeersTableTableUpdateCompanionBuilder =
       Value<String?> deviceLabel,
       Value<String?> fingerprint,
       Value<String?> signingPublicKey,
+      Value<bool> useTunnel,
+      Value<String?> tunnelHost,
+      Value<int?> tunnelPort,
       Value<String> relationshipState,
       Value<bool> isBlocked,
       Value<int?> lastSeenAt,
@@ -5982,6 +6139,21 @@ class $$PeersTableTableFilterComposer
 
   ColumnFilters<String> get signingPublicKey => $composableBuilder(
     column: $table.signingPublicKey,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<bool> get useTunnel => $composableBuilder(
+    column: $table.useTunnel,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get tunnelHost => $composableBuilder(
+    column: $table.tunnelHost,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get tunnelPort => $composableBuilder(
+    column: $table.tunnelPort,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -6050,6 +6222,21 @@ class $$PeersTableTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
+  ColumnOrderings<bool> get useTunnel => $composableBuilder(
+    column: $table.useTunnel,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get tunnelHost => $composableBuilder(
+    column: $table.tunnelHost,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get tunnelPort => $composableBuilder(
+    column: $table.tunnelPort,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   ColumnOrderings<String> get relationshipState => $composableBuilder(
     column: $table.relationshipState,
     builder: (column) => ColumnOrderings(column),
@@ -6111,6 +6298,19 @@ class $$PeersTableTableAnnotationComposer
     builder: (column) => column,
   );
 
+  GeneratedColumn<bool> get useTunnel =>
+      $composableBuilder(column: $table.useTunnel, builder: (column) => column);
+
+  GeneratedColumn<String> get tunnelHost => $composableBuilder(
+    column: $table.tunnelHost,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<int> get tunnelPort => $composableBuilder(
+    column: $table.tunnelPort,
+    builder: (column) => column,
+  );
+
   GeneratedColumn<String> get relationshipState => $composableBuilder(
     column: $table.relationshipState,
     builder: (column) => column,
@@ -6165,6 +6365,9 @@ class $$PeersTableTableTableManager
                 Value<String?> deviceLabel = const Value.absent(),
                 Value<String?> fingerprint = const Value.absent(),
                 Value<String?> signingPublicKey = const Value.absent(),
+                Value<bool> useTunnel = const Value.absent(),
+                Value<String?> tunnelHost = const Value.absent(),
+                Value<int?> tunnelPort = const Value.absent(),
                 Value<String> relationshipState = const Value.absent(),
                 Value<bool> isBlocked = const Value.absent(),
                 Value<int?> lastSeenAt = const Value.absent(),
@@ -6178,6 +6381,9 @@ class $$PeersTableTableTableManager
                 deviceLabel: deviceLabel,
                 fingerprint: fingerprint,
                 signingPublicKey: signingPublicKey,
+                useTunnel: useTunnel,
+                tunnelHost: tunnelHost,
+                tunnelPort: tunnelPort,
                 relationshipState: relationshipState,
                 isBlocked: isBlocked,
                 lastSeenAt: lastSeenAt,
@@ -6193,6 +6399,9 @@ class $$PeersTableTableTableManager
                 Value<String?> deviceLabel = const Value.absent(),
                 Value<String?> fingerprint = const Value.absent(),
                 Value<String?> signingPublicKey = const Value.absent(),
+                Value<bool> useTunnel = const Value.absent(),
+                Value<String?> tunnelHost = const Value.absent(),
+                Value<int?> tunnelPort = const Value.absent(),
                 required String relationshipState,
                 Value<bool> isBlocked = const Value.absent(),
                 Value<int?> lastSeenAt = const Value.absent(),
@@ -6206,6 +6415,9 @@ class $$PeersTableTableTableManager
                 deviceLabel: deviceLabel,
                 fingerprint: fingerprint,
                 signingPublicKey: signingPublicKey,
+                useTunnel: useTunnel,
+                tunnelHost: tunnelHost,
+                tunnelPort: tunnelPort,
                 relationshipState: relationshipState,
                 isBlocked: isBlocked,
                 lastSeenAt: lastSeenAt,

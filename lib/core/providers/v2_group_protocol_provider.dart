@@ -84,16 +84,12 @@ class V2GroupProtocolController {
       throw StateError('One or more selected contacts are unavailable.');
     }
 
-    final presenceByPeerId = <String, PresenceRow>{};
+    final endpointByPeerId = <String, ({String host, int port})>{};
     for (final peer in peers) {
       if (peer.relationshipState != 'accepted') {
         throw StateError('${peer.displayName} is not an accepted contact.');
       }
-      final presence = await _peersRepository.getPresenceByPeerId(peer.peerId);
-      if (presence == null || !presence.isReachable || presence.host == null) {
-        throw StateError('${peer.displayName} is not reachable right now.');
-      }
-      presenceByPeerId[peer.peerId] = presence;
+      endpointByPeerId[peer.peerId] = await _resolveEndpoint(peer.peerId);
     }
 
     final conversation = await _conversationsRepository.createGroupConversation(
@@ -137,10 +133,10 @@ class V2GroupProtocolController {
     });
 
     for (final peer in peers) {
-      final presence = presenceByPeerId[peer.peerId]!;
+      final endpoint = endpointByPeerId[peer.peerId]!;
       await _signalingService.sendMessage(
-        host: presence.host!,
-        port: presence.port ?? V2RequestSignalingService.defaultPort,
+        host: endpoint.host,
+        port: endpoint.port,
         payload: payload,
       );
     }
@@ -171,7 +167,7 @@ class V2GroupProtocolController {
       throw StateError('Group admin could not be determined.');
     }
 
-    final adminPresence = await _requireReachablePresence(adminPeerId);
+    final adminEndpoint = await _resolveEndpoint(adminPeerId);
     await _conversationsRepository.updateMemberRole(
       conversationId: conversationId,
       peerId: _localIdentity!.peerId,
@@ -184,8 +180,8 @@ class V2GroupProtocolController {
     );
 
     await _signalingService.sendMessage(
-      host: adminPresence.host!,
-      port: adminPresence.port ?? V2RequestSignalingService.defaultPort,
+      host: adminEndpoint.host,
+      port: adminEndpoint.port,
       payload: await _buildSignedPayload({
         'protocol': 'lanline_v2_group',
         'action': 'group_invite_response',
@@ -222,10 +218,10 @@ class V2GroupProtocolController {
       return;
     }
 
-    final adminPresence = await _requireReachablePresence(adminPeerId);
+    final adminEndpoint = await _resolveEndpoint(adminPeerId);
     await _signalingService.sendMessage(
-      host: adminPresence.host!,
-      port: adminPresence.port ?? V2RequestSignalingService.defaultPort,
+      host: adminEndpoint.host,
+      port: adminEndpoint.port,
       payload: await _buildSignedPayload({
         'protocol': 'lanline_v2_group',
         'action': 'group_invite_response',
@@ -806,12 +802,29 @@ class V2GroupProtocolController {
     return null;
   }
 
-  Future<PresenceRow> _requireReachablePresence(String peerId) async {
+  Future<({String host, int port})> _resolveEndpoint(String peerId) async {
+    final peer = await _peersRepository.getPeerByPeerId(peerId);
+    if (peer != null && peer.useTunnel) {
+      final host = peer.tunnelHost?.trim();
+      if (host == null || host.isEmpty) {
+        throw StateError(
+          'Tunnel is enabled but no tunnel host is configured.',
+        );
+      }
+      return (
+        host: host,
+        port: peer.tunnelPort ?? V2RequestSignalingService.defaultPort,
+      );
+    }
+
     final presence = await _peersRepository.getPresenceByPeerId(peerId);
     if (presence == null || !presence.isReachable || presence.host == null) {
       throw StateError('Peer is not reachable right now.');
     }
-    return presence;
+    return (
+      host: presence.host!,
+      port: presence.port ?? V2RequestSignalingService.defaultPort,
+    );
   }
 
   Future<void> dispose() async {

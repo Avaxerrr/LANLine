@@ -12,12 +12,16 @@ import 'package:mocktail/mocktail.dart';
 
 class MockDiscoveryService extends Mock implements DiscoveryService {}
 
+class MockV2RequestSignalingService extends Mock
+    implements V2RequestSignalingService {}
+
 void main() {
   group('V2PresenceDiscoveryController', () {
     late AppDatabase database;
     late IdentityRepository identityRepository;
     late PeersRepository peersRepository;
     late MockDiscoveryService discoveryService;
+    late MockV2RequestSignalingService signalingService;
     late StreamController<DiscoveredPeerPresence> peerStream;
     late LocalIdentityRow localIdentity;
     late V2PresenceDiscoveryController controller;
@@ -27,6 +31,7 @@ void main() {
       identityRepository = IdentityRepository(database);
       peersRepository = PeersRepository(database);
       discoveryService = MockDiscoveryService();
+      signalingService = MockV2RequestSignalingService();
       peerStream = StreamController<DiscoveredPeerPresence>.broadcast();
 
       localIdentity = await identityRepository.createIdentity(
@@ -57,9 +62,16 @@ void main() {
       when(
         () => discoveryService.getLocalIpAddress(),
       ).thenAnswer((_) async => '192.168.1.20');
+      when(
+        () => signalingService.registerHttpHandler(any()),
+      ).thenReturn(null);
+      when(
+        () => signalingService.unregisterHttpHandler(any()),
+      ).thenReturn(null);
 
       controller = V2PresenceDiscoveryController(
         discoveryService: discoveryService,
+        signalingService: signalingService,
         peersRepository: peersRepository,
         loadLocalIdentity: () async => localIdentity,
       );

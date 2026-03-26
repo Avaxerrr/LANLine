@@ -34,7 +34,7 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase({QueryExecutor? executor}) : super(executor ?? _openConnection());
 
   @override
-  int get schemaVersion => 4;
+  int get schemaVersion => 5;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -59,8 +59,47 @@ class AppDatabase extends _$AppDatabase {
         );
         await m.addColumn(peersTable, peersTable.signingPublicKey);
       }
+      if (from < 5) {
+        await _addColumnIfNotExists(
+          m,
+          peersTable,
+          peersTable.useTunnel,
+          'use_tunnel',
+          'peers_table',
+        );
+        await _addColumnIfNotExists(
+          m,
+          peersTable,
+          peersTable.tunnelHost,
+          'tunnel_host',
+          'peers_table',
+        );
+        await _addColumnIfNotExists(
+          m,
+          peersTable,
+          peersTable.tunnelPort,
+          'tunnel_port',
+          'peers_table',
+        );
+      }
     },
   );
+
+  Future<void> _addColumnIfNotExists(
+    Migrator m,
+    TableInfo table,
+    GeneratedColumn column,
+    String columnName,
+    String tableName,
+  ) async {
+    final result = await customSelect(
+      'PRAGMA table_info($tableName)',
+    ).get();
+    final exists = result.any((row) => row.data['name'] == columnName);
+    if (!exists) {
+      await m.addColumn(table, column);
+    }
+  }
 
   Future<void> _createPerformanceIndexes() async {
     await customStatement(

@@ -7,6 +7,7 @@ import android.media.Ringtone
 import android.media.RingtoneManager
 import android.media.ToneGenerator
 import android.net.Uri
+import android.net.wifi.WifiManager
 import android.os.Build
 import android.os.Environment
 import android.os.PowerManager
@@ -23,7 +24,9 @@ import java.io.File
 class MainActivity : FlutterActivity() {
     private val CHANNEL = "com.lanline.lanline/mediastore"
     private val PROXIMITY_CHANNEL = "com.lanline.lanline/proximity"
+    private val NETWORK_CHANNEL = "com.lanline.lanline/network"
     private var proximityWakeLock: PowerManager.WakeLock? = null
+    private var multicastLock: WifiManager.MulticastLock? = null
     private var ringtone: Ringtone? = null
     private var vibrator: Vibrator? = null
     private var toneGenerator: ToneGenerator? = null
@@ -146,6 +149,39 @@ class MainActivity : FlutterActivity() {
                         result.success(true)
                     } catch (e: Exception) {
                         result.error("TONE_ERROR", e.message, null)
+                    }
+                }
+                else -> result.notImplemented()
+            }
+        }
+
+        // Network channel (multicast lock for UDP broadcast reception)
+        MethodChannel(flutterEngine.dartExecutor.binaryMessenger, NETWORK_CHANNEL).setMethodCallHandler { call, result ->
+            when (call.method) {
+                "acquireMulticastLock" -> {
+                    try {
+                        if (multicastLock == null) {
+                            val wifiManager = applicationContext.getSystemService(Context.WIFI_SERVICE) as WifiManager
+                            multicastLock = wifiManager.createMulticastLock("lanline:discovery")
+                            multicastLock?.setReferenceCounted(false)
+                        }
+                        if (multicastLock?.isHeld == false) {
+                            multicastLock?.acquire()
+                        }
+                        result.success(true)
+                    } catch (e: Exception) {
+                        result.error("MULTICAST_ERROR", e.message, null)
+                    }
+                }
+                "releaseMulticastLock" -> {
+                    try {
+                        if (multicastLock?.isHeld == true) {
+                            multicastLock?.release()
+                        }
+                        multicastLock = null
+                        result.success(true)
+                    } catch (e: Exception) {
+                        result.error("MULTICAST_ERROR", e.message, null)
                     }
                 }
                 else -> result.notImplemented()

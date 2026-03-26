@@ -129,7 +129,7 @@ class V2MediaProtocolNotifier extends Notifier<V2MediaProtocolState> {
     required String callType,
   }) async {
     await start();
-    await _requireReachablePresence(peerId);
+    await _resolveEndpoint(peerId);
     await _ensureConversation(
       peerId: peerId,
       conversationId: conversationId,
@@ -145,7 +145,7 @@ class V2MediaProtocolNotifier extends Notifier<V2MediaProtocolState> {
   }) async {
     await start();
     final peer = await _requirePeer(peerId);
-    final presence = await _requireReachablePresence(peerId);
+    final endpoint = await _resolveEndpoint(peerId);
     final conversation = await _ensureConversation(
       peerId: peerId,
       conversationId: conversationId,
@@ -205,8 +205,8 @@ class V2MediaProtocolNotifier extends Notifier<V2MediaProtocolState> {
 
     try {
       await _signalingService.sendMessage(
-        host: presence.host!,
-        port: presence.port ?? V2RequestSignalingService.defaultPort,
+        host: endpoint.host,
+        port: endpoint.port,
         payload: payload,
       );
       await _messagesRepository.updateMessageStatus(message.id, 'sent');
@@ -225,7 +225,7 @@ class V2MediaProtocolNotifier extends Notifier<V2MediaProtocolState> {
     required String attachmentId,
   }) async {
     await start();
-    final presence = await _requireReachablePresence(peerId);
+    final endpoint = await _resolveEndpoint(peerId);
     await _attachmentsRepository.updateAttachmentTransferMetadata(
       attachmentId: attachmentId,
       transferState: 'downloading',
@@ -240,8 +240,8 @@ class V2MediaProtocolNotifier extends Notifier<V2MediaProtocolState> {
     });
 
     await _signalingService.sendMessage(
-      host: presence.host!,
-      port: presence.port ?? V2RequestSignalingService.defaultPort,
+      host: endpoint.host,
+      port: endpoint.port,
       payload: payload,
     );
   }
@@ -251,7 +251,7 @@ class V2MediaProtocolNotifier extends Notifier<V2MediaProtocolState> {
     required String attachmentId,
   }) async {
     await start();
-    final presence = await _requireReachablePresence(peerId);
+    final endpoint = await _resolveEndpoint(peerId);
 
     await _attachmentsRepository.updateAttachmentTransferMetadata(
       attachmentId: attachmentId,
@@ -272,8 +272,8 @@ class V2MediaProtocolNotifier extends Notifier<V2MediaProtocolState> {
     });
 
     await _signalingService.sendMessage(
-      host: presence.host!,
-      port: presence.port ?? V2RequestSignalingService.defaultPort,
+      host: endpoint.host,
+      port: endpoint.port,
       payload: payload,
     );
   }
@@ -285,7 +285,7 @@ class V2MediaProtocolNotifier extends Notifier<V2MediaProtocolState> {
     required String payload,
   }) async {
     await start();
-    final presence = await _requireReachablePresence(peerId);
+    final endpoint = await _resolveEndpoint(peerId);
     final decoded = jsonDecode(payload);
     if (decoded is! Map<String, dynamic>) {
       throw StateError('Invalid call payload.');
@@ -309,8 +309,8 @@ class V2MediaProtocolNotifier extends Notifier<V2MediaProtocolState> {
     }
 
     await _signalingService.sendMessage(
-      host: presence.host!,
-      port: presence.port ?? V2RequestSignalingService.defaultPort,
+      host: endpoint.host,
+      port: endpoint.port,
       payload: jsonEncode(decoded),
     );
   }
@@ -522,14 +522,10 @@ class V2MediaProtocolNotifier extends Notifier<V2MediaProtocolState> {
         transferState: 'offered',
       );
     }
-    final senderPresence = await _peersRepository.getPresenceByPeerId(
-      senderPeerId,
-    );
+    final canReach = await _canResolveEndpoint(senderPeerId);
     if (fileSize > 0 &&
         fileSize <= _autoAcceptFileThresholdBytes &&
-        senderPresence != null &&
-        senderPresence.isReachable &&
-        senderPresence.host != null) {
+        canReach) {
       try {
         await acceptFile(peerId: senderPeerId, attachmentId: attachmentId);
       } catch (error) {
@@ -577,10 +573,10 @@ class V2MediaProtocolNotifier extends Notifier<V2MediaProtocolState> {
 
     final senderPeerId = data['senderPeerId']?.toString();
     if (senderPeerId == null) return;
-    final presence = await _requireReachablePresence(senderPeerId);
+    final endpoint = await _resolveEndpoint(senderPeerId);
     await _signalingService.sendMessage(
-      host: presence.host!,
-      port: presence.port ?? V2RequestSignalingService.defaultPort,
+      host: endpoint.host,
+      port: endpoint.port,
       payload: jsonEncode({
         'protocol': 'lanline_v2_media',
         'action': 'file_ready',
@@ -627,7 +623,7 @@ class V2MediaProtocolNotifier extends Notifier<V2MediaProtocolState> {
       return;
     }
 
-    final presence = await _requireReachablePresence(senderPeerId);
+    final endpoint = await _resolveEndpoint(senderPeerId);
     await _attachmentsRepository.updateAttachmentTransferMetadata(
       attachmentId: attachmentId,
       transferState: 'downloading',
@@ -639,8 +635,8 @@ class V2MediaProtocolNotifier extends Notifier<V2MediaProtocolState> {
 
     try {
       final file = await _fileTransferManager.downloadFile(
-        host: presence.host!,
-        port: presence.port ?? V2RequestSignalingService.defaultPort,
+        host: endpoint.host,
+        port: endpoint.port,
         transferPath: transferPath,
         attachmentId: attachmentId,
         fileName: attachment.fileName,
@@ -664,8 +660,8 @@ class V2MediaProtocolNotifier extends Notifier<V2MediaProtocolState> {
       );
 
       await _signalingService.sendMessage(
-        host: presence.host!,
-        port: presence.port ?? V2RequestSignalingService.defaultPort,
+        host: endpoint.host,
+        port: endpoint.port,
         payload: jsonEncode({
           'protocol': 'lanline_v2_media',
           'action': 'file_downloaded',
@@ -908,12 +904,43 @@ class V2MediaProtocolNotifier extends Notifier<V2MediaProtocolState> {
     return peer;
   }
 
-  Future<PresenceRow> _requireReachablePresence(String peerId) async {
+  Future<({String host, int port})> _resolveEndpoint(String peerId) async {
+    final peer = await _peersRepository.getPeerByPeerId(peerId);
+    if (peer != null && peer.useTunnel) {
+      final host = peer.tunnelHost?.trim();
+      if (host == null || host.isEmpty) {
+        throw StateError(
+          'Tunnel is enabled but no tunnel host is configured.',
+        );
+      }
+      final port = peer.tunnelPort ?? V2RequestSignalingService.defaultPort;
+      debugPrint(
+        '[V2MediaProtocol] Resolved endpoint via TUNNEL: $host:$port',
+      );
+      return (host: host, port: port);
+    }
+
     final presence = await _peersRepository.getPresenceByPeerId(peerId);
     if (presence == null || !presence.isReachable || presence.host == null) {
       throw StateError('Peer is not reachable right now.');
     }
-    return presence;
+    debugPrint(
+      '[V2MediaProtocol] Resolved endpoint via LAN: '
+      '${presence.host}:${presence.port ?? V2RequestSignalingService.defaultPort}',
+    );
+    return (
+      host: presence.host!,
+      port: presence.port ?? V2RequestSignalingService.defaultPort,
+    );
+  }
+
+  Future<bool> _canResolveEndpoint(String peerId) async {
+    try {
+      await _resolveEndpoint(peerId);
+      return true;
+    } catch (_) {
+      return false;
+    }
   }
 
   String _guessAttachmentKind(String fileName, String? mimeType) {
