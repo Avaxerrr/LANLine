@@ -78,6 +78,20 @@ class V2PresenceDiscoveryController {
     _signalingService.registerHttpHandler(_httpHandler!);
   }
 
+  Future<void> refreshIdentity() async {
+    _localIdentity = await _loadLocalIdentity();
+    await _discoveryService.startPeerBroadcasting(
+      peerId: _localIdentity!.peerId,
+      displayName: _localIdentity!.displayName,
+      deviceLabel: _localIdentity!.deviceLabel,
+      fingerprint: _localIdentity!.fingerprint,
+      isReachable: true,
+      status: 'online',
+      port: V2RequestSignalingService.defaultPort,
+      bindAddress: await _discoveryService.getLocalIpAddress(),
+    );
+  }
+
   Future<void> _sweepStalePresence() async {
     try {
       final cutoff =

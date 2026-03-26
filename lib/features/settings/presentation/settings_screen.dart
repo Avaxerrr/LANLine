@@ -9,6 +9,7 @@ import '../../../core/providers/app_theme_provider.dart';
 import '../../../core/providers/message_retention_provider.dart';
 import '../../../core/providers/username_provider.dart';
 import '../../../core/providers/v2_identity_provider.dart';
+import '../../../core/providers/v2_presence_discovery_provider.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../downloads/presentation/download_history_screen.dart';
 
@@ -47,6 +48,9 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
           displayName: newName,
           deviceLabel: newDeviceLabel.isEmpty ? null : newDeviceLabel,
         );
+    await ref
+        .read(v2PresenceDiscoveryControllerProvider)
+        .refreshIdentity();
 
     if (!mounted) return;
     ScaffoldMessenger.of(

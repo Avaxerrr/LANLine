@@ -67,169 +67,42 @@ class PeopleScreen extends ConsumerWidget {
           borderRadius: BorderRadius.vertical(top: Radius.circular(30)),
         ),
         builder: (sheetContext) {
-          final deviceLabel = peer.deviceLabel?.trim();
-          final fingerprint = peer.fingerprint?.trim();
-          final details = <_ContactDetailLine>[
-            if (deviceLabel != null && deviceLabel.isNotEmpty)
-              _ContactDetailLine(
-                icon: Icons.devices_outlined,
-                label: 'Device',
-                value: deviceLabel,
-              ),
-            if (fingerprint != null && fingerprint.isNotEmpty)
-              _ContactDetailLine(
-                icon: Icons.verified_user_outlined,
-                label: 'Fingerprint',
-                value: fingerprint,
-              ),
-            _ContactDetailLine(
-              icon: Icons.schedule_outlined,
-              label: 'Availability',
-              value: peer.lastSeenAt != null
-                  ? _formatLastSeen(peer.lastSeenAt!)
-                  : 'Not seen recently',
-            ),
-          ];
-
-          return Padding(
-            padding: const EdgeInsets.fromLTRB(20, 4, 20, 24),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  children: [
-                    CircleAvatar(
-                      radius: 28,
-                      backgroundColor: palette.positive.withValues(alpha: 0.16),
-                      child: Text(
-                        _initialsFor(peer.displayName),
-                        style: TextStyle(
-                          color: palette.positive,
-                          fontSize: 18,
-                          fontWeight: FontWeight.w800,
-                        ),
-                      ),
-                    ),
-                    const SizedBox(width: 14),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            peer.displayName,
-                            style: const TextStyle(
-                              fontSize: 19,
-                              fontWeight: FontWeight.w800,
-                              letterSpacing: -0.2,
-                            ),
-                          ),
-                          const SizedBox(height: 4),
-                          Text(
-                            peer.lastSeenAt != null
-                                ? 'Contact available on your network'
-                                : 'Saved contact',
-                            style: TextStyle(
-                              color: palette.textMuted,
-                              height: 1.3,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 18),
-                Container(
-                  decoration: BoxDecoration(
-                    gradient: palette.surfaceGradient,
-                    borderRadius: BorderRadius.circular(24),
-                    border: Border.all(
-                      color: palette.border.withValues(alpha: 0.18),
-                    ),
-                  ),
-                  child: Column(
-                    children: [
-                      for (var index = 0; index < details.length; index++) ...[
-                        _ContactDetailRow(detail: details[index]),
-                        if (index != details.length - 1)
-                          Divider(
-                            height: 1,
-                            color: Colors.white.withValues(alpha: 0.05),
-                          ),
-                      ],
-                    ],
-                  ),
-                ),
-                const SizedBox(height: 18),
-                Row(
-                  children: [
-                    Expanded(
-                      child: FilledButton.icon(
-                        onPressed: () async {
-                          Navigator.pop(sheetContext);
-                          await openConversation(peer);
-                        },
-                        icon: const Icon(Icons.chat_bubble_outline),
-                        label: const Text('Message'),
-                      ),
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: OutlinedButton.icon(
-                        onPressed: () async {
-                          Navigator.pop(sheetContext);
-                          await runPeerAction(
-                            'Blocked ${peer.displayName}',
-                            () => requestActions.blockPeer(peerId: peer.peerId),
-                          );
-                        },
-                        icon: const Icon(Icons.block_outlined),
-                        label: const Text('Block'),
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 12),
-                Row(
-                  children: [
-                    Expanded(
-                      child: OutlinedButton.icon(
-                        onPressed: () {
-                          Navigator.pop(sheetContext);
-                          _showTunnelSettingsSheet(context, ref, peer);
-                        },
-                        icon: const Icon(Icons.route_outlined),
-                        label: Text(
-                          peer.useTunnel
-                              ? 'Connection (Tunnel)'
-                              : 'Connection (LAN)',
-                        ),
-                      ),
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: OutlinedButton.icon(
-                        onPressed: () async {
-                          Navigator.pop(sheetContext);
-                          await runPeerAction(
-                            'Removed ${peer.displayName}',
-                            () => ref
-                                .read(peersRepositoryProvider)
-                                .removePeer(peer.peerId),
-                          );
-                        },
-                        style: OutlinedButton.styleFrom(
-                          foregroundColor: palette.danger,
-                        ),
-                        icon: const Icon(Icons.person_remove_outlined),
-                        label: const Text('Remove'),
-                      ),
-                    ),
-                  ],
-                ),
-              ],
-            ),
+          return _ContactBottomSheet(
+            peer: peer,
+            palette: palette,
+            onMessage: () async {
+              Navigator.pop(sheetContext);
+              await openConversation(peer);
+            },
+            onBlock: () async {
+              Navigator.pop(sheetContext);
+              await runPeerAction(
+                'Blocked ${peer.displayName}',
+                () => requestActions.blockPeer(peerId: peer.peerId),
+              );
+            },
+            onTunnelSettings: () {
+              Navigator.pop(sheetContext);
+              _showTunnelSettingsSheet(context, ref, peer);
+            },
+            onRemove: () async {
+              Navigator.pop(sheetContext);
+              await runPeerAction(
+                'Removed ${peer.displayName}',
+                () => ref
+                    .read(peersRepositoryProvider)
+                    .removePeer(peer.peerId),
+              );
+            },
+            onTunnelToggle: (enabled) async {
+              final peersRepo = ref.read(peersRepositoryProvider);
+              await peersRepo.saveTunnelSettings(
+                peerId: peer.peerId,
+                useTunnel: enabled,
+                tunnelHost: peer.tunnelHost,
+                tunnelPort: peer.tunnelPort,
+              );
+            },
           );
         },
       );
@@ -497,9 +370,24 @@ class _TunnelSettingsSheetState extends State<_TunnelSettingsSheet> {
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(
-            'Connection — ${widget.peer.displayName}',
-            style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w800),
+          Row(
+            children: [
+              IconButton(
+                onPressed: () => Navigator.pop(context),
+                icon: const Icon(Icons.arrow_back),
+                tooltip: 'Back',
+              ),
+              const SizedBox(width: 4),
+              Expanded(
+                child: Text(
+                  'Tunnel — ${widget.peer.displayName}',
+                  style: const TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+              ),
+            ],
           ),
           const SizedBox(height: 16),
           // Your device IPs
@@ -766,6 +654,279 @@ class _SectionLoading extends StatelessWidget {
     return const Padding(
       padding: EdgeInsets.symmetric(vertical: 20),
       child: Center(child: CircularProgressIndicator()),
+    );
+  }
+}
+
+class _ContactBottomSheet extends StatefulWidget {
+  final PeerRow peer;
+  final AppThemePalette palette;
+  final VoidCallback onMessage;
+  final VoidCallback onBlock;
+  final VoidCallback onTunnelSettings;
+  final VoidCallback onRemove;
+  final ValueChanged<bool> onTunnelToggle;
+
+  const _ContactBottomSheet({
+    required this.peer,
+    required this.palette,
+    required this.onMessage,
+    required this.onBlock,
+    required this.onTunnelSettings,
+    required this.onRemove,
+    required this.onTunnelToggle,
+  });
+
+  @override
+  State<_ContactBottomSheet> createState() => _ContactBottomSheetState();
+}
+
+class _ContactBottomSheetState extends State<_ContactBottomSheet> {
+  late bool _tunnelEnabled;
+
+  @override
+  void initState() {
+    super.initState();
+    _tunnelEnabled = widget.peer.useTunnel;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final palette = widget.palette;
+    final peer = widget.peer;
+    final deviceLabel = peer.deviceLabel?.trim();
+    final fingerprint = peer.fingerprint?.trim();
+    final hasTunnelHost = peer.tunnelHost != null &&
+        peer.tunnelHost!.trim().isNotEmpty;
+
+    final details = <_ContactDetailLine>[
+      if (deviceLabel != null && deviceLabel.isNotEmpty)
+        _ContactDetailLine(
+          icon: Icons.devices_outlined,
+          label: 'Device',
+          value: deviceLabel,
+        ),
+      if (fingerprint != null && fingerprint.isNotEmpty)
+        _ContactDetailLine(
+          icon: Icons.verified_user_outlined,
+          label: 'Fingerprint',
+          value: fingerprint,
+        ),
+      _ContactDetailLine(
+        icon: Icons.schedule_outlined,
+        label: 'Availability',
+        value: peer.lastSeenAt != null
+            ? _formatLastSeen(peer.lastSeenAt!)
+            : 'Not seen recently',
+      ),
+    ];
+
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(20, 4, 20, 24),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              CircleAvatar(
+                radius: 28,
+                backgroundColor: palette.positive.withValues(alpha: 0.16),
+                child: Text(
+                  _initialsFor(peer.displayName),
+                  style: TextStyle(
+                    color: palette.positive,
+                    fontSize: 18,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+              ),
+              const SizedBox(width: 14),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      peer.displayName,
+                      style: const TextStyle(
+                        fontSize: 19,
+                        fontWeight: FontWeight.w800,
+                        letterSpacing: -0.2,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      _tunnelEnabled
+                          ? 'Connected via Tunnel'
+                          : (peer.lastSeenAt != null
+                              ? 'Connected via LAN'
+                              : 'Saved contact'),
+                      style: TextStyle(
+                        color: _tunnelEnabled
+                            ? palette.positive
+                            : palette.textMuted,
+                        height: 1.3,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 18),
+          Container(
+            decoration: BoxDecoration(
+              gradient: palette.surfaceGradient,
+              borderRadius: BorderRadius.circular(24),
+              border: Border.all(
+                color: palette.border.withValues(alpha: 0.18),
+              ),
+            ),
+            child: Column(
+              children: [
+                for (var index = 0; index < details.length; index++) ...[
+                  _ContactDetailRow(detail: details[index]),
+                  if (index != details.length - 1)
+                    Divider(
+                      height: 1,
+                      color: Colors.white.withValues(alpha: 0.05),
+                    ),
+                ],
+              ],
+            ),
+          ),
+          const SizedBox(height: 14),
+          // Tunnel toggle
+          Container(
+            decoration: BoxDecoration(
+              gradient: palette.surfaceGradient,
+              borderRadius: BorderRadius.circular(24),
+              border: Border.all(
+                color: palette.border.withValues(alpha: 0.18),
+              ),
+            ),
+            child: Column(
+              children: [
+                SwitchListTile(
+                  contentPadding: const EdgeInsets.only(left: 16, right: 8),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(24),
+                  ),
+                  title: Row(
+                    children: [
+                      Icon(
+                        Icons.route_outlined,
+                        size: 18,
+                        color: palette.textMuted,
+                      ),
+                      const SizedBox(width: 10),
+                      const Text(
+                        'Tunnel',
+                        style: TextStyle(
+                          fontWeight: FontWeight.w600,
+                          fontSize: 14,
+                        ),
+                      ),
+                    ],
+                  ),
+                  subtitle: hasTunnelHost && _tunnelEnabled
+                      ? Padding(
+                          padding: const EdgeInsets.only(left: 28, top: 2),
+                          child: Text(
+                            '${peer.tunnelHost}:${peer.tunnelPort ?? V2RequestSignalingService.defaultPort}',
+                            style: TextStyle(
+                              color: palette.textMuted,
+                              fontSize: 12,
+                            ),
+                          ),
+                        )
+                      : null,
+                  value: _tunnelEnabled,
+                  onChanged: hasTunnelHost
+                      ? (value) {
+                          setState(() => _tunnelEnabled = value);
+                          widget.onTunnelToggle(value);
+                        }
+                      : null,
+                ),
+                Divider(
+                  height: 1,
+                  color: Colors.white.withValues(alpha: 0.05),
+                ),
+                InkWell(
+                  onTap: widget.onTunnelSettings,
+                  borderRadius: const BorderRadius.vertical(
+                    bottom: Radius.circular(24),
+                  ),
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 16,
+                      vertical: 14,
+                    ),
+                    child: Row(
+                      children: [
+                        Icon(
+                          Icons.settings_outlined,
+                          size: 18,
+                          color: palette.textMuted,
+                        ),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: Text(
+                            'Tunnel settings',
+                            style: TextStyle(
+                              color: palette.textMuted,
+                              fontSize: 14,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ),
+                        Icon(
+                          Icons.chevron_right,
+                          size: 20,
+                          color: palette.textMuted.withValues(alpha: 0.5),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 18),
+          Row(
+            children: [
+              Expanded(
+                child: FilledButton.icon(
+                  onPressed: widget.onMessage,
+                  icon: const Icon(Icons.chat_bubble_outline),
+                  label: const Text('Message'),
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: OutlinedButton.icon(
+                  onPressed: widget.onBlock,
+                  icon: const Icon(Icons.block_outlined),
+                  label: const Text('Block'),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          SizedBox(
+            width: double.infinity,
+            child: OutlinedButton.icon(
+              onPressed: widget.onRemove,
+              style: OutlinedButton.styleFrom(
+                foregroundColor: palette.danger,
+              ),
+              icon: const Icon(Icons.person_remove_outlined),
+              label: const Text('Remove contact'),
+            ),
+          ),
+        ],
+      ),
     );
   }
 }
