@@ -215,6 +215,7 @@ class _AppShellState extends ConsumerState<AppShell> {
       decoration: BoxDecoration(color: palette.background),
       child: Scaffold(
         backgroundColor: Colors.transparent,
+        resizeToAvoidBottomInset: false,
         body: Stack(
           children: [
             const Positioned.fill(child: _ShellBackdrop()),

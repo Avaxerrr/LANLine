@@ -830,18 +830,20 @@ class _ContactBottomSheetState extends State<_ContactBottomSheet> {
                       ),
                     ],
                   ),
-                  subtitle: hasTunnelHost && _tunnelEnabled
-                      ? Padding(
-                          padding: const EdgeInsets.only(left: 28, top: 2),
-                          child: Text(
-                            '${peer.tunnelHost}:${peer.tunnelPort ?? V2RequestSignalingService.defaultPort}',
-                            style: TextStyle(
-                              color: palette.textMuted,
-                              fontSize: 12,
-                            ),
-                          ),
-                        )
-                      : null,
+                  subtitle: Padding(
+                    padding: const EdgeInsets.only(left: 28, top: 2),
+                    child: Text(
+                      hasTunnelHost && _tunnelEnabled
+                          ? '${peer.tunnelHost}:${peer.tunnelPort ?? V2RequestSignalingService.defaultPort}'
+                          : hasTunnelHost
+                              ? 'Tap to enable tunnel routing'
+                              : 'Set a tunnel IP in connection settings first',
+                      style: TextStyle(
+                        color: palette.textMuted,
+                        fontSize: 12,
+                      ),
+                    ),
+                  ),
                   value: _tunnelEnabled,
                   onChanged: hasTunnelHost
                       ? (value) {
