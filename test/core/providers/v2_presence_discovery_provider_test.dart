@@ -7,8 +7,13 @@ import 'package:lanline/core/network/discovery_service.dart';
 import 'package:lanline/core/network/v2_request_signaling_service.dart';
 import 'package:lanline/core/providers/v2_presence_discovery_provider.dart';
 import 'package:lanline/core/repositories/identity_repository.dart';
+import 'package:lanline/core/repositories/conversations_repository.dart';
 import 'package:lanline/core/repositories/peers_repository.dart';
+import 'package:lanline/core/security/local_data_protection_service.dart';
 import 'package:mocktail/mocktail.dart';
+
+class MockLocalDataProtectionService extends Mock
+    implements LocalDataProtectionService {}
 
 class MockDiscoveryService extends Mock implements DiscoveryService {}
 
@@ -20,6 +25,7 @@ void main() {
     late AppDatabase database;
     late IdentityRepository identityRepository;
     late PeersRepository peersRepository;
+    late ConversationsRepository conversationsRepository;
     late MockDiscoveryService discoveryService;
     late MockV2RequestSignalingService signalingService;
     late StreamController<DiscoveredPeerPresence> peerStream;
@@ -30,6 +36,15 @@ void main() {
       database = AppDatabase(executor: NativeDatabase.memory());
       identityRepository = IdentityRepository(database);
       peersRepository = PeersRepository(database);
+      final mockDataProtection = MockLocalDataProtectionService();
+      when(() => mockDataProtection.encryptNullable(any()))
+          .thenAnswer((inv) async => inv.positionalArguments[0] as String?);
+      when(() => mockDataProtection.decryptNullable(any()))
+          .thenAnswer((inv) async => inv.positionalArguments[0] as String?);
+      conversationsRepository = ConversationsRepository(
+        database,
+        dataProtectionService: mockDataProtection,
+      );
       discoveryService = MockDiscoveryService();
       signalingService = MockV2RequestSignalingService();
       peerStream = StreamController<DiscoveredPeerPresence>.broadcast();
@@ -73,6 +88,7 @@ void main() {
         discoveryService: discoveryService,
         signalingService: signalingService,
         peersRepository: peersRepository,
+        conversationsRepository: conversationsRepository,
         loadLocalIdentity: () async => localIdentity,
       );
     });

@@ -367,6 +367,19 @@ class ConversationsRepository {
     );
   }
 
+  Future<void> syncDirectConversationTitle({
+    required String peerId,
+    required String displayName,
+  }) async {
+    final conversation = await findDirectConversationByPeerId(peerId);
+    if (conversation != null && conversation.title != displayName) {
+      await updateConversationTitle(
+        conversationId: conversation.id,
+        title: displayName,
+      );
+    }
+  }
+
   Future<void> updateConversationPreview({
     required String conversationId,
     required String preview,

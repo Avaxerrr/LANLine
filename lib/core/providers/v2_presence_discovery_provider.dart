@@ -8,6 +8,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../db/app_database.dart';
 import '../network/discovery_service.dart';
 import '../network/v2_request_signaling_service.dart';
+import '../repositories/conversations_repository.dart';
 import '../repositories/peers_repository.dart';
 import 'v2_identity_provider.dart';
 import 'v2_repository_providers.dart';
@@ -16,6 +17,7 @@ class V2PresenceDiscoveryController {
   final DiscoveryService _discoveryService;
   final V2RequestSignalingService _signalingService;
   final PeersRepository _peersRepository;
+  final ConversationsRepository _conversationsRepository;
   final Future<LocalIdentityRow> Function() _loadLocalIdentity;
 
   StreamSubscription<DiscoveredPeerPresence>? _peerSubscription;
@@ -34,10 +36,12 @@ class V2PresenceDiscoveryController {
     required DiscoveryService discoveryService,
     required V2RequestSignalingService signalingService,
     required PeersRepository peersRepository,
+    required ConversationsRepository conversationsRepository,
     required Future<LocalIdentityRow> Function() loadLocalIdentity,
   }) : _discoveryService = discoveryService,
        _signalingService = signalingService,
        _peersRepository = peersRepository,
+       _conversationsRepository = conversationsRepository,
        _loadLocalIdentity = loadLocalIdentity;
 
   Future<void> start() {
@@ -235,6 +239,11 @@ class V2PresenceDiscoveryController {
       port: event.port,
       lastHeartbeatAt: event.lastHeartbeatAt,
     );
+
+    await _conversationsRepository.syncDirectConversationTitle(
+      peerId: event.peerId,
+      displayName: event.displayName,
+    );
   }
 
   Future<void> dispose() async {
@@ -259,6 +268,7 @@ final v2PresenceDiscoveryControllerProvider =
         discoveryService: ref.read(discoveryServiceProvider),
         signalingService: ref.read(v2RequestSignalingServiceProvider),
         peersRepository: ref.read(peersRepositoryProvider),
+        conversationsRepository: ref.read(conversationsRepositoryProvider),
         loadLocalIdentity: () => ref.read(identityServiceProvider).bootstrap(),
       );
 

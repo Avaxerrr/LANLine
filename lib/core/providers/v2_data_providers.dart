@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/legacy.dart';
 import '../db/app_database.dart';
 import '../repositories/messages_repository.dart';
 import '../repositories/conversations_repository.dart';
+import '../repositories/requests_repository.dart';
 import 'v2_direct_message_protocol_provider.dart';
 import 'v2_group_protocol_provider.dart';
 import 'v2_identity_provider.dart';
@@ -32,12 +33,18 @@ final discoveredPeersProvider = StreamProvider((ref) {
   return ref.read(peersRepositoryProvider).watchDiscoveredPeers();
 });
 
-final pendingIncomingRequestsProvider = StreamProvider((ref) {
-  return ref.read(requestsRepositoryProvider).watchPendingIncomingRequests();
+final pendingIncomingRequestsProvider =
+    StreamProvider<List<ContactRequestWithPeer>>((ref) {
+  return ref
+      .read(requestsRepositoryProvider)
+      .watchPendingIncomingRequestsWithNames();
 });
 
-final pendingOutgoingRequestsProvider = StreamProvider((ref) {
-  return ref.read(requestsRepositoryProvider).watchPendingOutgoingRequests();
+final pendingOutgoingRequestsProvider =
+    StreamProvider<List<ContactRequestWithPeer>>((ref) {
+  return ref
+      .read(requestsRepositoryProvider)
+      .watchPendingOutgoingRequestsWithNames();
 });
 
 final conversationListProvider = StreamProvider<List<ConversationRow>>((ref) {
@@ -375,3 +382,4 @@ final mediaActionsProvider = Provider<MediaActions>((ref) {
   ref.watch(v2MediaProtocolProvider);
   return MediaActions(ref.read(v2MediaProtocolProvider.notifier));
 });
+

@@ -58,6 +58,7 @@ dependencies:
   drift: ^2.28.1
   sqlite3_flutter_libs: ^0.5.39
   uuid: ^4.5.1
+  swipeable_tile: ^2.0.1
 
 dev_dependencies:
   flutter_test:

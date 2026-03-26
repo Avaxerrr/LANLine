@@ -61,6 +61,7 @@ class PeopleScreen extends ConsumerWidget {
       await showModalBottomSheet<void>(
         context: context,
         useSafeArea: true,
+        isScrollControlled: true,
         showDragHandle: true,
         backgroundColor: palette.menuSurface,
         shape: const RoundedRectangleBorder(
@@ -721,7 +722,7 @@ class _ContactBottomSheetState extends State<_ContactBottomSheet> {
       ),
     ];
 
-    return Padding(
+    return SingleChildScrollView(
       padding: const EdgeInsets.fromLTRB(20, 4, 20, 24),
       child: Column(
         mainAxisSize: MainAxisSize.min,

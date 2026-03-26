@@ -30,6 +30,47 @@ class RequestsRepository {
         .watch();
   }
 
+  Stream<List<ContactRequestWithPeer>> watchPendingIncomingRequestsWithNames() {
+    return _watchRequestsWithNames('incoming');
+  }
+
+  Stream<List<ContactRequestWithPeer>> watchPendingOutgoingRequestsWithNames() {
+    return _watchRequestsWithNames('outgoing');
+  }
+
+  Stream<List<ContactRequestWithPeer>> _watchRequestsWithNames(
+    String direction,
+  ) {
+    final query = _database
+        .select(_database.contactRequestsTable)
+        .join([
+          drift.leftOuterJoin(
+            _database.peersTable,
+            _database.peersTable.peerId.equalsExp(
+              _database.contactRequestsTable.peerId,
+            ),
+          ),
+        ])
+      ..where(
+        _database.contactRequestsTable.direction.equals(direction) &
+            _database.contactRequestsTable.status.equals('pending'),
+      )
+      ..orderBy([
+        drift.OrderingTerm.desc(_database.contactRequestsTable.createdAt),
+      ]);
+
+    return query.watch().map((rows) {
+      return rows.map((row) {
+        final request = row.readTable(_database.contactRequestsTable);
+        final peer = row.readTableOrNull(_database.peersTable);
+        return ContactRequestWithPeer(
+          request: request,
+          displayName: peer?.displayName ?? request.peerId,
+        );
+      }).toList();
+    });
+  }
+
   Future<ContactRequestRow> createRequest({
     required String peerId,
     required String direction,
@@ -226,26 +267,6 @@ class RequestsRepository {
     required String relationshipState,
   }) async {
     final now = DateTime.now().millisecondsSinceEpoch;
-    final existing = await (_database.select(
-      _database.peersTable,
-    )..where((tbl) => tbl.peerId.equals(peerId))).getSingleOrNull();
-
-    if (existing == null) {
-      await _database
-          .into(_database.peersTable)
-          .insert(
-            PeersTableCompanion.insert(
-              id: _uuid.v4(),
-              peerId: peerId,
-              displayName: peerId,
-              relationshipState: relationshipState,
-              isBlocked: drift.Value(relationshipState == 'blocked'),
-              createdAt: now,
-              updatedAt: now,
-            ),
-          );
-      return;
-    }
 
     await (_database.update(
       _database.peersTable,
@@ -257,4 +278,14 @@ class RequestsRepository {
       ),
     );
   }
+}
+
+class ContactRequestWithPeer {
+  final ContactRequestRow request;
+  final String displayName;
+
+  const ContactRequestWithPeer({
+    required this.request,
+    required this.displayName,
+  });
 }

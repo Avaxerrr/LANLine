@@ -1,9 +1,16 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:swipeable_tile/swipeable_tile.dart';
 
 import '../../../core/db/app_database.dart';
 import '../../../core/providers/v2_data_providers.dart';
+import '../../../core/providers/v2_identity_provider.dart';
+import '../../../core/providers/v2_repository_providers.dart';
 import '../../../core/theme/app_theme.dart';
+import '../../call/presentation/call_screen.dart';
 import '../../conversation/presentation/direct_conversation_screen.dart';
 import '../../groups/presentation/create_group_screen.dart';
 
@@ -161,14 +168,16 @@ class _TypePill extends StatelessWidget {
   }
 }
 
-class _ConversationRow extends StatelessWidget {
+class _ConversationRow extends ConsumerWidget {
   final ConversationRow conversation;
   final VoidCallback onTap;
 
   const _ConversationRow({required this.conversation, required this.onTap});
 
+  bool get _isDirect => conversation.type == 'direct';
+
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final palette = context.appPalette;
     final accent = conversation.type == 'group'
         ? palette.groupAccent
@@ -178,156 +187,406 @@ class _ConversationRow extends StatelessWidget {
         (conversation.type == 'group' ? 'Group chat' : 'Direct conversation');
     final preview = conversation.lastMessagePreview ?? 'No messages yet';
 
-    return Material(
-      color: Colors.transparent,
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(22),
-        child: Ink(
-          decoration: BoxDecoration(
-            gradient: palette.surfaceGradient,
-            borderRadius: BorderRadius.circular(22),
-            border: Border.all(color: palette.border.withValues(alpha: 0.12)),
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withValues(alpha: 0.18),
-                blurRadius: 24,
-                offset: const Offset(0, 12),
-              ),
-            ],
-          ),
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 15, vertical: 15),
-            child: Row(
-              children: [
-                Container(
-                  width: 48,
-                  height: 48,
-                  decoration: BoxDecoration(
-                    shape: BoxShape.circle,
-                    gradient: LinearGradient(
-                      begin: Alignment.topLeft,
-                      end: Alignment.bottomRight,
-                      colors: [
-                        accent.withValues(alpha: 0.22),
-                        accent.withValues(alpha: 0.06),
-                      ],
-                    ),
-                  ),
-                  child: Icon(
-                    conversation.type == 'group'
-                        ? Icons.groups_2_outlined
-                        : Icons.chat_bubble_outline,
-                    color: accent,
-                    size: 21,
-                  ),
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(22),
+      child: SwipeableTile.swipeToTrigger(
+      key: ValueKey(conversation.id),
+      color: palette.surface,
+      borderRadius: 22,
+      swipeThreshold: 0.3,
+      direction: _isDirect
+          ? SwipeDirection.horizontal
+          : SwipeDirection.endToStart,
+      onSwiped: (direction) {
+        HapticFeedback.mediumImpact();
+        if (direction == SwipeDirection.startToEnd && _isDirect) {
+          _startCall(context, ref, 'audio');
+        } else if (direction == SwipeDirection.endToStart) {
+          _confirmDelete(context, ref, title);
+        }
+      },
+      backgroundBuilder: (context, direction, progress) {
+        return AnimatedBuilder(
+          animation: progress,
+          builder: (context, _) {
+            final value = progress.value;
+            if (value < 0.01) return const SizedBox.shrink();
+            final opacity = (value * 4).clamp(0.0, 1.0);
+            final isCall = direction == SwipeDirection.startToEnd;
+            return Opacity(
+              opacity: opacity,
+              child: Container(
+                alignment: isCall
+                    ? Alignment.centerLeft
+                    : Alignment.centerRight,
+                padding: const EdgeInsets.symmetric(horizontal: 28),
+                decoration: BoxDecoration(
+                  color: isCall ? palette.positive : palette.danger,
+                  borderRadius: BorderRadius.circular(22),
                 ),
-                const SizedBox(width: 13),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Row(
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Icon(
+                      isCall ? Icons.call : Icons.delete_outline,
+                      color: Colors.white,
+                      size: 24,
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      isCall ? 'Call' : 'Delete',
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 11,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            );
+          },
+        );
+      },
+      child: GestureDetector(
+        onLongPressStart: (details) {
+          HapticFeedback.mediumImpact();
+          _showContextMenu(
+            context,
+            ref,
+            position: details.globalPosition,
+            title: title,
+          );
+        },
+        child: Material(
+          color: Colors.transparent,
+          child: InkWell(
+            onTap: onTap,
+            borderRadius: BorderRadius.circular(22),
+            child: Ink(
+              decoration: BoxDecoration(
+                gradient: palette.surfaceGradient,
+                borderRadius: BorderRadius.circular(22),
+                border: Border.all(
+                  color: palette.border.withValues(alpha: 0.12),
+                ),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withValues(alpha: 0.18),
+                    blurRadius: 24,
+                    offset: const Offset(0, 12),
+                  ),
+                ],
+              ),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 15,
+                  vertical: 15,
+                ),
+                child: Row(
+                  children: [
+                    Container(
+                      width: 48,
+                      height: 48,
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        gradient: LinearGradient(
+                          begin: Alignment.topLeft,
+                          end: Alignment.bottomRight,
+                          colors: [
+                            accent.withValues(alpha: 0.22),
+                            accent.withValues(alpha: 0.06),
+                          ],
+                        ),
+                      ),
+                      child: Icon(
+                        conversation.type == 'group'
+                            ? Icons.groups_2_outlined
+                            : Icons.chat_bubble_outline,
+                        color: accent,
+                        size: 21,
+                      ),
+                    ),
+                    const SizedBox(width: 13),
+                    Expanded(
+                      child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Expanded(
-                            child: Text(
-                              title,
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: const TextStyle(
-                                fontSize: 15.8,
-                                fontWeight: FontWeight.w800,
-                                letterSpacing: -0.2,
-                              ),
+                          Text(
+                            title,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(
+                              fontSize: 15.8,
+                              fontWeight: FontWeight.w800,
+                              letterSpacing: -0.2,
                             ),
+                          ),
+                          const SizedBox(height: 6),
+                          Row(
+                            children: [
+                              if (conversation.type == 'group') ...[
+                                _TypePill(label: 'Group', accent: accent),
+                                const SizedBox(width: 8),
+                              ],
+                              Expanded(
+                                child: Text(
+                                  preview,
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: TextStyle(
+                                    color: palette.textMuted.withValues(
+                                      alpha: 0.94,
+                                    ),
+                                    height: 1.28,
+                                    fontSize: 13.5,
+                                  ),
+                                ),
+                              ),
+                            ],
                           ),
                         ],
                       ),
-                      const SizedBox(height: 6),
-                      Row(
+                    ),
+                    const SizedBox(width: 12),
+                    SizedBox(
+                      width: 54,
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        crossAxisAlignment: CrossAxisAlignment.end,
                         children: [
-                          if (conversation.type == 'group') ...[
-                            _TypePill(label: 'Group', accent: accent),
-                            const SizedBox(width: 8),
-                          ],
-                          Expanded(
-                            child: Text(
-                              preview,
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
+                          if (conversation.lastMessageAt != null)
+                            Text(
+                              _formatConversationTime(
+                                conversation.lastMessageAt!,
+                              ),
+                              textAlign: TextAlign.right,
                               style: TextStyle(
                                 color: palette.textMuted.withValues(
-                                  alpha: 0.94,
+                                  alpha: 0.68,
                                 ),
-                                height: 1.28,
-                                fontSize: 13.5,
+                                fontSize: 11.5,
+                                fontWeight: FontWeight.w600,
                               ),
+                            )
+                          else
+                            const SizedBox(height: 14),
+                          const SizedBox(height: 8),
+                          if (conversation.unreadCount > 0)
+                            Container(
+                              constraints: const BoxConstraints(minWidth: 22),
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 8,
+                                vertical: 5,
+                              ),
+                              decoration: BoxDecoration(
+                                color: palette.brand,
+                                borderRadius: BorderRadius.circular(999),
+                              ),
+                              child: Text(
+                                '${conversation.unreadCount}',
+                                textAlign: TextAlign.center,
+                                style: const TextStyle(
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.bold,
+                                  color: Colors.white,
+                                ),
+                              ),
+                            )
+                          else
+                            Icon(
+                              Icons.chevron_right,
+                              size: 20,
+                              color: palette.textMuted.withValues(alpha: 0.42),
                             ),
-                          ),
                         ],
                       ),
-                    ],
-                  ),
+                    ),
+                  ],
                 ),
-                const SizedBox(width: 12),
-                SizedBox(
-                  width: 54,
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    crossAxisAlignment: CrossAxisAlignment.end,
-                    children: [
-                      if (conversation.lastMessageAt != null)
-                        Text(
-                          _formatConversationTime(conversation.lastMessageAt!),
-                          textAlign: TextAlign.right,
-                          style: TextStyle(
-                            color: palette.textMuted.withValues(alpha: 0.68),
-                            fontSize: 11.5,
-                            fontWeight: FontWeight.w600,
-                          ),
-                        )
-                      else
-                        const SizedBox(height: 14),
-                      const SizedBox(height: 8),
-                      if (conversation.unreadCount > 0)
-                        Container(
-                          constraints: const BoxConstraints(minWidth: 22),
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 8,
-                            vertical: 5,
-                          ),
-                          decoration: BoxDecoration(
-                            color: palette.brand,
-                            borderRadius: BorderRadius.circular(999),
-                          ),
-                          child: Text(
-                            '${conversation.unreadCount}',
-                            textAlign: TextAlign.center,
-                            style: const TextStyle(
-                              fontSize: 11,
-                              fontWeight: FontWeight.bold,
-                              color: Colors.white,
-                            ),
-                          ),
-                        )
-                      else
-                        Icon(
-                          Icons.chevron_right,
-                          size: 20,
-                          color: palette.textMuted.withValues(alpha: 0.42),
-                        ),
-                    ],
-                  ),
-                ),
-              ],
+              ),
             ),
           ),
         ),
       ),
+    ));
+  }
+
+  void _showContextMenu(
+    BuildContext context,
+    WidgetRef ref, {
+    required Offset position,
+    required String title,
+  }) {
+    final palette = context.appPalette;
+    final items = <PopupMenuEntry<_ConversationAction>>[
+      if (_isDirect) ...[
+        PopupMenuItem(
+          value: _ConversationAction.audioCall,
+          child: Row(
+            children: [
+              Icon(Icons.call, size: 18, color: palette.positive),
+              const SizedBox(width: 12),
+              const Text('Audio call'),
+            ],
+          ),
+        ),
+        PopupMenuItem(
+          value: _ConversationAction.videoCall,
+          child: Row(
+            children: [
+              Icon(Icons.videocam, size: 18, color: palette.positive),
+              const SizedBox(width: 12),
+              const Text('Video call'),
+            ],
+          ),
+        ),
+        const PopupMenuDivider(),
+      ],
+      PopupMenuItem(
+        value: _ConversationAction.delete,
+        child: Row(
+          children: [
+            Icon(Icons.delete_outline, size: 18, color: palette.danger),
+            const SizedBox(width: 12),
+            Text('Delete', style: TextStyle(color: palette.danger)),
+          ],
+        ),
+      ),
+    ];
+
+    showMenu<_ConversationAction>(
+      context: context,
+      position: RelativeRect.fromLTRB(
+        position.dx,
+        position.dy,
+        position.dx,
+        position.dy,
+      ),
+      items: items,
+    ).then((action) {
+      if (action == null || !context.mounted) return;
+      switch (action) {
+        case _ConversationAction.audioCall:
+          _startCall(context, ref, 'audio');
+        case _ConversationAction.videoCall:
+          _startCall(context, ref, 'video');
+        case _ConversationAction.delete:
+          _confirmDelete(context, ref, title);
+      }
+    });
+  }
+
+  Future<void> _startCall(
+    BuildContext context,
+    WidgetRef ref,
+    String callType,
+  ) async {
+    if (!_isDirect) return;
+    try {
+      final peer = await ref.read(
+        directConversationPeerProvider(conversation.id).future,
+      );
+      if (peer == null || !context.mounted) return;
+
+      await ref.read(mediaActionsProvider).prepareOutgoingCall(
+        peerId: peer.peerId,
+        conversationId: conversation.id,
+        conversationTitle: conversation.title ?? 'Direct conversation',
+        callType: callType,
+      );
+
+      final localIdentity =
+          await ref.read(identityServiceProvider).bootstrap();
+      if (!context.mounted) return;
+
+      final result = await Navigator.push<int>(
+        context,
+        MaterialPageRoute(
+          builder: (_) => CallScreen(
+            callId: 'call_${DateTime.now().millisecondsSinceEpoch}',
+            myName: localIdentity.displayName,
+            remoteDisplayName: conversation.title ?? 'Direct conversation',
+            callType: callType,
+            isInitiator: true,
+            sendSignal: (payload) {
+              unawaited(
+                ref.read(mediaActionsProvider).sendCallSignal(
+                  peerId: peer.peerId,
+                  conversationId: conversation.id,
+                  conversationTitle: conversation.title ?? 'Direct conversation',
+                  payload: payload,
+                ),
+              );
+            },
+          ),
+        ),
+      );
+
+      if (result != null && result > 0) {
+        await ref.read(mediaActionsProvider).addLocalCallSummary(
+          conversationId: conversation.id,
+          callType: callType,
+          durationSeconds: result,
+        );
+      }
+    } catch (error) {
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Unable to start call: $error')),
+      );
+    }
+  }
+
+  Future<void> _confirmDelete(
+    BuildContext context,
+    WidgetRef ref,
+    String title,
+  ) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) {
+        final palette = context.appPalette;
+        return AlertDialog(
+          title: const Text('Delete conversation'),
+          content: Text('Delete "$title" and all its messages? This cannot be undone.'),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context, false),
+              child: const Text('Cancel'),
+            ),
+            TextButton(
+              onPressed: () => Navigator.pop(context, true),
+              style: TextButton.styleFrom(foregroundColor: palette.danger),
+              child: const Text('Delete'),
+            ),
+          ],
+        );
+      },
     );
+
+    if (confirmed == true && context.mounted) {
+      try {
+        await ref
+            .read(conversationsRepositoryProvider)
+            .deleteConversation(conversation.id);
+        if (context.mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Deleted "$title"')),
+          );
+        }
+      } catch (error) {
+        if (context.mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Failed to delete: $error')),
+          );
+        }
+      }
+    }
   }
 }
+
+enum _ConversationAction { audioCall, videoCall, delete }
 
 class _EmptyChatsState extends StatelessWidget {
   final VoidCallback? onGoToRequests;

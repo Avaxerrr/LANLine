@@ -92,11 +92,11 @@ class RequestsScreen extends ConsumerWidget {
                   )
                 : Column(
                     children: [
-                      for (final request in requests)
+                      for (final item in requests)
                         _PendingRequestCard(
-                          title: request.peerId,
+                          title: item.displayName,
                           subtitle:
-                              request.message ??
+                              item.request.message ??
                               'This device wants to connect with you.',
                           accent: palette.brand,
                           statusLabel: 'Incoming',
@@ -109,9 +109,9 @@ class RequestsScreen extends ConsumerWidget {
                               onPressed: () {
                                 unawaited(
                                   runRequestAction(
-                                    'Accepted request from ${request.peerId}',
+                                    'Accepted request from ${item.displayName}',
                                     () => requestActions.acceptRequest(
-                                      request.id,
+                                      item.request.id,
                                     ),
                                   ),
                                 );
@@ -125,9 +125,9 @@ class RequestsScreen extends ConsumerWidget {
                               onPressed: () {
                                 unawaited(
                                   runRequestAction(
-                                    'Declined request from ${request.peerId}',
+                                    'Declined request from ${item.displayName}',
                                     () => requestActions.declineRequest(
-                                      request.id,
+                                      item.request.id,
                                     ),
                                   ),
                                 );
@@ -141,10 +141,10 @@ class RequestsScreen extends ConsumerWidget {
                               onPressed: () {
                                 unawaited(
                                   runRequestAction(
-                                    'Blocked ${request.peerId}',
+                                    'Blocked ${item.displayName}',
                                     () => requestActions.blockPeer(
-                                      peerId: request.peerId,
-                                      requestId: request.id,
+                                      peerId: item.request.peerId,
+                                      requestId: item.request.id,
                                     ),
                                   ),
                                 );
@@ -230,11 +230,11 @@ class RequestsScreen extends ConsumerWidget {
                   )
                 : Column(
                     children: [
-                      for (final request in requests)
+                      for (final item in requests)
                         _PendingRequestCard(
-                          title: request.peerId,
+                          title: item.displayName,
                           subtitle:
-                              request.message ??
+                              item.request.message ??
                               'Waiting for this person to approve you.',
                           accent: palette.warning,
                           statusLabel: 'Sent',
@@ -247,9 +247,9 @@ class RequestsScreen extends ConsumerWidget {
                               onPressed: () {
                                 unawaited(
                                   runRequestAction(
-                                    'Cancelled request to ${request.peerId}',
+                                    'Cancelled request to ${item.displayName}',
                                     () => requestActions.cancelRequest(
-                                      request.id,
+                                      item.request.id,
                                     ),
                                   ),
                                 );
@@ -263,10 +263,10 @@ class RequestsScreen extends ConsumerWidget {
                               onPressed: () {
                                 unawaited(
                                   runRequestAction(
-                                    'Blocked ${request.peerId}',
+                                    'Blocked ${item.displayName}',
                                     () => requestActions.blockPeer(
-                                      peerId: request.peerId,
-                                      requestId: request.id,
+                                      peerId: item.request.peerId,
+                                      requestId: item.request.id,
                                     ),
                                   ),
                                 );
