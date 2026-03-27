@@ -811,55 +811,62 @@ class AttachmentMessageContent extends ConsumerWidget {
               ),
             ),
           ),
-          const SizedBox(height: 12),
+          const SizedBox(height: 8),
+          Text(
+            attachment.fileName,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: TextStyle(color: palette.textMuted, fontSize: 12),
+          ),
         ],
-        Container(
-          padding: const EdgeInsets.all(12),
-          decoration: BoxDecoration(
-            color: palette.surfaceMuted.withValues(alpha: 0.86),
-            borderRadius: BorderRadius.circular(14),
-            border: Border.all(color: palette.border.withValues(alpha: 0.14)),
-          ),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Container(
-                padding: const EdgeInsets.all(8),
-                decoration: BoxDecoration(
-                  color: palette.surface.withValues(alpha: 0.78),
-                  borderRadius: BorderRadius.circular(10),
+        if (!hasImagePreview)
+          Container(
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: palette.surfaceMuted.withValues(alpha: 0.86),
+              borderRadius: BorderRadius.circular(14),
+              border: Border.all(color: palette.border.withValues(alpha: 0.14)),
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: palette.surface.withValues(alpha: 0.78),
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: Icon(
+                    _iconForKind(attachment.kind),
+                    color: Colors.white,
+                    size: 22,
+                  ),
                 ),
-                child: Icon(
-                  _iconForKind(attachment.kind),
-                  color: Colors.white,
-                  size: 22,
-                ),
-              ),
-              const SizedBox(width: 12),
-              Flexible(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      attachment.fileName,
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(
-                        fontWeight: FontWeight.bold,
-                        fontSize: 14.5,
+                const SizedBox(width: 12),
+                Flexible(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        attachment.fileName,
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                          fontWeight: FontWeight.bold,
+                          fontSize: 14.5,
+                        ),
                       ),
-                    ),
-                    const SizedBox(height: 2),
-                    Text(
-                      _formatFileSize(attachment.fileSize),
-                      style: TextStyle(color: palette.textMuted, fontSize: 12),
-                    ),
-                  ],
+                      const SizedBox(height: 2),
+                      Text(
+                        _formatFileSize(attachment.fileSize),
+                        style: TextStyle(color: palette.textMuted, fontSize: 12),
+                      ),
+                    ],
+                  ),
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
-        ),
         if (attachment.transferState == 'downloading' &&
             progressValue != null) ...[
           const SizedBox(height: 10),

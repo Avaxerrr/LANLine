@@ -238,13 +238,7 @@ class V2DirectMessageProtocolController {
         !existingPeer.isBlocked &&
         (existingPeer.relationshipState == 'accepted' ||
             existingPeer.relationshipState == 'pending_outgoing');
-    if (!isTrustedPeer) {
-      debugPrint(
-        '[V2DirectMessageProtocolController] Ignored unsolicited message from '
-        '$senderPeerId.',
-      );
-      return;
-    }
+    if (!isTrustedPeer) return;
 
     final displayName =
         isValidProtocolDisplayName(data['senderDisplayName']?.toString())
@@ -358,9 +352,6 @@ class V2DirectMessageProtocolController {
         );
       }
       final port = peer.tunnelPort ?? V2RequestSignalingService.defaultPort;
-      debugPrint(
-        '[V2DirectMessage] Resolved endpoint via TUNNEL: $host:$port',
-      );
       return (host: host, port: port);
     }
 
@@ -368,11 +359,6 @@ class V2DirectMessageProtocolController {
     if (presence == null || !presence.isReachable || presence.host == null) {
       throw StateError('Peer is not reachable right now.');
     }
-    debugPrint(
-      '[V2DirectMessage] Resolved endpoint via LAN: '
-      '${presence.host}:${presence.port ?? V2RequestSignalingService.defaultPort} '
-      '(useTunnel=${peer?.useTunnel})',
-    );
     return (
       host: presence.host!,
       port: presence.port ?? V2RequestSignalingService.defaultPort,

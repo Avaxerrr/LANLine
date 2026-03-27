@@ -112,10 +112,6 @@ class V2RequestSignalingService {
       throw StateError('Payload exceeds the signaling size limit.');
     }
 
-    debugPrint(
-      '[V2SignalingService] Connecting to ws://$normalizedHost:$port',
-    );
-
     WebSocket? socket;
 
     try {

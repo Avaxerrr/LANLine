@@ -4,6 +4,7 @@ import 'dart:ui';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:receive_sharing_intent/receive_sharing_intent.dart';
 
 import 'package:lanline/core/providers/v2_data_providers.dart';
 import 'package:lanline/core/providers/v2_direct_message_protocol_provider.dart';
@@ -17,6 +18,7 @@ import 'package:lanline/features/chats/presentation/chats_screen.dart';
 import 'package:lanline/features/people/presentation/people_screen.dart';
 import 'package:lanline/features/requests/presentation/requests_screen.dart';
 import 'package:lanline/features/settings/presentation/settings_screen.dart';
+import 'package:lanline/features/share/presentation/share_target_screen.dart';
 import 'package:lanline/core/theme/app_theme.dart';
 
 class AppShell extends ConsumerStatefulWidget {
@@ -30,6 +32,53 @@ class _AppShellState extends ConsumerState<AppShell> {
   static const _navOverlayHeight = 104.0;
   int _selectedIndex = 0;
   String? _visibleIncomingCallId;
+  StreamSubscription<List<SharedMediaFile>>? _shareIntentSub;
+  bool _shareScreenOpen = false;
+
+  @override
+  void initState() {
+    super.initState();
+    if (defaultTargetPlatform == TargetPlatform.android) {
+      // Handle files shared while app is already running
+      _shareIntentSub = ReceiveSharingIntent.instance
+          .getMediaStream()
+          .listen(_handleSharedFiles, onError: (_) {});
+
+      // Handle files shared when app was closed (cold start)
+      ReceiveSharingIntent.instance
+          .getInitialMedia()
+          .then((files) {
+        if (files.isNotEmpty) _handleSharedFiles(files);
+      });
+    }
+  }
+
+  @override
+  void dispose() {
+    _shareIntentSub?.cancel();
+    super.dispose();
+  }
+
+  void _handleSharedFiles(List<SharedMediaFile> files) {
+    if (files.isEmpty || !mounted || _shareScreenOpen) return;
+    final paths = files
+        .map((f) => f.path)
+        .where((p) => p.isNotEmpty)
+        .toList();
+    if (paths.isEmpty) return;
+
+    _shareScreenOpen = true;
+    Navigator.of(context)
+        .push<bool>(
+          MaterialPageRoute(
+            builder: (_) => ShareTargetScreen(filePaths: paths),
+          ),
+        )
+        .then((sent) {
+      _shareScreenOpen = false;
+      ReceiveSharingIntent.instance.reset();
+    });
+  }
 
   void _goToRequests() {
     setState(() => _selectedIndex = 2);

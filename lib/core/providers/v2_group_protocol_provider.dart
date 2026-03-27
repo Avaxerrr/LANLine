@@ -388,13 +388,7 @@ class V2GroupProtocolController {
         !senderPeer.isBlocked &&
         (senderPeer.relationshipState == 'accepted' ||
             senderPeer.relationshipState == 'pending_outgoing');
-    if (!isTrustedSender) {
-      debugPrint(
-        '[V2GroupProtocolController] Ignored group invite from untrusted peer '
-        '$senderPeerId.',
-      );
-      return;
-    }
+    if (!isTrustedSender) return;
 
     final seeds = <GroupConversationMemberSeed>[];
     for (final member in members) {

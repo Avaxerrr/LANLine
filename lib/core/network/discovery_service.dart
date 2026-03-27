@@ -82,7 +82,7 @@ class DiscoveryService {
         try {
           await _networkChannel.invokeMethod('acquireMulticastLock');
           _multicastLockHeld = true;
-          debugPrint('[DiscoveryService] Multicast lock acquired.');
+          // Multicast lock acquired.
         } catch (error) {
           debugPrint(
             '[DiscoveryService] Failed to acquire multicast lock: $error',
@@ -96,10 +96,6 @@ class DiscoveryService {
         reuseAddress: true,
       );
       _listenSocket?.broadcastEnabled = true;
-      debugPrint(
-        '[DiscoveryService] UDP listener bound on port $_discoveryPort.',
-      );
-
       _listenSubscription = _listenSocket?.listen((RawSocketEvent event) {
         if (event != RawSocketEvent.read) return;
 
@@ -108,10 +104,6 @@ class DiscoveryService {
 
         final message = String.fromCharCodes(datagram.data);
         final senderIp = datagram.address.address;
-        debugPrint(
-          '[DiscoveryService] Received UDP from $senderIp '
-          '(${datagram.data.length} bytes).',
-        );
         final signal = DiscoveryService.parseDiscoveryMessage(
           message,
           senderIp,

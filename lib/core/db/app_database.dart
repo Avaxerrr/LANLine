@@ -141,6 +141,14 @@ LazyDatabase _openConnection() {
   return LazyDatabase(() async {
     final documentsDir = await getApplicationDocumentsDirectory();
     final file = File(p.join(documentsDir.path, 'lanline_v2.sqlite'));
-    return NativeDatabase.createInBackground(file);
+    return NativeDatabase.createInBackground(
+      file,
+      setup: (db) {
+        // WAL mode allows concurrent reads + writes without locking.
+        db.execute('PRAGMA journal_mode=WAL');
+        // Wait up to 5 seconds for a lock instead of failing immediately.
+        db.execute('PRAGMA busy_timeout=5000');
+      },
+    );
   });
 }

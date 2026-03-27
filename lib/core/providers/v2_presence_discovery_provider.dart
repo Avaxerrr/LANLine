@@ -23,14 +23,21 @@ class V2PresenceDiscoveryController {
   StreamSubscription<DiscoveredPeerPresence>? _peerSubscription;
   Timer? _tunnelProbeTimer;
   Timer? _staleSweepTimer;
+  Timer? _presenceFlushTimer;
   Future<void>? _startFuture;
   LocalIdentityRow? _localIdentity;
   Future<bool> Function(HttpRequest)? _httpHandler;
+
+  /// Buffer that keeps only the latest presence event per peer.
+  /// Flushed to the database on a short timer to coalesce rapid UDP bursts.
+  final Map<String, DiscoveredPeerPresence> _pendingPresence = {};
+  bool _flushing = false;
 
   static const _tunnelProbeInterval = Duration(seconds: 30);
   static const _tunnelProbeTimeout = Duration(seconds: 5);
   static const _staleSweepInterval = Duration(seconds: 30);
   static const _staleThreshold = Duration(seconds: 60);
+  static const _presenceFlushDelay = Duration(milliseconds: 500);
 
   V2PresenceDiscoveryController({
     required DiscoveryService discoveryService,
@@ -214,39 +221,77 @@ class V2PresenceDiscoveryController {
     }
   }
 
-  Future<void> _handlePeerPresence(DiscoveredPeerPresence event) async {
+  void _handlePeerPresence(DiscoveredPeerPresence event) {
     if (_localIdentity != null && event.peerId == _localIdentity!.peerId) {
       return;
     }
+    // Keep only the latest event per peer — this deduplicates rapid UDP bursts.
+    _pendingPresence[event.peerId] = event;
+    _presenceFlushTimer?.cancel();
+    _presenceFlushTimer = Timer(_presenceFlushDelay, () {
+      unawaited(_flushPendingPresence());
+    });
+  }
 
-    final existingPeer = await _peersRepository.getPeerByPeerId(event.peerId);
+  Future<void> _flushPendingPresence() async {
+    if (_flushing || _pendingPresence.isEmpty) return;
+    _flushing = true;
+    try {
+      // Snapshot and clear so new events can accumulate during the flush.
+      final batch = Map<String, DiscoveredPeerPresence>.of(_pendingPresence);
+      _pendingPresence.clear();
 
-    await _peersRepository.upsertPeer(
-      peerId: event.peerId,
-      displayName: event.displayName,
-      deviceLabel: event.deviceLabel,
-      fingerprint: event.fingerprint,
-      relationshipState: existingPeer?.relationshipState ?? 'discovered',
-      isBlocked: existingPeer?.isBlocked ?? false,
-    );
+      for (final event in batch.values) {
+        try {
+          final existingPeer =
+              await _peersRepository.getPeerByPeerId(event.peerId);
 
-    await _peersRepository.upsertPresence(
-      peerId: event.peerId,
-      status: event.status,
-      isReachable: event.isReachable,
-      transportType: event.transportType,
-      host: event.ip,
-      port: event.port,
-      lastHeartbeatAt: event.lastHeartbeatAt,
-    );
+          await _peersRepository.upsertPeer(
+            peerId: event.peerId,
+            displayName: event.displayName,
+            deviceLabel: event.deviceLabel,
+            fingerprint: event.fingerprint,
+            relationshipState: existingPeer?.relationshipState ?? 'discovered',
+            isBlocked: existingPeer?.isBlocked ?? false,
+          );
 
-    await _conversationsRepository.syncDirectConversationTitle(
-      peerId: event.peerId,
-      displayName: event.displayName,
-    );
+          await _peersRepository.upsertPresence(
+            peerId: event.peerId,
+            status: event.status,
+            isReachable: event.isReachable,
+            transportType: event.transportType,
+            host: event.ip,
+            port: event.port,
+            lastHeartbeatAt: event.lastHeartbeatAt,
+          );
+
+          await _conversationsRepository.syncDirectConversationTitle(
+            peerId: event.peerId,
+            displayName: event.displayName,
+          );
+        } catch (error) {
+          debugPrint(
+            '[V2PresenceDiscovery] Failed to persist presence for '
+            '${event.peerId}: $error',
+          );
+        }
+      }
+    } finally {
+      _flushing = false;
+      // If new events arrived while flushing, schedule another flush.
+      if (_pendingPresence.isNotEmpty) {
+        _presenceFlushTimer?.cancel();
+        _presenceFlushTimer = Timer(_presenceFlushDelay, () {
+          unawaited(_flushPendingPresence());
+        });
+      }
+    }
   }
 
   Future<void> dispose() async {
+    _presenceFlushTimer?.cancel();
+    _presenceFlushTimer = null;
+    _pendingPresence.clear();
     _staleSweepTimer?.cancel();
     _staleSweepTimer = null;
     _tunnelProbeTimer?.cancel();

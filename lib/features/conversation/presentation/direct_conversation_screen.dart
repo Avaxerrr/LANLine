@@ -77,19 +77,19 @@ class _DirectConversationScreenState
 
   @override
   void dispose() {
+    // Capture provider references before the widget tree tears down,
+    // since ref becomes invalid after super.dispose().
+    final pageSizeNotifier = ref.read(
+      conversationMessagePageSizeProvider(widget.conversationId).notifier,
+    );
+    final actions = ref.read(conversationActionsProvider);
+
     WidgetsBinding.instance.removeObserver(this);
     _composerFocusNode.dispose();
     _textController.dispose();
     _scrollController.dispose();
-    ref
-            .read(
-              conversationMessagePageSizeProvider(
-                widget.conversationId,
-              ).notifier,
-            )
-            .state =
-        50;
-    ref.read(conversationActionsProvider).setActiveConversation(null);
+    pageSizeNotifier.state = 50;
+    actions.setActiveConversation(null);
     super.dispose();
   }
 

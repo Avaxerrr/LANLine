@@ -522,7 +522,15 @@ class V2MediaProtocolNotifier extends Notifier<V2MediaProtocolState> {
         transferState: 'offered',
       );
     }
-    final canReach = await _canResolveEndpoint(senderPeerId);
+    var canReach = await _canResolveEndpoint(senderPeerId);
+    if (!canReach &&
+        fileSize > 0 &&
+        fileSize <= _autoAcceptFileThresholdBytes) {
+      // Peer presence may not have propagated yet (e.g. app just started via
+      // share intent). Wait briefly and retry once.
+      await Future.delayed(const Duration(seconds: 2));
+      canReach = await _canResolveEndpoint(senderPeerId);
+    }
     if (fileSize > 0 &&
         fileSize <= _autoAcceptFileThresholdBytes &&
         canReach) {
@@ -914,9 +922,6 @@ class V2MediaProtocolNotifier extends Notifier<V2MediaProtocolState> {
         );
       }
       final port = peer.tunnelPort ?? V2RequestSignalingService.defaultPort;
-      debugPrint(
-        '[V2MediaProtocol] Resolved endpoint via TUNNEL: $host:$port',
-      );
       return (host: host, port: port);
     }
 
@@ -924,10 +929,6 @@ class V2MediaProtocolNotifier extends Notifier<V2MediaProtocolState> {
     if (presence == null || !presence.isReachable || presence.host == null) {
       throw StateError('Peer is not reachable right now.');
     }
-    debugPrint(
-      '[V2MediaProtocol] Resolved endpoint via LAN: '
-      '${presence.host}:${presence.port ?? V2RequestSignalingService.defaultPort}',
-    );
     return (
       host: presence.host!,
       port: presence.port ?? V2RequestSignalingService.defaultPort,
