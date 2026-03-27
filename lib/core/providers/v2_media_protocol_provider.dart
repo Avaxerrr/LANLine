@@ -117,8 +117,23 @@ class V2MediaProtocolNotifier extends Notifier<V2MediaProtocolState> {
     await _signalingService.startServer();
     _httpRequestHandler ??= _fileTransferManager.handleHttpRequest;
     _signalingService.registerHttpHandler(_httpRequestHandler!);
+    _fileTransferManager.onOutgoingTransferServed ??=
+        _onOutgoingTransferServed;
     _messageSubscription ??= _signalingService.onMessageReceived.listen(
       _handleIncomingSignal,
+    );
+  }
+
+  /// Called when the HTTP file stream finishes on the sender side.
+  /// Acts as a reliable fallback — even if the receiver's file_downloaded
+  /// signal is lost (e.g. during Android activity recreation), the sender
+  /// still marks the transfer as completed.
+  void _onOutgoingTransferServed(String attachmentId) {
+    unawaited(
+      _attachmentsRepository.updateAttachmentTransferMetadata(
+        attachmentId: attachmentId,
+        transferState: 'completed',
+      ),
     );
   }
 

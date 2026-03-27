@@ -14,6 +14,8 @@ final v2RequestSignalingServiceProvider = Provider<V2RequestSignalingService>((
 
 class V2RequestSignalingService {
   static const int defaultPort = 55557;
+  static const int _maxBindRetries = 4;
+  static const Duration _bindRetryDelay = Duration(seconds: 2);
 
   HttpServer? _server;
   final StreamController<String> _messageController =
@@ -39,61 +41,75 @@ class V2RequestSignalingService {
   }) async {
     if (_server != null) return;
 
-    try {
-      final address = bindAddress != null
-          ? InternetAddress(bindAddress)
-          : InternetAddress.anyIPv4;
+    final address = bindAddress != null
+        ? InternetAddress(bindAddress)
+        : InternetAddress.anyIPv4;
 
-      _server = await HttpServer.bind(address, port, shared: true);
-      _server?.listen((request) async {
-        if (!WebSocketTransformer.isUpgradeRequest(request)) {
-          for (final handler in List.of(_httpHandlers)) {
-            final handled = await handler(request);
-            if (handled) {
-              return;
-            }
-          }
-
-          request.response.statusCode = HttpStatus.notFound;
-          await request.response.close();
+    // Retry binding in case the port is still held by a previous instance.
+    for (var attempt = 1; attempt <= _maxBindRetries; attempt++) {
+      try {
+        _server = await HttpServer.bind(address, port, shared: true);
+        break;
+      } catch (error) {
+        if (attempt < _maxBindRetries) {
+          debugPrint(
+            '[V2RequestSignalingService] Port $port busy, '
+            'retry $attempt/$_maxBindRetries in ${_bindRetryDelay.inSeconds}s',
+          );
+          await Future.delayed(_bindRetryDelay);
+        } else {
+          debugPrint(
+            '[V2RequestSignalingService] Failed to start server on port $port '
+            'after $_maxBindRetries attempts: $error',
+          );
           return;
         }
-
-        final socket = await WebSocketTransformer.upgrade(request);
-        socket.listen(
-          (message) {
-            // Check raw size before decoding to avoid processing oversized payloads
-            if (message is List<int> &&
-                message.length > kMaxProtocolPayloadBytes) {
-              unawaited(socket.close(WebSocketStatus.messageTooBig));
-              return;
-            }
-            final text = switch (message) {
-              String value => value,
-              List<int> value => String.fromCharCodes(value),
-              _ => null,
-            };
-            if (text == null || text.length > kMaxProtocolPayloadBytes) {
-              unawaited(socket.close(WebSocketStatus.messageTooBig));
-              return;
-            }
-            if (!_messageController.isClosed) {
-              _messageController.add(text);
-            }
-          },
-          onError: (Object error) {
-            debugPrint(
-              '[V2RequestSignalingService] Incoming socket error: $error',
-            );
-          },
-        );
-      });
-    } catch (error) {
-      debugPrint(
-        '[V2RequestSignalingService] Failed to start server on port $port: '
-        '$error',
-      );
+      }
     }
+
+    _server?.listen((request) async {
+      if (!WebSocketTransformer.isUpgradeRequest(request)) {
+        for (final handler in List.of(_httpHandlers)) {
+          final handled = await handler(request);
+          if (handled) {
+            return;
+          }
+        }
+
+        request.response.statusCode = HttpStatus.notFound;
+        await request.response.close();
+        return;
+      }
+
+      final socket = await WebSocketTransformer.upgrade(request);
+      socket.listen(
+        (message) {
+          // Check raw size before decoding to avoid processing oversized payloads
+          if (message is List<int> &&
+              message.length > kMaxProtocolPayloadBytes) {
+            unawaited(socket.close(WebSocketStatus.messageTooBig));
+            return;
+          }
+          final text = switch (message) {
+            String value => value,
+            List<int> value => String.fromCharCodes(value),
+            _ => null,
+          };
+          if (text == null || text.length > kMaxProtocolPayloadBytes) {
+            unawaited(socket.close(WebSocketStatus.messageTooBig));
+            return;
+          }
+          if (!_messageController.isClosed) {
+            _messageController.add(text);
+          }
+        },
+        onError: (Object error) {
+          debugPrint(
+            '[V2RequestSignalingService] Incoming socket error: $error',
+          );
+        },
+      );
+    });
   }
 
   Future<void> sendMessage({

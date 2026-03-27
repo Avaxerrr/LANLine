@@ -24,6 +24,9 @@ class PreparedFileTransfer {
   const PreparedFileTransfer({required this.token, required this.path});
 }
 
+/// Called when the sender has fully served a file to the receiver via HTTP.
+typedef OutgoingTransferServedCallback = void Function(String attachmentId);
+
 class FileTransferManager {
   static const String transferPathPrefix = '/v2/media/files';
   static const Duration transferTimeout = Duration(minutes: 30);
@@ -32,6 +35,9 @@ class FileTransferManager {
   final Uuid _uuid;
   final Map<String, _OutgoingTransferSession> _outgoingTransfers = {};
   final Map<String, _ActiveDownload> _activeDownloads = {};
+
+  /// Fires after a file has been fully streamed to the receiver via HTTP.
+  OutgoingTransferServedCallback? onOutgoingTransferServed;
 
   FileTransferManager({HttpClient? httpClient, Uuid? uuid})
     : _httpClient = httpClient ?? HttpClient(),
@@ -118,6 +124,9 @@ class FileTransferManager {
 
     try {
       await request.response.addStream(file.openRead());
+      // File fully served — notify so the sender can mark transfer as completed
+      // even if the receiver's file_downloaded signal is lost.
+      onOutgoingTransferServed?.call(session.attachmentId);
     } finally {
       await request.response.close();
     }
