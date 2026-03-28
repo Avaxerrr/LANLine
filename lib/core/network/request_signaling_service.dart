@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert';
 import 'dart:io';
 
 import 'package:flutter/foundation.dart';
@@ -6,13 +7,13 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'protocol_validation.dart';
 
-final v2RequestSignalingServiceProvider = Provider<V2RequestSignalingService>((
+final requestSignalingServiceProvider = Provider<RequestSignalingService>((
   ref,
 ) {
-  return V2RequestSignalingService();
+  return RequestSignalingService();
 });
 
-class V2RequestSignalingService {
+class RequestSignalingService {
   static const int defaultPort = 55557;
   static const int _maxBindRetries = 4;
   static const Duration _bindRetryDelay = Duration(seconds: 2);
@@ -53,13 +54,13 @@ class V2RequestSignalingService {
       } catch (error) {
         if (attempt < _maxBindRetries) {
           debugPrint(
-            '[V2RequestSignalingService] Port $port busy, '
+            '[RequestSignalingService] Port $port busy, '
             'retry $attempt/$_maxBindRetries in ${_bindRetryDelay.inSeconds}s',
           );
           await Future.delayed(_bindRetryDelay);
         } else {
           debugPrint(
-            '[V2RequestSignalingService] Failed to start server on port $port '
+            '[RequestSignalingService] Failed to start server on port $port '
             'after $_maxBindRetries attempts: $error',
           );
           return;
@@ -81,6 +82,8 @@ class V2RequestSignalingService {
         return;
       }
 
+      final remoteHost =
+          request.connectionInfo?.remoteAddress.address;
       final socket = await WebSocketTransformer.upgrade(request);
       socket.listen(
         (message) {
@@ -90,7 +93,7 @@ class V2RequestSignalingService {
             unawaited(socket.close(WebSocketStatus.messageTooBig));
             return;
           }
-          final text = switch (message) {
+          var text = switch (message) {
             String value => value,
             List<int> value => String.fromCharCodes(value),
             _ => null,
@@ -99,13 +102,26 @@ class V2RequestSignalingService {
             unawaited(socket.close(WebSocketStatus.messageTooBig));
             return;
           }
+          // Inject the caller's IP so handlers can reach back without
+          // relying solely on the presence database.
+          if (remoteHost != null) {
+            try {
+              final data = jsonDecode(text);
+              if (data is Map<String, dynamic>) {
+                data['_remoteHost'] = remoteHost;
+                text = jsonEncode(data);
+              }
+            } catch (_) {
+              // Not JSON — forward as-is.
+            }
+          }
           if (!_messageController.isClosed) {
-            _messageController.add(text);
+            _messageController.add(text!);
           }
         },
         onError: (Object error) {
           debugPrint(
-            '[V2RequestSignalingService] Incoming socket error: $error',
+            '[RequestSignalingService] Incoming socket error: $error',
           );
         },
       );

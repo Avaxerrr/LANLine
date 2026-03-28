@@ -7,15 +7,15 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../db/app_database.dart';
 import '../network/discovery_service.dart';
-import '../network/v2_request_signaling_service.dart';
+import '../network/request_signaling_service.dart';
 import '../repositories/conversations_repository.dart';
 import '../repositories/peers_repository.dart';
-import 'v2_identity_provider.dart';
-import 'v2_repository_providers.dart';
+import 'identity_provider.dart';
+import 'repository_providers.dart';
 
-class V2PresenceDiscoveryController {
+class PresenceDiscoveryController {
   final DiscoveryService _discoveryService;
-  final V2RequestSignalingService _signalingService;
+  final RequestSignalingService _signalingService;
   final PeersRepository _peersRepository;
   final ConversationsRepository _conversationsRepository;
   final Future<LocalIdentityRow> Function() _loadLocalIdentity;
@@ -39,9 +39,9 @@ class V2PresenceDiscoveryController {
   static const _staleThreshold = Duration(seconds: 60);
   static const _presenceFlushDelay = Duration(milliseconds: 500);
 
-  V2PresenceDiscoveryController({
+  PresenceDiscoveryController({
     required DiscoveryService discoveryService,
-    required V2RequestSignalingService signalingService,
+    required RequestSignalingService signalingService,
     required PeersRepository peersRepository,
     required ConversationsRepository conversationsRepository,
     required Future<LocalIdentityRow> Function() loadLocalIdentity,
@@ -72,7 +72,7 @@ class V2PresenceDiscoveryController {
       fingerprint: _localIdentity!.fingerprint,
       isReachable: true,
       status: 'online',
-      port: V2RequestSignalingService.defaultPort,
+      port: RequestSignalingService.defaultPort,
       bindAddress: await _discoveryService.getLocalIpAddress(),
     );
 
@@ -98,7 +98,7 @@ class V2PresenceDiscoveryController {
       fingerprint: _localIdentity!.fingerprint,
       isReachable: true,
       status: 'online',
-      port: V2RequestSignalingService.defaultPort,
+      port: RequestSignalingService.defaultPort,
       bindAddress: await _discoveryService.getLocalIpAddress(),
     );
   }
@@ -109,7 +109,7 @@ class V2PresenceDiscoveryController {
           DateTime.now().millisecondsSinceEpoch - _staleThreshold.inMilliseconds;
       await _peersRepository.markStalePresenceUnreachable(cutoff);
     } catch (error) {
-      debugPrint('[V2PresenceDiscovery] Stale sweep failed: $error');
+      debugPrint('[PresenceDiscovery] Stale sweep failed: $error');
     }
   }
 
@@ -140,7 +140,7 @@ class V2PresenceDiscoveryController {
     required String host,
     int? port,
   }) async {
-    final resolvedPort = port ?? V2RequestSignalingService.defaultPort;
+    final resolvedPort = port ?? RequestSignalingService.defaultPort;
     try {
       await start();
       final client = HttpClient();
@@ -175,7 +175,7 @@ class V2PresenceDiscoveryController {
         fingerprint: data['fingerprint']?.toString(),
       );
     } catch (error) {
-      debugPrint('[V2PresenceDiscovery] Discover by IP failed: $error');
+      debugPrint('[PresenceDiscovery] Discover by IP failed: $error');
       return null;
     }
   }
@@ -186,7 +186,7 @@ class V2PresenceDiscoveryController {
       for (final peer in tunnelPeers) {
         final host = peer.tunnelHost?.trim();
         if (host == null || host.isEmpty) continue;
-        final port = peer.tunnelPort ?? V2RequestSignalingService.defaultPort;
+        final port = peer.tunnelPort ?? RequestSignalingService.defaultPort;
         final reachable = await _tcpProbe(host, port);
         final now = DateTime.now().millisecondsSinceEpoch;
         await _peersRepository.upsertPresence(
@@ -202,7 +202,7 @@ class V2PresenceDiscoveryController {
       }
     } catch (error) {
       debugPrint(
-        '[V2PresenceDiscovery] Tunnel probe failed: $error',
+        '[PresenceDiscovery] Tunnel probe failed: $error',
       );
     }
   }
@@ -271,7 +271,7 @@ class V2PresenceDiscoveryController {
           );
         } catch (error) {
           debugPrint(
-            '[V2PresenceDiscovery] Failed to persist presence for '
+            '[PresenceDiscovery] Failed to persist presence for '
             '${event.peerId}: $error',
           );
         }
@@ -307,11 +307,11 @@ class V2PresenceDiscoveryController {
   }
 }
 
-final v2PresenceDiscoveryControllerProvider =
-    Provider<V2PresenceDiscoveryController>((ref) {
-      final controller = V2PresenceDiscoveryController(
+final presenceDiscoveryControllerProvider =
+    Provider<PresenceDiscoveryController>((ref) {
+      final controller = PresenceDiscoveryController(
         discoveryService: ref.read(discoveryServiceProvider),
-        signalingService: ref.read(v2RequestSignalingServiceProvider),
+        signalingService: ref.read(requestSignalingServiceProvider),
         peersRepository: ref.read(peersRepositoryProvider),
         conversationsRepository: ref.read(conversationsRepositoryProvider),
         loadLocalIdentity: () => ref.read(identityServiceProvider).bootstrap(),

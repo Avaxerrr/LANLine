@@ -5,31 +5,31 @@ import '../db/app_database.dart';
 import '../repositories/messages_repository.dart';
 import '../repositories/conversations_repository.dart';
 import '../repositories/requests_repository.dart';
-import 'v2_direct_message_protocol_provider.dart';
-import 'v2_group_protocol_provider.dart';
-import 'v2_identity_provider.dart';
-import 'v2_media_protocol_provider.dart';
-import 'v2_navigation_state_provider.dart';
-import 'v2_presence_discovery_provider.dart';
-import 'v2_request_protocol_provider.dart';
-import 'v2_repository_providers.dart';
+import 'direct_message_protocol_provider.dart';
+import 'group_protocol_provider.dart';
+import 'identity_provider.dart';
+import 'media_protocol_provider.dart';
+import 'navigation_state_provider.dart';
+import 'presence_discovery_provider.dart';
+import 'request_protocol_provider.dart';
+import 'repository_providers.dart';
 
 final conversationMessagePageSizeProvider = StateProvider.family<int, String>(
   (ref, conversationId) => 50,
 );
 
 final contactsProvider = StreamProvider((ref) {
-  ref.watch(v2PresenceDiscoveryControllerProvider);
+  ref.watch(presenceDiscoveryControllerProvider);
   return ref.read(peersRepositoryProvider).watchAcceptedContacts();
 });
 
 final reachableContactsProvider = StreamProvider((ref) {
-  ref.watch(v2PresenceDiscoveryControllerProvider);
+  ref.watch(presenceDiscoveryControllerProvider);
   return ref.read(peersRepositoryProvider).watchReachableAcceptedContacts();
 });
 
 final discoveredPeersProvider = StreamProvider((ref) {
-  ref.watch(v2PresenceDiscoveryControllerProvider);
+  ref.watch(presenceDiscoveryControllerProvider);
   return ref.read(peersRepositoryProvider).watchDiscoveredPeers();
 });
 
@@ -137,7 +137,7 @@ final conversationMemberPeersProvider =
     });
 
 class RequestActions {
-  final V2RequestProtocolController _controller;
+  final RequestProtocolController _controller;
 
   RequestActions(this._controller);
 
@@ -166,13 +166,13 @@ class RequestActions {
 }
 
 final requestActionsProvider = Provider<RequestActions>((ref) {
-  ref.watch(v2RequestProtocolControllerProvider);
-  return RequestActions(ref.read(v2RequestProtocolControllerProvider));
+  ref.watch(requestProtocolControllerProvider);
+  return RequestActions(ref.read(requestProtocolControllerProvider));
 });
 
 class ConversationActions {
-  final V2DirectMessageProtocolController _directController;
-  final V2GroupProtocolController _groupController;
+  final DirectMessageProtocolController _directController;
+  final GroupProtocolController _groupController;
   final ConversationsRepository _conversationsRepository;
   final MessagesRepository _messagesRepository;
   final Ref _ref;
@@ -276,11 +276,11 @@ class ConversationActions {
 }
 
 final conversationActionsProvider = Provider<ConversationActions>((ref) {
-  ref.watch(v2DirectMessageProtocolControllerProvider);
-  ref.watch(v2GroupProtocolControllerProvider);
+  ref.watch(directMessageProtocolControllerProvider);
+  ref.watch(groupProtocolControllerProvider);
   return ConversationActions(
-    ref.read(v2DirectMessageProtocolControllerProvider),
-    ref.read(v2GroupProtocolControllerProvider),
+    ref.read(directMessageProtocolControllerProvider),
+    ref.read(groupProtocolControllerProvider),
     ref.read(conversationsRepositoryProvider),
     ref.read(messagesRepositoryProvider),
     ref,
@@ -288,7 +288,7 @@ final conversationActionsProvider = Provider<ConversationActions>((ref) {
 });
 
 class MediaActions {
-  final V2MediaProtocolNotifier _notifier;
+  final MediaProtocolNotifier _notifier;
 
   MediaActions(this._notifier);
 
@@ -355,7 +355,7 @@ class MediaActions {
     return _notifier.clearIncomingCall();
   }
 
-  Future<void> declineIncomingCall(V2IncomingCall call) {
+  Future<void> declineIncomingCall(IncomingCall call) {
     return _notifier.declineIncomingCall(call);
   }
 
@@ -379,7 +379,7 @@ class MediaActions {
 }
 
 final mediaActionsProvider = Provider<MediaActions>((ref) {
-  ref.watch(v2MediaProtocolProvider);
-  return MediaActions(ref.read(v2MediaProtocolProvider.notifier));
+  ref.watch(mediaProtocolProvider);
+  return MediaActions(ref.read(mediaProtocolProvider.notifier));
 });
 

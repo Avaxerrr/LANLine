@@ -6,13 +6,13 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:receive_sharing_intent/receive_sharing_intent.dart';
 
-import 'package:lanline/core/providers/v2_data_providers.dart';
-import 'package:lanline/core/providers/v2_direct_message_protocol_provider.dart';
-import 'package:lanline/core/providers/v2_group_protocol_provider.dart';
-import 'package:lanline/core/providers/v2_identity_provider.dart';
-import 'package:lanline/core/providers/v2_media_protocol_provider.dart';
-import 'package:lanline/core/providers/v2_presence_discovery_provider.dart';
-import 'package:lanline/core/providers/v2_request_protocol_provider.dart';
+import 'package:lanline/core/providers/data_providers.dart';
+import 'package:lanline/core/providers/direct_message_protocol_provider.dart';
+import 'package:lanline/core/providers/group_protocol_provider.dart';
+import 'package:lanline/core/providers/identity_provider.dart';
+import 'package:lanline/core/providers/media_protocol_provider.dart';
+import 'package:lanline/core/providers/presence_discovery_provider.dart';
+import 'package:lanline/core/providers/request_protocol_provider.dart';
 import 'package:lanline/features/call/presentation/call_screen.dart';
 import 'package:lanline/features/chats/presentation/chats_screen.dart';
 import 'package:lanline/features/people/presentation/people_screen.dart';
@@ -132,7 +132,7 @@ class _AppShellState extends ConsumerState<AppShell> {
     }
   }
 
-  Future<void> _showIncomingCallDialog(V2IncomingCall call) async {
+  Future<void> _showIncomingCallDialog(IncomingCall call) async {
     if (_visibleIncomingCallId == call.callId || !mounted) return;
     _visibleIncomingCallId = call.callId;
 
@@ -214,7 +214,7 @@ class _AppShellState extends ConsumerState<AppShell> {
 
   @override
   Widget build(BuildContext context) {
-    ref.listen<V2MediaProtocolState>(v2MediaProtocolProvider, (previous, next) {
+    ref.listen<MediaProtocolState>(mediaProtocolProvider, (previous, next) {
       final incomingCall = next.incomingCall;
       final incomingChanged =
           incomingCall != null &&
@@ -241,11 +241,11 @@ class _AppShellState extends ConsumerState<AppShell> {
       }
     });
 
-    ref.watch(v2DirectMessageProtocolControllerProvider);
-    ref.watch(v2GroupProtocolControllerProvider);
-    ref.watch(v2MediaProtocolProvider);
-    ref.watch(v2PresenceDiscoveryControllerProvider);
-    ref.watch(v2RequestProtocolControllerProvider);
+    ref.watch(directMessageProtocolControllerProvider);
+    ref.watch(groupProtocolControllerProvider);
+    ref.watch(mediaProtocolProvider);
+    ref.watch(presenceDiscoveryControllerProvider);
+    ref.watch(requestProtocolControllerProvider);
 
     final screens = <Widget>[
       ChatsScreen(onGoToRequests: _goToRequests),

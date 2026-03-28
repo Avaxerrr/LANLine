@@ -8,16 +8,16 @@ import 'package:uuid/uuid.dart';
 import '../db/app_database.dart';
 import '../identity/identity_service.dart';
 import '../network/protocol_validation.dart';
-import '../network/v2_request_signaling_service.dart';
+import '../network/request_signaling_service.dart';
 import '../repositories/peers_repository.dart';
 import '../repositories/requests_repository.dart';
 import '../security/device_signature_service.dart';
 import 'security_providers.dart';
-import 'v2_identity_provider.dart';
-import 'v2_repository_providers.dart';
+import 'identity_provider.dart';
+import 'repository_providers.dart';
 
-class V2RequestProtocolController {
-  final V2RequestSignalingService _signalingService;
+class RequestProtocolController {
+  final RequestSignalingService _signalingService;
   final IdentityService _identityService;
   final DeviceSignatureService _deviceSignatureService;
   final PeersRepository _peersRepository;
@@ -28,8 +28,8 @@ class V2RequestProtocolController {
   Future<void>? _startFuture;
   LocalIdentityRow? _localIdentity;
 
-  V2RequestProtocolController({
-    required V2RequestSignalingService signalingService,
+  RequestProtocolController({
+    required RequestSignalingService signalingService,
     required IdentityService identityService,
     required DeviceSignatureService deviceSignatureService,
     required PeersRepository peersRepository,
@@ -170,7 +170,7 @@ class V2RequestProtocolController {
       await _sendStatusUpdate(request: request, action: action);
     } catch (error) {
       debugPrint(
-        '[V2RequestProtocolController] Local "$action" applied but remote '
+        '[RequestProtocolController] Local "$action" applied but remote '
         'notification failed: $error',
       );
     }
@@ -224,7 +224,7 @@ class V2RequestProtocolController {
       );
       if (!verified) {
         debugPrint(
-          '[V2RequestProtocolController] Ignored unsigned or invalid request '
+          '[RequestProtocolController] Ignored unsigned or invalid request '
           'payload from $senderPeerId.',
         );
         return;
@@ -238,7 +238,7 @@ class V2RequestProtocolController {
         );
         if (existingRequest == null || existingRequest.peerId != senderPeerId) {
           debugPrint(
-            '[V2RequestProtocolController] Ignored orphaned request status '
+            '[RequestProtocolController] Ignored orphaned request status '
             '"$action" for $requestId from $senderPeerId.',
           );
           return;
@@ -296,7 +296,7 @@ class V2RequestProtocolController {
       }
     } catch (error) {
       debugPrint(
-        '[V2RequestProtocolController] Failed to handle incoming request '
+        '[RequestProtocolController] Failed to handle incoming request '
         'message: $error',
       );
     }
@@ -321,7 +321,7 @@ class V2RequestProtocolController {
       }
       return (
         host: host,
-        port: peer.tunnelPort ?? V2RequestSignalingService.defaultPort,
+        port: peer.tunnelPort ?? RequestSignalingService.defaultPort,
       );
     }
 
@@ -331,7 +331,7 @@ class V2RequestProtocolController {
     }
     return (
       host: presence.host!,
-      port: presence.port ?? V2RequestSignalingService.defaultPort,
+      port: presence.port ?? RequestSignalingService.defaultPort,
     );
   }
 
@@ -385,10 +385,10 @@ class V2RequestProtocolController {
   }
 }
 
-final v2RequestProtocolControllerProvider =
-    Provider<V2RequestProtocolController>((ref) {
-      final controller = V2RequestProtocolController(
-        signalingService: ref.read(v2RequestSignalingServiceProvider),
+final requestProtocolControllerProvider =
+    Provider<RequestProtocolController>((ref) {
+      final controller = RequestProtocolController(
+        signalingService: ref.read(requestSignalingServiceProvider),
         identityService: ref.read(identityServiceProvider),
         deviceSignatureService: ref.read(deviceSignatureServiceProvider),
         peersRepository: ref.read(peersRepositoryProvider),

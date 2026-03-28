@@ -5,12 +5,12 @@ import 'package:drift/native.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:lanline/core/db/app_database.dart';
-import 'package:lanline/core/network/v2_request_signaling_service.dart';
+import 'package:lanline/core/network/request_signaling_service.dart';
 import 'package:lanline/core/providers/username_provider.dart';
-import 'package:lanline/core/providers/v2_database_provider.dart';
-import 'package:lanline/core/providers/v2_identity_provider.dart';
-import 'package:lanline/core/providers/v2_group_protocol_provider.dart';
-import 'package:lanline/core/providers/v2_repository_providers.dart';
+import 'package:lanline/core/providers/database_provider.dart';
+import 'package:lanline/core/providers/identity_provider.dart';
+import 'package:lanline/core/providers/group_protocol_provider.dart';
+import 'package:lanline/core/providers/repository_providers.dart';
 import 'package:lanline/core/providers/security_providers.dart';
 import 'package:lanline/core/security/device_signature_service.dart';
 import 'package:lanline/core/security/in_memory_secret_store.dart';
@@ -18,13 +18,13 @@ import 'package:lanline/core/security/local_data_protection_service.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
-class MockV2PeerSignalingService extends Mock
-    implements V2RequestSignalingService {}
+class MockPeerSignalingService extends Mock
+    implements RequestSignalingService {}
 
 void main() {
   group('V2GroupProtocolController', () {
     late AppDatabase database;
-    late MockV2PeerSignalingService signalingService;
+    late MockPeerSignalingService signalingService;
     late StreamController<String> incomingMessages;
     late SharedPreferences prefs;
     late DeviceSignatureService signatureService;
@@ -33,7 +33,7 @@ void main() {
 
     setUp(() async {
       database = AppDatabase(executor: NativeDatabase.memory());
-      signalingService = MockV2PeerSignalingService();
+      signalingService = MockPeerSignalingService();
       incomingMessages = StreamController<String>.broadcast();
 
       signatureService = DeviceSignatureService(InMemorySecretStore());
@@ -64,7 +64,7 @@ void main() {
         overrides: [
           appDatabaseProvider.overrideWithValue(database),
           sharedPreferencesProvider.overrideWithValue(prefs),
-          v2RequestSignalingServiceProvider.overrideWithValue(signalingService),
+          requestSignalingServiceProvider.overrideWithValue(signalingService),
           deviceSignatureServiceProvider.overrideWithValue(signatureService),
           localDataProtectionServiceProvider.overrideWithValue(
             const PassthroughLocalDataProtectionService(),
@@ -108,7 +108,7 @@ void main() {
           isReachable: true,
           transportType: 'lan',
           host: '192.168.1.21',
-          port: V2RequestSignalingService.defaultPort,
+          port: RequestSignalingService.defaultPort,
         );
         await peersRepository.upsertPresence(
           peerId: 'peer-b',
@@ -116,11 +116,11 @@ void main() {
           isReachable: true,
           transportType: 'lan',
           host: '192.168.1.22',
-          port: V2RequestSignalingService.defaultPort,
+          port: RequestSignalingService.defaultPort,
         );
 
         final conversation = await container
-            .read(v2GroupProtocolControllerProvider)
+            .read(groupProtocolControllerProvider)
             .createGroupConversation(
               title: 'LAN Crew',
               invitedPeerIds: const ['peer-a', 'peer-b'],
@@ -153,14 +153,14 @@ void main() {
         verify(
           () => signalingService.sendMessage(
             host: '192.168.1.21',
-            port: V2RequestSignalingService.defaultPort,
+            port: RequestSignalingService.defaultPort,
             payload: any(named: 'payload'),
           ),
         ).called(1);
         verify(
           () => signalingService.sendMessage(
             host: '192.168.1.22',
-            port: V2RequestSignalingService.defaultPort,
+            port: RequestSignalingService.defaultPort,
             payload: any(named: 'payload'),
           ),
         ).called(1);
@@ -170,7 +170,7 @@ void main() {
     test(
       'incoming invite creates a pending group conversation for the local user',
       () async {
-        await container.read(v2GroupProtocolControllerProvider).start();
+        await container.read(groupProtocolControllerProvider).start();
         final peersRepository = container.read(peersRepositoryProvider);
         final conversationsRepository = container.read(
           conversationsRepositoryProvider,
@@ -261,7 +261,7 @@ void main() {
           isReachable: true,
           transportType: 'lan',
           host: '192.168.1.21',
-          port: V2RequestSignalingService.defaultPort,
+          port: RequestSignalingService.defaultPort,
         );
 
         final conversation = await conversationsRepository
@@ -277,7 +277,7 @@ void main() {
         );
 
         final sent = await container
-            .read(v2GroupProtocolControllerProvider)
+            .read(groupProtocolControllerProvider)
             .sendGroupTextMessage(
               conversationId: conversation.id,
               text: 'Hello group',
@@ -292,7 +292,7 @@ void main() {
         verify(
           () => signalingService.sendMessage(
             host: '192.168.1.21',
-            port: V2RequestSignalingService.defaultPort,
+            port: RequestSignalingService.defaultPort,
             payload: any(named: 'payload'),
           ),
         ).called(1);
@@ -327,7 +327,7 @@ void main() {
         isReachable: true,
         transportType: 'lan',
         host: '192.168.1.21',
-        port: V2RequestSignalingService.defaultPort,
+        port: RequestSignalingService.defaultPort,
       );
 
       final conversation = await conversationsRepository
@@ -350,7 +350,7 @@ void main() {
       );
 
       final reply = await container
-          .read(v2GroupProtocolControllerProvider)
+          .read(groupProtocolControllerProvider)
           .sendGroupTextMessage(
             conversationId: conversation.id,
             text: 'Reply group',
@@ -361,7 +361,7 @@ void main() {
     });
 
     test('incoming invite from untrusted peer is ignored', () async {
-      await container.read(v2GroupProtocolControllerProvider).start();
+      await container.read(groupProtocolControllerProvider).start();
       final conversationsRepository = container.read(
         conversationsRepositoryProvider,
       );

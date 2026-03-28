@@ -13,8 +13,9 @@ import 'package:url_launcher/url_launcher.dart';
 
 import '../../../../core/db/app_database.dart';
 import '../../../../core/models/chat_message.dart';
-import '../../../../core/providers/v2_data_providers.dart';
+import '../../../../core/providers/data_providers.dart';
 import '../../../../core/theme/app_theme.dart';
+import 'media_viewer.dart';
 
 String? latestOutgoingMessageId(
   List<MessageRow> messages,
@@ -770,10 +771,11 @@ class AttachmentMessageContent extends ConsumerWidget {
     final progressValue = progress == null || progress[1] == 0
         ? null
         : progress[0] / progress[1];
-    final hasImagePreview =
-        attachment.kind == 'image' &&
-        attachment.localPath != null &&
+    final hasLocalFile = attachment.localPath != null &&
         File(attachment.localPath!).existsSync();
+    final hasImagePreview = attachment.kind == 'image' && hasLocalFile;
+    final hasVideoPreview = attachment.kind == 'video' && hasLocalFile;
+    final hasAudioPlayer = attachment.kind == 'audio' && hasLocalFile;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -782,30 +784,41 @@ class AttachmentMessageContent extends ConsumerWidget {
           ReplyPreview(message: repliedMessage!, textAlign: TextAlign.left),
           const SizedBox(height: 8),
         ],
+        // Image preview — tap to open full-screen viewer
         if (hasImagePreview) ...[
-          ClipRRect(
-            borderRadius: BorderRadius.circular(14),
-            child: ConstrainedBox(
-              constraints: const BoxConstraints(maxHeight: 250),
-              child: Image.file(
-                File(attachment.localPath!),
-                fit: BoxFit.cover,
-                errorBuilder: (context, error, stackTrace) => Container(
-                  padding: const EdgeInsets.all(16),
-                  color: palette.surfaceMuted.withValues(alpha: 0.82),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Icon(
-                        Icons.broken_image_outlined,
-                        color: palette.textMuted,
-                      ),
-                      SizedBox(width: 8),
-                      Text(
-                        'Could not preview image',
-                        style: TextStyle(color: palette.textMuted),
-                      ),
-                    ],
+          GestureDetector(
+            onTap: () => Navigator.of(context).push(
+              MaterialPageRoute(
+                builder: (_) => ImageViewerScreen(
+                  filePath: attachment.localPath!,
+                  fileName: attachment.fileName,
+                ),
+              ),
+            ),
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(14),
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(maxHeight: 250),
+                child: Image.file(
+                  File(attachment.localPath!),
+                  fit: BoxFit.cover,
+                  errorBuilder: (context, error, stackTrace) => Container(
+                    padding: const EdgeInsets.all(16),
+                    color: palette.surfaceMuted.withValues(alpha: 0.82),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(
+                          Icons.broken_image_outlined,
+                          color: palette.textMuted,
+                        ),
+                        const SizedBox(width: 8),
+                        Text(
+                          'Could not preview image',
+                          style: TextStyle(color: palette.textMuted),
+                        ),
+                      ],
+                    ),
                   ),
                 ),
               ),
@@ -819,52 +832,155 @@ class AttachmentMessageContent extends ConsumerWidget {
             style: TextStyle(color: palette.textMuted, fontSize: 12),
           ),
         ],
-        if (!hasImagePreview)
+        // Video preview — thumbnail with play button, tap to open player
+        if (hasVideoPreview) ...[
+          GestureDetector(
+            onTap: () => Navigator.of(context).push(
+              MaterialPageRoute(
+                builder: (_) => VideoViewerScreen(
+                  filePath: attachment.localPath!,
+                  fileName: attachment.fileName,
+                ),
+              ),
+            ),
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(14),
+              child: Container(
+                constraints: const BoxConstraints(maxHeight: 200),
+                width: double.infinity,
+                color: Colors.black,
+                child: Stack(
+                  alignment: Alignment.center,
+                  children: [
+                    Container(
+                      height: 200,
+                      alignment: Alignment.center,
+                      child: Icon(
+                        Icons.movie_outlined,
+                        color: Colors.white.withValues(alpha: 0.3),
+                        size: 64,
+                      ),
+                    ),
+                    Container(
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: Colors.black.withValues(alpha: 0.5),
+                        shape: BoxShape.circle,
+                      ),
+                      child: const Icon(
+                        Icons.play_arrow_rounded,
+                        color: Colors.white,
+                        size: 36,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            attachment.fileName,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: TextStyle(color: palette.textMuted, fontSize: 12),
+          ),
+        ],
+        // Audio — inline player
+        if (hasAudioPlayer) ...[
           Container(
             padding: const EdgeInsets.all(12),
             decoration: BoxDecoration(
               color: palette.surfaceMuted.withValues(alpha: 0.86),
               borderRadius: BorderRadius.circular(14),
-              border: Border.all(color: palette.border.withValues(alpha: 0.14)),
+              border:
+                  Border.all(color: palette.border.withValues(alpha: 0.14)),
             ),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Container(
-                  padding: const EdgeInsets.all(8),
-                  decoration: BoxDecoration(
-                    color: palette.surface.withValues(alpha: 0.78),
-                    borderRadius: BorderRadius.circular(10),
-                  ),
-                  child: Icon(
-                    _iconForKind(attachment.kind),
-                    color: Colors.white,
-                    size: 22,
+                Text(
+                  attachment.fileName,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    fontWeight: FontWeight.w600,
+                    fontSize: 13,
                   ),
                 ),
-                const SizedBox(width: 12),
-                Flexible(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        attachment.fileName,
-                        maxLines: 2,
-                        overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(
-                          fontWeight: FontWeight.bold,
-                          fontSize: 14.5,
-                        ),
-                      ),
-                      const SizedBox(height: 2),
-                      Text(
-                        _formatFileSize(attachment.fileSize),
-                        style: TextStyle(color: palette.textMuted, fontSize: 12),
-                      ),
-                    ],
-                  ),
+                const SizedBox(height: 8),
+                InlineAudioPlayer(
+                  filePath: attachment.localPath!,
+                  fileName: attachment.fileName,
+                  accentColor: palette.brand,
+                  mutedColor: palette.textMuted,
                 ),
               ],
+            ),
+          ),
+        ],
+        // Other file types — icon + name + size card
+        // Text files are tappable to open in-app viewer.
+        if (!hasImagePreview && !hasVideoPreview && !hasAudioPlayer)
+          GestureDetector(
+            onTap: hasLocalFile && isTextFile(attachment.fileName)
+                ? () => Navigator.of(context).push(
+                      MaterialPageRoute(
+                        builder: (_) => TextViewerScreen(
+                          filePath: attachment.localPath!,
+                          fileName: attachment.fileName,
+                        ),
+                      ),
+                    )
+                : null,
+            child: Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: palette.surfaceMuted.withValues(alpha: 0.86),
+                borderRadius: BorderRadius.circular(14),
+                border: Border.all(
+                    color: palette.border.withValues(alpha: 0.14)),
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(8),
+                    decoration: BoxDecoration(
+                      color: palette.surface.withValues(alpha: 0.78),
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    child: Icon(
+                      _iconForKind(attachment.kind),
+                      color: Colors.white,
+                      size: 22,
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Flexible(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          attachment.fileName,
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(
+                            fontWeight: FontWeight.bold,
+                            fontSize: 14.5,
+                          ),
+                        ),
+                        const SizedBox(height: 2),
+                        Text(
+                          _formatFileSize(attachment.fileSize),
+                          style: TextStyle(
+                              color: palette.textMuted, fontSize: 12),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
             ),
           ),
         if (attachment.transferState == 'downloading' &&

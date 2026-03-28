@@ -5,10 +5,10 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/db/app_database.dart';
 import '../../../core/network/discovery_service.dart';
-import '../../../core/network/v2_request_signaling_service.dart';
-import '../../../core/providers/v2_data_providers.dart';
-import '../../../core/providers/v2_presence_discovery_provider.dart';
-import '../../../core/providers/v2_repository_providers.dart';
+import '../../../core/network/request_signaling_service.dart';
+import '../../../core/providers/data_providers.dart';
+import '../../../core/providers/presence_discovery_provider.dart';
+import '../../../core/providers/repository_providers.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../conversation/presentation/direct_conversation_screen.dart';
 
@@ -180,7 +180,7 @@ class PeopleScreen extends ConsumerWidget {
 void _showAddByIpDialog(BuildContext context, WidgetRef ref) {
   final hostController = TextEditingController();
   final portController = TextEditingController(
-    text: V2RequestSignalingService.defaultPort.toString(),
+    text: RequestSignalingService.defaultPort.toString(),
   );
   final palette = context.appPalette;
 
@@ -227,7 +227,7 @@ void _showAddByIpDialog(BuildContext context, WidgetRef ref) {
             );
 
             final discovery = ref.read(
-              v2PresenceDiscoveryControllerProvider,
+              presenceDiscoveryControllerProvider,
             );
             final result = await discovery.discoverPeerByIp(
               host: host,
@@ -268,7 +268,7 @@ void _showAddByIpDialog(BuildContext context, WidgetRef ref) {
               isReachable: true,
               transportType: 'tunnel',
               host: host,
-              port: port ?? V2RequestSignalingService.defaultPort,
+              port: port ?? RequestSignalingService.defaultPort,
               lastHeartbeatAt: now,
               lastProbeAt: now,
             );
@@ -335,7 +335,7 @@ class _TunnelSettingsSheetState extends State<_TunnelSettingsSheet> {
     );
     _portController = TextEditingController(
       text: widget.peer.tunnelPort?.toString() ??
-          V2RequestSignalingService.defaultPort.toString(),
+          RequestSignalingService.defaultPort.toString(),
     );
     _useTunnel = widget.peer.useTunnel;
     _loadInterfaces();
@@ -504,7 +504,7 @@ class _TunnelSettingsSheetState extends State<_TunnelSettingsSheet> {
               keyboardType: TextInputType.number,
               decoration: InputDecoration(
                 labelText: 'Port',
-                hintText: V2RequestSignalingService.defaultPort.toString(),
+                hintText: RequestSignalingService.defaultPort.toString(),
               ),
               textInputAction: TextInputAction.done,
             ),
@@ -537,7 +537,7 @@ class _TunnelSettingsSheetState extends State<_TunnelSettingsSheet> {
     final trimmedHost = _hostController.text.trim();
     final trimmedPort = _portController.text.trim();
     final port = trimmedPort.isEmpty
-        ? V2RequestSignalingService.defaultPort
+        ? RequestSignalingService.defaultPort
         : int.tryParse(trimmedPort);
 
     if (_useTunnel && trimmedHost.isEmpty) {
@@ -561,7 +561,7 @@ class _TunnelSettingsSheetState extends State<_TunnelSettingsSheet> {
       useTunnel: _useTunnel,
       tunnelHost: _useTunnel ? trimmedHost : widget.peer.tunnelHost,
       tunnelPort: _useTunnel
-          ? (port == V2RequestSignalingService.defaultPort ? null : port)
+          ? (port == RequestSignalingService.defaultPort ? null : port)
           : widget.peer.tunnelPort,
     );
 
@@ -834,7 +834,7 @@ class _ContactBottomSheetState extends State<_ContactBottomSheet> {
                     padding: const EdgeInsets.only(left: 28, top: 2),
                     child: Text(
                       hasTunnelHost && _tunnelEnabled
-                          ? '${peer.tunnelHost}:${peer.tunnelPort ?? V2RequestSignalingService.defaultPort}'
+                          ? '${peer.tunnelHost}:${peer.tunnelPort ?? RequestSignalingService.defaultPort}'
                           : hasTunnelHost
                               ? 'Tap to enable tunnel routing'
                               : 'Set a tunnel IP in connection settings first',

@@ -5,8 +5,8 @@ import 'package:drift/native.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:lanline/core/db/app_database.dart';
 import 'package:lanline/core/identity/identity_service.dart';
-import 'package:lanline/core/network/v2_request_signaling_service.dart';
-import 'package:lanline/core/providers/v2_direct_message_protocol_provider.dart';
+import 'package:lanline/core/network/request_signaling_service.dart';
+import 'package:lanline/core/providers/direct_message_protocol_provider.dart';
 import 'package:lanline/core/repositories/attachments_repository.dart';
 import 'package:lanline/core/repositories/conversations_repository.dart';
 import 'package:lanline/core/repositories/identity_repository.dart';
@@ -18,11 +18,11 @@ import 'package:lanline/core/security/local_data_protection_service.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
-class MockV2PeerSignalingService extends Mock
-    implements V2RequestSignalingService {}
+class MockPeerSignalingService extends Mock
+    implements RequestSignalingService {}
 
 void main() {
-  group('V2DirectMessageProtocolController', () {
+  group('DirectMessageProtocolController', () {
     late AppDatabase database;
     late IdentityRepository identityRepository;
     late IdentityService identityService;
@@ -32,9 +32,9 @@ void main() {
     late MessagesRepository messagesRepository;
     late DeviceSignatureService signatureService;
     late DeviceSignatureService remoteSignatureService;
-    late MockV2PeerSignalingService signalingService;
+    late MockPeerSignalingService signalingService;
     late StreamController<String> incomingMessages;
-    late V2DirectMessageProtocolController controller;
+    late DirectMessageProtocolController controller;
 
     setUp(() async {
       database = AppDatabase(executor: NativeDatabase.memory());
@@ -54,7 +54,7 @@ void main() {
       );
       signatureService = DeviceSignatureService(InMemorySecretStore());
       remoteSignatureService = DeviceSignatureService(InMemorySecretStore());
-      signalingService = MockV2PeerSignalingService();
+      signalingService = MockPeerSignalingService();
       incomingMessages = StreamController<String>.broadcast();
 
       SharedPreferences.setMockInitialValues({
@@ -84,7 +84,7 @@ void main() {
         ),
       ).thenAnswer((_) async {});
 
-      controller = V2DirectMessageProtocolController(
+      controller = DirectMessageProtocolController(
         signalingService: signalingService,
         identityService: identityService,
         deviceSignatureService: signatureService,
@@ -115,7 +115,7 @@ void main() {
           isReachable: true,
           transportType: 'lan',
           host: '192.168.1.21',
-          port: V2RequestSignalingService.defaultPort,
+          port: RequestSignalingService.defaultPort,
         );
 
         final message = await controller.sendTextMessage(
@@ -127,7 +127,7 @@ void main() {
         verify(
           () => signalingService.sendMessage(
             host: '192.168.1.21',
-            port: V2RequestSignalingService.defaultPort,
+            port: RequestSignalingService.defaultPort,
             payload: any(named: 'payload'),
           ),
         ).called(1);
@@ -160,7 +160,7 @@ void main() {
         isReachable: true,
         transportType: 'lan',
         host: '192.168.1.21',
-        port: V2RequestSignalingService.defaultPort,
+        port: RequestSignalingService.defaultPort,
       );
 
       final conversation = await controller.openDirectConversation(
@@ -201,7 +201,7 @@ void main() {
           isReachable: true,
           transportType: 'lan',
           host: '192.168.1.21',
-          port: V2RequestSignalingService.defaultPort,
+          port: RequestSignalingService.defaultPort,
         );
 
         final remoteIdentity = await remoteSignatureService.ensureIdentity();
@@ -243,7 +243,7 @@ void main() {
         verify(
           () => signalingService.sendMessage(
             host: '192.168.1.21',
-            port: V2RequestSignalingService.defaultPort,
+            port: RequestSignalingService.defaultPort,
             payload: any(named: 'payload'),
           ),
         ).called(1);
@@ -279,7 +279,7 @@ void main() {
         isReachable: true,
         transportType: 'lan',
         host: '192.168.1.21',
-        port: V2RequestSignalingService.defaultPort,
+        port: RequestSignalingService.defaultPort,
       );
 
       final remoteIdentity = await remoteSignatureService.ensureIdentity();

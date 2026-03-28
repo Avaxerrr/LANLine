@@ -6,7 +6,7 @@ import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
 
 import '../../../core/db/app_database.dart';
-import '../../../core/providers/v2_data_providers.dart';
+import '../../../core/providers/data_providers.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../core/widgets/conversation_picker_list.dart';
 import '../../conversation/presentation/direct_conversation_screen.dart';

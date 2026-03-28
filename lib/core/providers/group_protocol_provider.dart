@@ -7,18 +7,18 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../db/app_database.dart';
 import '../identity/identity_service.dart';
 import '../network/protocol_validation.dart';
-import '../network/v2_request_signaling_service.dart';
+import '../network/request_signaling_service.dart';
 import '../repositories/conversations_repository.dart';
 import '../repositories/messages_repository.dart';
 import '../repositories/peers_repository.dart';
 import '../security/device_signature_service.dart';
 import 'security_providers.dart';
-import 'v2_identity_provider.dart';
-import 'v2_navigation_state_provider.dart';
-import 'v2_repository_providers.dart';
+import 'identity_provider.dart';
+import 'navigation_state_provider.dart';
+import 'repository_providers.dart';
 
-class V2GroupProtocolController {
-  final V2RequestSignalingService _signalingService;
+class GroupProtocolController {
+  final RequestSignalingService _signalingService;
   final IdentityService _identityService;
   final DeviceSignatureService _deviceSignatureService;
   final PeersRepository _peersRepository;
@@ -30,8 +30,8 @@ class V2GroupProtocolController {
   Future<void>? _startFuture;
   LocalIdentityRow? _localIdentity;
 
-  V2GroupProtocolController({
-    required V2RequestSignalingService signalingService,
+  GroupProtocolController({
+    required RequestSignalingService signalingService,
     required IdentityService identityService,
     required DeviceSignatureService deviceSignatureService,
     required PeersRepository peersRepository,
@@ -295,7 +295,7 @@ class V2GroupProtocolController {
       for (final target in targets) {
         await _signalingService.sendMessage(
           host: target.host!,
-          port: target.port ?? V2RequestSignalingService.defaultPort,
+          port: target.port ?? RequestSignalingService.defaultPort,
           payload: payload,
         );
       }
@@ -350,7 +350,7 @@ class V2GroupProtocolController {
       }
     } catch (error) {
       debugPrint(
-        '[V2GroupProtocolController] Failed to handle group message: $error',
+        '[GroupProtocolController] Failed to handle group message: $error',
       );
     }
   }
@@ -730,12 +730,12 @@ class V2GroupProtocolController {
       try {
         await _signalingService.sendMessage(
           host: target.host!,
-          port: target.port ?? V2RequestSignalingService.defaultPort,
+          port: target.port ?? RequestSignalingService.defaultPort,
           payload: payload,
         );
       } catch (error) {
         debugPrint(
-          '[V2GroupProtocolController] Failed to fan out member update: $error',
+          '[GroupProtocolController] Failed to fan out member update: $error',
         );
       }
     }
@@ -807,7 +807,7 @@ class V2GroupProtocolController {
       }
       return (
         host: host,
-        port: peer.tunnelPort ?? V2RequestSignalingService.defaultPort,
+        port: peer.tunnelPort ?? RequestSignalingService.defaultPort,
       );
     }
 
@@ -817,7 +817,7 @@ class V2GroupProtocolController {
     }
     return (
       host: presence.host!,
-      port: presence.port ?? V2RequestSignalingService.defaultPort,
+      port: presence.port ?? RequestSignalingService.defaultPort,
     );
   }
 
@@ -870,11 +870,11 @@ class V2GroupProtocolController {
   }
 }
 
-final v2GroupProtocolControllerProvider = Provider<V2GroupProtocolController>((
+final groupProtocolControllerProvider = Provider<GroupProtocolController>((
   ref,
 ) {
-  final controller = V2GroupProtocolController(
-    signalingService: ref.read(v2RequestSignalingServiceProvider),
+  final controller = GroupProtocolController(
+    signalingService: ref.read(requestSignalingServiceProvider),
     identityService: ref.read(identityServiceProvider),
     deviceSignatureService: ref.read(deviceSignatureServiceProvider),
     peersRepository: ref.read(peersRepositoryProvider),

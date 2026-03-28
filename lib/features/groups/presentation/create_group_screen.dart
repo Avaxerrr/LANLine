@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/db/app_database.dart';
-import '../../../core/providers/v2_data_providers.dart';
+import '../../../core/providers/data_providers.dart';
 import '../../../core/theme/app_theme.dart';
 
 class CreateGroupScreen extends ConsumerStatefulWidget {

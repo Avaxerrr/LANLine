@@ -5,9 +5,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/db/app_database.dart';
-import '../../../core/providers/v2_data_providers.dart';
-import '../../../core/providers/v2_identity_provider.dart';
-import '../../../core/providers/v2_media_protocol_provider.dart';
+import '../../../core/providers/data_providers.dart';
+import '../../../core/providers/identity_provider.dart';
+import '../../../core/providers/media_protocol_provider.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../call/presentation/call_screen.dart';
 import 'widgets/conversation_chrome.dart';
@@ -504,7 +504,7 @@ class _DirectConversationScreenState
       conversationStreamProvider(widget.conversationId),
     );
     final localIdentityAsync = ref.watch(localIdentityProvider);
-    final mediaState = ref.watch(v2MediaProtocolProvider);
+    final mediaState = ref.watch(mediaProtocolProvider);
     final membersAsync = ref.watch(
       conversationMemberPeersProvider(widget.conversationId),
     );

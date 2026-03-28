@@ -8,8 +8,8 @@ import '../../../core/providers/app_metadata_provider.dart';
 import '../../../core/providers/app_theme_provider.dart';
 import '../../../core/providers/message_retention_provider.dart';
 import '../../../core/providers/username_provider.dart';
-import '../../../core/providers/v2_identity_provider.dart';
-import '../../../core/providers/v2_presence_discovery_provider.dart';
+import '../../../core/providers/identity_provider.dart';
+import '../../../core/providers/presence_discovery_provider.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../downloads/presentation/download_history_screen.dart';
 
@@ -49,7 +49,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
           deviceLabel: newDeviceLabel.isEmpty ? null : newDeviceLabel,
         );
     await ref
-        .read(v2PresenceDiscoveryControllerProvider)
+        .read(presenceDiscoveryControllerProvider)
         .refreshIdentity();
 
     if (!mounted) return;

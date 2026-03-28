@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../db/app_database.dart';
-import '../providers/v2_data_providers.dart';
+import '../providers/data_providers.dart';
 import '../theme/app_theme.dart';
 
 /// Reusable conversation list for picking a target conversation.

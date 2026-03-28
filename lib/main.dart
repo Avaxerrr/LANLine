@@ -9,7 +9,7 @@ import 'core/db/app_database.dart';
 import 'core/identity/identity_service.dart';
 import 'core/providers/app_metadata_provider.dart';
 import 'core/providers/app_theme_provider.dart';
-import 'core/providers/v2_database_provider.dart';
+import 'core/providers/database_provider.dart';
 import 'core/repositories/identity_repository.dart';
 import 'core/security/device_signature_service.dart';
 import 'core/security/shared_preferences_secret_store.dart';

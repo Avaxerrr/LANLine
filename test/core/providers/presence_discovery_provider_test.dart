@@ -4,8 +4,8 @@ import 'package:drift/native.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:lanline/core/db/app_database.dart';
 import 'package:lanline/core/network/discovery_service.dart';
-import 'package:lanline/core/network/v2_request_signaling_service.dart';
-import 'package:lanline/core/providers/v2_presence_discovery_provider.dart';
+import 'package:lanline/core/network/request_signaling_service.dart';
+import 'package:lanline/core/providers/presence_discovery_provider.dart';
 import 'package:lanline/core/repositories/identity_repository.dart';
 import 'package:lanline/core/repositories/conversations_repository.dart';
 import 'package:lanline/core/repositories/peers_repository.dart';
@@ -17,20 +17,20 @@ class MockLocalDataProtectionService extends Mock
 
 class MockDiscoveryService extends Mock implements DiscoveryService {}
 
-class MockV2RequestSignalingService extends Mock
-    implements V2RequestSignalingService {}
+class MockRequestSignalingService extends Mock
+    implements RequestSignalingService {}
 
 void main() {
-  group('V2PresenceDiscoveryController', () {
+  group('PresenceDiscoveryController', () {
     late AppDatabase database;
     late IdentityRepository identityRepository;
     late PeersRepository peersRepository;
     late ConversationsRepository conversationsRepository;
     late MockDiscoveryService discoveryService;
-    late MockV2RequestSignalingService signalingService;
+    late MockRequestSignalingService signalingService;
     late StreamController<DiscoveredPeerPresence> peerStream;
     late LocalIdentityRow localIdentity;
-    late V2PresenceDiscoveryController controller;
+    late PresenceDiscoveryController controller;
 
     setUp(() async {
       database = AppDatabase(executor: NativeDatabase.memory());
@@ -46,7 +46,7 @@ void main() {
         dataProtectionService: mockDataProtection,
       );
       discoveryService = MockDiscoveryService();
-      signalingService = MockV2RequestSignalingService();
+      signalingService = MockRequestSignalingService();
       peerStream = StreamController<DiscoveredPeerPresence>.broadcast();
 
       localIdentity = await identityRepository.createIdentity(
@@ -84,7 +84,7 @@ void main() {
         () => signalingService.unregisterHttpHandler(any()),
       ).thenReturn(null);
 
-      controller = V2PresenceDiscoveryController(
+      controller = PresenceDiscoveryController(
         discoveryService: discoveryService,
         signalingService: signalingService,
         peersRepository: peersRepository,
@@ -115,7 +115,7 @@ void main() {
             status: 'online',
             bindAddress: '192.168.1.20',
             transportType: null,
-            port: V2RequestSignalingService.defaultPort,
+            port: RequestSignalingService.defaultPort,
           ),
         ).called(1);
 

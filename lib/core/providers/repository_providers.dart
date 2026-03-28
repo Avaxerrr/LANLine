@@ -8,7 +8,7 @@ import '../repositories/peers_repository.dart';
 import '../repositories/requests_repository.dart';
 import 'message_retention_provider.dart';
 import 'security_providers.dart';
-import 'v2_database_provider.dart';
+import 'database_provider.dart';
 
 final identityRepositoryProvider = Provider<IdentityRepository>((ref) {
   return IdentityRepository(ref.read(appDatabaseProvider));

@@ -6,9 +6,9 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:swipeable_tile/swipeable_tile.dart';
 
 import '../../../core/db/app_database.dart';
-import '../../../core/providers/v2_data_providers.dart';
-import '../../../core/providers/v2_identity_provider.dart';
-import '../../../core/providers/v2_repository_providers.dart';
+import '../../../core/providers/data_providers.dart';
+import '../../../core/providers/identity_provider.dart';
+import '../../../core/providers/repository_providers.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../call/presentation/call_screen.dart';
 import '../../conversation/presentation/direct_conversation_screen.dart';

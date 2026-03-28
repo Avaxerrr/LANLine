@@ -5,8 +5,8 @@ import 'package:drift/native.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:lanline/core/db/app_database.dart';
 import 'package:lanline/core/identity/identity_service.dart';
-import 'package:lanline/core/network/v2_request_signaling_service.dart';
-import 'package:lanline/core/providers/v2_request_protocol_provider.dart';
+import 'package:lanline/core/network/request_signaling_service.dart';
+import 'package:lanline/core/providers/request_protocol_provider.dart';
 import 'package:lanline/core/repositories/identity_repository.dart';
 import 'package:lanline/core/repositories/peers_repository.dart';
 import 'package:lanline/core/repositories/requests_repository.dart';
@@ -15,11 +15,11 @@ import 'package:lanline/core/security/in_memory_secret_store.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
-class MockV2RequestSignalingService extends Mock
-    implements V2RequestSignalingService {}
+class MockRequestSignalingService extends Mock
+    implements RequestSignalingService {}
 
 void main() {
-  group('V2RequestProtocolController', () {
+  group('RequestProtocolController', () {
     late AppDatabase database;
     late IdentityRepository identityRepository;
     late IdentityService identityService;
@@ -27,16 +27,16 @@ void main() {
     late RequestsRepository requestsRepository;
     late DeviceSignatureService signatureService;
     late DeviceSignatureService remoteSignatureService;
-    late MockV2RequestSignalingService signalingService;
+    late MockRequestSignalingService signalingService;
     late StreamController<String> incomingMessages;
-    late V2RequestProtocolController controller;
+    late RequestProtocolController controller;
 
     setUp(() async {
       database = AppDatabase(executor: NativeDatabase.memory());
       identityRepository = IdentityRepository(database);
       peersRepository = PeersRepository(database);
       requestsRepository = RequestsRepository(database);
-      signalingService = MockV2RequestSignalingService();
+      signalingService = MockRequestSignalingService();
       incomingMessages = StreamController<String>.broadcast();
 
       signatureService = DeviceSignatureService(InMemorySecretStore());
@@ -68,7 +68,7 @@ void main() {
       ).thenAnswer((_) async {});
       when(() => signalingService.stopServer()).thenAnswer((_) async {});
 
-      controller = V2RequestProtocolController(
+      controller = RequestProtocolController(
         signalingService: signalingService,
         identityService: identityService,
         deviceSignatureService: signatureService,
@@ -95,7 +95,7 @@ void main() {
         isReachable: true,
         transportType: 'lan',
         host: '192.168.1.21',
-        port: V2RequestSignalingService.defaultPort,
+        port: RequestSignalingService.defaultPort,
       );
 
       final request = await controller.sendConnectionRequest(
@@ -106,7 +106,7 @@ void main() {
       verify(
         () => signalingService.sendMessage(
           host: '192.168.1.21',
-          port: V2RequestSignalingService.defaultPort,
+          port: RequestSignalingService.defaultPort,
           payload: any(named: 'payload'),
         ),
       ).called(1);

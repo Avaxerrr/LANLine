@@ -7,17 +7,17 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../db/app_database.dart';
 import '../identity/identity_service.dart';
 import '../network/protocol_validation.dart';
-import '../network/v2_request_signaling_service.dart';
+import '../network/request_signaling_service.dart';
 import '../repositories/conversations_repository.dart';
 import '../repositories/messages_repository.dart';
 import '../repositories/peers_repository.dart';
 import '../security/device_signature_service.dart';
 import 'security_providers.dart';
-import 'v2_identity_provider.dart';
-import 'v2_repository_providers.dart';
+import 'identity_provider.dart';
+import 'repository_providers.dart';
 
-class V2DirectMessageProtocolController {
-  final V2RequestSignalingService _signalingService;
+class DirectMessageProtocolController {
+  final RequestSignalingService _signalingService;
   final IdentityService _identityService;
   final DeviceSignatureService _deviceSignatureService;
   final PeersRepository _peersRepository;
@@ -29,8 +29,8 @@ class V2DirectMessageProtocolController {
   LocalIdentityRow? _localIdentity;
   String? _activeConversationId;
 
-  V2DirectMessageProtocolController({
-    required V2RequestSignalingService signalingService,
+  DirectMessageProtocolController({
+    required RequestSignalingService signalingService,
     required IdentityService identityService,
     required DeviceSignatureService deviceSignatureService,
     required PeersRepository peersRepository,
@@ -193,7 +193,7 @@ class V2DirectMessageProtocolController {
       }
     } catch (error) {
       debugPrint(
-        '[V2DirectMessageProtocolController] Failed to handle message: '
+        '[DirectMessageProtocolController] Failed to handle message: '
         '$error',
       );
     }
@@ -328,7 +328,7 @@ class V2DirectMessageProtocolController {
       );
     } catch (error) {
       debugPrint(
-        '[V2DirectMessageProtocolController] Failed to send delivery ack: '
+        '[DirectMessageProtocolController] Failed to send delivery ack: '
         '$error',
       );
     }
@@ -351,7 +351,7 @@ class V2DirectMessageProtocolController {
           'Tunnel is enabled but no tunnel host is configured.',
         );
       }
-      final port = peer.tunnelPort ?? V2RequestSignalingService.defaultPort;
+      final port = peer.tunnelPort ?? RequestSignalingService.defaultPort;
       return (host: host, port: port);
     }
 
@@ -361,7 +361,7 @@ class V2DirectMessageProtocolController {
     }
     return (
       host: presence.host!,
-      port: presence.port ?? V2RequestSignalingService.defaultPort,
+      port: presence.port ?? RequestSignalingService.defaultPort,
     );
   }
 
@@ -413,10 +413,10 @@ class V2DirectMessageProtocolController {
   }
 }
 
-final v2DirectMessageProtocolControllerProvider =
-    Provider<V2DirectMessageProtocolController>((ref) {
-      final controller = V2DirectMessageProtocolController(
-        signalingService: ref.read(v2RequestSignalingServiceProvider),
+final directMessageProtocolControllerProvider =
+    Provider<DirectMessageProtocolController>((ref) {
+      final controller = DirectMessageProtocolController(
+        signalingService: ref.read(requestSignalingServiceProvider),
         identityService: ref.read(identityServiceProvider),
         deviceSignatureService: ref.read(deviceSignatureServiceProvider),
         peersRepository: ref.read(peersRepositoryProvider),

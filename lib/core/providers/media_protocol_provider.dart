@@ -10,27 +10,27 @@ import '../db/app_database.dart';
 import '../identity/identity_service.dart';
 import '../network/file_transfer_manager.dart';
 import '../network/protocol_validation.dart';
-import '../network/v2_request_signaling_service.dart';
+import '../network/request_signaling_service.dart';
 import '../network/webrtc_call_service.dart';
 import '../repositories/attachments_repository.dart';
 import '../repositories/conversations_repository.dart';
 import '../repositories/messages_repository.dart';
 import '../repositories/peers_repository.dart';
-import 'v2_identity_provider.dart';
-import 'v2_navigation_state_provider.dart';
-import 'v2_repository_providers.dart';
+import 'identity_provider.dart';
+import 'navigation_state_provider.dart';
+import 'repository_providers.dart';
 
 const _noChange = Object();
 const _autoAcceptFileThresholdBytes = 4 * 1024 * 1024;
 
-class V2IncomingCall {
+class IncomingCall {
   final String peerId;
   final String displayName;
   final String conversationId;
   final String callId;
   final String callType;
 
-  const V2IncomingCall({
+  const IncomingCall({
     required this.peerId,
     required this.displayName,
     required this.conversationId,
@@ -39,30 +39,30 @@ class V2IncomingCall {
   });
 }
 
-class V2MediaProtocolState {
+class MediaProtocolState {
   final Map<String, List<int>> downloadProgress;
-  final V2IncomingCall? incomingCall;
+  final IncomingCall? incomingCall;
   final String? noticeMessage;
   final String? noticeId;
 
-  const V2MediaProtocolState({
+  const MediaProtocolState({
     this.downloadProgress = const {},
     this.incomingCall,
     this.noticeMessage,
     this.noticeId,
   });
 
-  V2MediaProtocolState copyWith({
+  MediaProtocolState copyWith({
     Map<String, List<int>>? downloadProgress,
     Object? incomingCall = _noChange,
     Object? noticeMessage = _noChange,
     Object? noticeId = _noChange,
   }) {
-    return V2MediaProtocolState(
+    return MediaProtocolState(
       downloadProgress: downloadProgress ?? this.downloadProgress,
       incomingCall: identical(incomingCall, _noChange)
           ? this.incomingCall
-          : incomingCall as V2IncomingCall?,
+          : incomingCall as IncomingCall?,
       noticeMessage: identical(noticeMessage, _noChange)
           ? this.noticeMessage
           : noticeMessage as String?,
@@ -73,14 +73,14 @@ class V2MediaProtocolState {
   }
 }
 
-class V2MediaProtocolNotifier extends Notifier<V2MediaProtocolState> {
+class MediaProtocolNotifier extends Notifier<MediaProtocolState> {
   StreamSubscription<String>? _messageSubscription;
   Future<void>? _startFuture;
   LocalIdentityRow? _localIdentity;
   Future<bool> Function(HttpRequest request)? _httpRequestHandler;
 
   @override
-  V2MediaProtocolState build() {
+  MediaProtocolState build() {
     final signalingService = _signalingService;
     ref.onDispose(() {
       unawaited(_messageSubscription?.cancel());
@@ -90,7 +90,7 @@ class V2MediaProtocolNotifier extends Notifier<V2MediaProtocolState> {
       }
     });
     unawaited(start());
-    return const V2MediaProtocolState();
+    return const MediaProtocolState();
   }
 
   IdentityService get _identityService => ref.read(identityServiceProvider);
@@ -103,8 +103,8 @@ class V2MediaProtocolNotifier extends Notifier<V2MediaProtocolState> {
       ref.read(attachmentsRepositoryProvider);
   FileTransferManager get _fileTransferManager =>
       ref.read(fileTransferProvider);
-  V2RequestSignalingService get _signalingService =>
-      ref.read(v2RequestSignalingServiceProvider);
+  RequestSignalingService get _signalingService =>
+      ref.read(requestSignalingServiceProvider);
 
   Future<void> start() {
     if (_startFuture != null) return _startFuture!;
@@ -130,7 +130,7 @@ class V2MediaProtocolNotifier extends Notifier<V2MediaProtocolState> {
   /// still marks the transfer as completed.
   Future<void> _onOutgoingTransferServed(String attachmentId) async {
     debugPrint(
-      '[V2MediaProtocolNotifier] onOutgoingTransferServed: $attachmentId',
+      '[MediaProtocolNotifier] onOutgoingTransferServed: $attachmentId',
     );
     try {
       await _attachmentsRepository.updateAttachmentTransferMetadata(
@@ -139,7 +139,7 @@ class V2MediaProtocolNotifier extends Notifier<V2MediaProtocolState> {
       );
     } catch (error) {
       debugPrint(
-        '[V2MediaProtocolNotifier] onOutgoingTransferServed failed: $error',
+        '[MediaProtocolNotifier] onOutgoingTransferServed failed: $error',
       );
     }
   }
@@ -255,7 +255,7 @@ class V2MediaProtocolNotifier extends Notifier<V2MediaProtocolState> {
       if (fallbackHost != null) {
         endpoint = (
           host: fallbackHost,
-          port: V2RequestSignalingService.defaultPort,
+          port: RequestSignalingService.defaultPort,
         );
       } else {
         rethrow;
@@ -350,7 +350,7 @@ class V2MediaProtocolNotifier extends Notifier<V2MediaProtocolState> {
     );
   }
 
-  Future<void> declineIncomingCall(V2IncomingCall call) async {
+  Future<void> declineIncomingCall(IncomingCall call) async {
     await sendCallSignal(
       peerId: call.peerId,
       conversationId: call.conversationId,
@@ -453,7 +453,7 @@ class V2MediaProtocolNotifier extends Notifier<V2MediaProtocolState> {
       }
     } catch (error) {
       debugPrint(
-        '[V2MediaProtocolNotifier] Failed to handle media event: $error',
+        '[MediaProtocolNotifier] Failed to handle media event: $error',
       );
     }
   }
@@ -572,7 +572,7 @@ class V2MediaProtocolNotifier extends Notifier<V2MediaProtocolState> {
         );
       } catch (error) {
         debugPrint(
-          '[V2MediaProtocolNotifier] Failed to auto-accept small file: $error',
+          '[MediaProtocolNotifier] Failed to auto-accept small file: $error',
         );
       }
     }
@@ -602,7 +602,7 @@ class V2MediaProtocolNotifier extends Notifier<V2MediaProtocolState> {
     }
 
     debugPrint(
-      '[V2MediaProtocolNotifier] file_accept received for $attachmentId, '
+      '[MediaProtocolNotifier] file_accept received for $attachmentId, '
       'localPath=${attachment.localPath}',
     );
 
@@ -628,14 +628,14 @@ class V2MediaProtocolNotifier extends Notifier<V2MediaProtocolState> {
       if (remoteHost != null) {
         endpoint = (
           host: remoteHost,
-          port: V2RequestSignalingService.defaultPort,
+          port: RequestSignalingService.defaultPort,
         );
       } else {
         rethrow;
       }
     }
     debugPrint(
-      '[V2MediaProtocolNotifier] Sending file_ready to ${endpoint.host}:${endpoint.port} '
+      '[MediaProtocolNotifier] Sending file_ready to ${endpoint.host}:${endpoint.port} '
       'token=${preparedTransfer.token}',
     );
     await _signalingService.sendMessage(
@@ -685,7 +685,7 @@ class V2MediaProtocolNotifier extends Notifier<V2MediaProtocolState> {
     );
     if (attachment == null || attachment.transferState == 'cancelled') {
       debugPrint(
-        '[V2MediaProtocolNotifier] file_ready: attachment missing or cancelled '
+        '[MediaProtocolNotifier] file_ready: attachment missing or cancelled '
         'for $attachmentId',
       );
       return;
@@ -699,14 +699,14 @@ class V2MediaProtocolNotifier extends Notifier<V2MediaProtocolState> {
       if (remoteHost != null) {
         endpoint = (
           host: remoteHost,
-          port: V2RequestSignalingService.defaultPort,
+          port: RequestSignalingService.defaultPort,
         );
       } else {
         rethrow;
       }
     }
     debugPrint(
-      '[V2MediaProtocolNotifier] file_ready: downloading $attachmentId from '
+      '[MediaProtocolNotifier] file_ready: downloading $attachmentId from '
       '${endpoint.host}:${endpoint.port}$transferPath',
     );
     await _attachmentsRepository.updateAttachmentTransferMetadata(
@@ -768,7 +768,7 @@ class V2MediaProtocolNotifier extends Notifier<V2MediaProtocolState> {
           transferState: 'failed',
         );
       }
-      debugPrint('[V2MediaProtocolNotifier] HTTP file download failed: $error');
+      debugPrint('[MediaProtocolNotifier] HTTP file download failed: $error');
     }
   }
 
@@ -825,7 +825,7 @@ class V2MediaProtocolNotifier extends Notifier<V2MediaProtocolState> {
     }
 
     state = state.copyWith(
-      incomingCall: V2IncomingCall(
+      incomingCall: IncomingCall(
         peerId: senderPeerId,
         displayName: displayName,
         conversationId: conversation.id,
@@ -998,7 +998,7 @@ class V2MediaProtocolNotifier extends Notifier<V2MediaProtocolState> {
           'Tunnel is enabled but no tunnel host is configured.',
         );
       }
-      final port = peer.tunnelPort ?? V2RequestSignalingService.defaultPort;
+      final port = peer.tunnelPort ?? RequestSignalingService.defaultPort;
       return (host: host, port: port);
     }
 
@@ -1008,7 +1008,7 @@ class V2MediaProtocolNotifier extends Notifier<V2MediaProtocolState> {
     }
     return (
       host: presence.host!,
-      port: presence.port ?? V2RequestSignalingService.defaultPort,
+      port: presence.port ?? RequestSignalingService.defaultPort,
     );
   }
 
@@ -1099,7 +1099,7 @@ class V2MediaProtocolNotifier extends Notifier<V2MediaProtocolState> {
   }
 }
 
-final v2MediaProtocolProvider =
-    NotifierProvider<V2MediaProtocolNotifier, V2MediaProtocolState>(() {
-      return V2MediaProtocolNotifier();
+final mediaProtocolProvider =
+    NotifierProvider<MediaProtocolNotifier, MediaProtocolState>(() {
+      return MediaProtocolNotifier();
     });

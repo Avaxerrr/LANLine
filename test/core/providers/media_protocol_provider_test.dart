@@ -7,21 +7,21 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:lanline/core/db/app_database.dart';
 import 'package:lanline/core/network/file_transfer_manager.dart';
-import 'package:lanline/core/network/v2_request_signaling_service.dart';
+import 'package:lanline/core/network/request_signaling_service.dart';
 import 'package:lanline/core/providers/username_provider.dart';
 import 'package:lanline/core/providers/security_providers.dart';
-import 'package:lanline/core/providers/v2_database_provider.dart';
-import 'package:lanline/core/providers/v2_identity_provider.dart';
-import 'package:lanline/core/providers/v2_media_protocol_provider.dart';
-import 'package:lanline/core/providers/v2_repository_providers.dart';
+import 'package:lanline/core/providers/database_provider.dart';
+import 'package:lanline/core/providers/identity_provider.dart';
+import 'package:lanline/core/providers/media_protocol_provider.dart';
+import 'package:lanline/core/providers/repository_providers.dart';
 import 'package:lanline/core/security/device_signature_service.dart';
 import 'package:lanline/core/security/in_memory_secret_store.dart';
 import 'package:lanline/core/security/local_data_protection_service.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
-class MockV2PeerSignalingService extends Mock
-    implements V2RequestSignalingService {}
+class MockPeerSignalingService extends Mock
+    implements RequestSignalingService {}
 
 class MockFileTransferManager extends Mock implements FileTransferManager {}
 
@@ -34,7 +34,7 @@ void main() {
 
   group('V2MediaProtocolNotifier', () {
     late AppDatabase database;
-    late MockV2PeerSignalingService signalingService;
+    late MockPeerSignalingService signalingService;
     late StreamController<String> incomingMessages;
     late MockFileTransferManager fileTransferManager;
     late SharedPreferences prefs;
@@ -43,7 +43,7 @@ void main() {
 
     setUp(() async {
       database = AppDatabase(executor: NativeDatabase.memory());
-      signalingService = MockV2PeerSignalingService();
+      signalingService = MockPeerSignalingService();
       incomingMessages = StreamController<String>.broadcast();
       fileTransferManager = MockFileTransferManager();
 
@@ -82,7 +82,7 @@ void main() {
         overrides: [
           appDatabaseProvider.overrideWithValue(database),
           sharedPreferencesProvider.overrideWithValue(prefs),
-          v2RequestSignalingServiceProvider.overrideWithValue(signalingService),
+          requestSignalingServiceProvider.overrideWithValue(signalingService),
           fileTransferProvider.overrideWithValue(fileTransferManager),
           deviceSignatureServiceProvider.overrideWithValue(signatureService),
           localDataProtectionServiceProvider.overrideWithValue(
@@ -122,7 +122,7 @@ void main() {
           isReachable: true,
           transportType: 'lan',
           host: '192.168.1.21',
-          port: V2RequestSignalingService.defaultPort,
+          port: RequestSignalingService.defaultPort,
         );
 
         final tempDir = await Directory.systemTemp.createTemp(
@@ -132,7 +132,7 @@ void main() {
         await file.writeAsString('hello from file');
 
         await container
-            .read(v2MediaProtocolProvider.notifier)
+            .read(mediaProtocolProvider.notifier)
             .sendFile(
               peerId: 'peer-remote',
               conversationId: 'conversation-remote',
@@ -160,7 +160,7 @@ void main() {
         verify(
           () => signalingService.sendMessage(
             host: '192.168.1.21',
-            port: V2RequestSignalingService.defaultPort,
+            port: RequestSignalingService.defaultPort,
             payload: any(named: 'payload'),
           ),
         ).called(1);
@@ -172,7 +172,7 @@ void main() {
     test(
       'incoming file offer creates a conversation, message, and attachment',
       () async {
-        await container.read(v2MediaProtocolProvider.notifier).start();
+        await container.read(mediaProtocolProvider.notifier).start();
 
         incomingMessages.add(
           jsonEncode({
@@ -247,7 +247,7 @@ void main() {
           isReachable: true,
           transportType: 'lan',
           host: '192.168.1.21',
-          port: V2RequestSignalingService.defaultPort,
+          port: RequestSignalingService.defaultPort,
         );
 
         final tempDir = await Directory.systemTemp.createTemp(
@@ -295,7 +295,7 @@ void main() {
           ),
         );
 
-        await container.read(v2MediaProtocolProvider.notifier).start();
+        await container.read(mediaProtocolProvider.notifier).start();
         incomingMessages.add(
           jsonEncode({
             'protocol': 'lanline_v2_media',
@@ -319,7 +319,7 @@ void main() {
         verify(
           () => signalingService.sendMessage(
             host: '192.168.1.21',
-            port: V2RequestSignalingService.defaultPort,
+            port: RequestSignalingService.defaultPort,
             payload: any(named: 'payload'),
           ),
         ).called(1);
@@ -354,7 +354,7 @@ void main() {
           isReachable: true,
           transportType: 'lan',
           host: '192.168.1.21',
-          port: V2RequestSignalingService.defaultPort,
+          port: RequestSignalingService.defaultPort,
         );
 
         final tempDir = await Directory.systemTemp.createTemp(
@@ -392,7 +392,7 @@ void main() {
         when(
           () => fileTransferManager.downloadFile(
             host: '192.168.1.21',
-            port: V2RequestSignalingService.defaultPort,
+            port: RequestSignalingService.defaultPort,
             transferPath: '/v2/media/files/transfer-token-1',
             attachmentId: 'attachment-file-1',
             fileName: 'report.txt',
@@ -408,7 +408,7 @@ void main() {
           return downloadedFile;
         });
 
-        await container.read(v2MediaProtocolProvider.notifier).start();
+        await container.read(mediaProtocolProvider.notifier).start();
         incomingMessages.add(
           jsonEncode({
             'protocol': 'lanline_v2_media',
@@ -433,7 +433,7 @@ void main() {
         verify(
           () => fileTransferManager.downloadFile(
             host: '192.168.1.21',
-            port: V2RequestSignalingService.defaultPort,
+            port: RequestSignalingService.defaultPort,
             transferPath: '/v2/media/files/transfer-token-1',
             attachmentId: 'attachment-file-1',
             fileName: 'report.txt',
@@ -447,7 +447,7 @@ void main() {
     );
 
     test('incoming call start updates incoming call state', () async {
-      await container.read(v2MediaProtocolProvider.notifier).start();
+      await container.read(mediaProtocolProvider.notifier).start();
 
       incomingMessages.add(
         jsonEncode({
@@ -463,7 +463,7 @@ void main() {
 
       await Future<void>.delayed(const Duration(milliseconds: 20));
 
-      final state = container.read(v2MediaProtocolProvider);
+      final state = container.read(mediaProtocolProvider);
       expect(state.incomingCall, isNotNull);
       expect(state.incomingCall!.peerId, 'peer-remote');
       expect(state.incomingCall!.displayName, 'Remote Device');
