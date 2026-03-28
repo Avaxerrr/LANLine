@@ -57,12 +57,12 @@ class _ShareTargetScreenState extends ConsumerState<ShareTargetScreen> {
         return;
       }
 
-      final mediaActions = ref.read(mediaActionsProvider);
+      final fileTransferActions = ref.read(fileTransferActionsProvider);
       for (final filePath in widget.filePaths) {
         // Copy shared files out of the temporary cache so they remain
         // available when the receiver accepts the transfer later.
         final persistentPath = await _persistSharedFile(filePath);
-        await mediaActions.sendFile(
+        await fileTransferActions.sendFile(
           peerId: peer.peerId,
           conversationId: conversation.id,
           conversationTitle: conversation.title ?? peer.displayName,

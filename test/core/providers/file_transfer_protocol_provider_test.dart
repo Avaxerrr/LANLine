@@ -12,7 +12,7 @@ import 'package:lanline/core/providers/username_provider.dart';
 import 'package:lanline/core/providers/security_providers.dart';
 import 'package:lanline/core/providers/database_provider.dart';
 import 'package:lanline/core/providers/identity_provider.dart';
-import 'package:lanline/core/providers/media_protocol_provider.dart';
+import 'package:lanline/core/providers/file_transfer_protocol_provider.dart';
 import 'package:lanline/core/providers/repository_providers.dart';
 import 'package:lanline/core/security/device_signature_service.dart';
 import 'package:lanline/core/security/in_memory_secret_store.dart';
@@ -32,7 +32,7 @@ void main() {
     registerFallbackValue(FakeHttpRequest());
   });
 
-  group('V2MediaProtocolNotifier', () {
+  group('FileTransferNotifier', () {
     late AppDatabase database;
     late MockPeerSignalingService signalingService;
     late StreamController<String> incomingMessages;
@@ -132,7 +132,7 @@ void main() {
         await file.writeAsString('hello from file');
 
         await container
-            .read(mediaProtocolProvider.notifier)
+            .read(fileTransferProtocolProvider.notifier)
             .sendFile(
               peerId: 'peer-remote',
               conversationId: 'conversation-remote',
@@ -172,7 +172,7 @@ void main() {
     test(
       'incoming file offer creates a conversation, message, and attachment',
       () async {
-        await container.read(mediaProtocolProvider.notifier).start();
+        await container.read(fileTransferProtocolProvider.notifier).start();
 
         incomingMessages.add(
           jsonEncode({
@@ -295,7 +295,7 @@ void main() {
           ),
         );
 
-        await container.read(mediaProtocolProvider.notifier).start();
+        await container.read(fileTransferProtocolProvider.notifier).start();
         incomingMessages.add(
           jsonEncode({
             'protocol': 'lanline_v2_media',
@@ -408,7 +408,7 @@ void main() {
           return downloadedFile;
         });
 
-        await container.read(mediaProtocolProvider.notifier).start();
+        await container.read(fileTransferProtocolProvider.notifier).start();
         incomingMessages.add(
           jsonEncode({
             'protocol': 'lanline_v2_media',
@@ -445,30 +445,5 @@ void main() {
         await tempDir.delete(recursive: true);
       },
     );
-
-    test('incoming call start updates incoming call state', () async {
-      await container.read(mediaProtocolProvider.notifier).start();
-
-      incomingMessages.add(
-        jsonEncode({
-          'protocol': 'lanline_v2_media',
-          'type': 'call_start',
-          'senderPeerId': 'peer-remote',
-          'senderDisplayName': 'Remote Device',
-          'conversationId': 'conversation-remote',
-          'callId': 'call-123',
-          'callType': 'audio',
-        }),
-      );
-
-      await Future<void>.delayed(const Duration(milliseconds: 20));
-
-      final state = container.read(mediaProtocolProvider);
-      expect(state.incomingCall, isNotNull);
-      expect(state.incomingCall!.peerId, 'peer-remote');
-      expect(state.incomingCall!.displayName, 'Remote Device');
-      expect(state.incomingCall!.callId, 'call-123');
-      expect(state.incomingCall!.callType, 'audio');
-    });
   });
 }

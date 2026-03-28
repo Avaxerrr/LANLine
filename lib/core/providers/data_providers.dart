@@ -8,7 +8,8 @@ import '../repositories/requests_repository.dart';
 import 'direct_message_protocol_provider.dart';
 import 'group_protocol_provider.dart';
 import 'identity_provider.dart';
-import 'media_protocol_provider.dart';
+import 'call_signaling_provider.dart';
+import 'file_transfer_protocol_provider.dart';
 import 'navigation_state_provider.dart';
 import 'presence_discovery_provider.dart';
 import 'request_protocol_provider.dart';
@@ -287,10 +288,10 @@ final conversationActionsProvider = Provider<ConversationActions>((ref) {
   );
 });
 
-class MediaActions {
-  final MediaProtocolNotifier _notifier;
+class FileTransferActions {
+  final FileTransferNotifier _notifier;
 
-  MediaActions(this._notifier);
+  FileTransferActions(this._notifier);
 
   Future<void> sendFile({
     required String peerId,
@@ -322,6 +323,17 @@ class MediaActions {
       attachmentId: attachmentId,
     );
   }
+}
+
+final fileTransferActionsProvider = Provider<FileTransferActions>((ref) {
+  ref.watch(fileTransferProtocolProvider);
+  return FileTransferActions(ref.read(fileTransferProtocolProvider.notifier));
+});
+
+class CallSignalingActions {
+  final CallSignalingNotifier _notifier;
+
+  CallSignalingActions(this._notifier);
 
   Future<void> prepareOutgoingCall({
     required String peerId,
@@ -378,8 +390,8 @@ class MediaActions {
   }
 }
 
-final mediaActionsProvider = Provider<MediaActions>((ref) {
-  ref.watch(mediaProtocolProvider);
-  return MediaActions(ref.read(mediaProtocolProvider.notifier));
+final callSignalingActionsProvider = Provider<CallSignalingActions>((ref) {
+  ref.watch(callSignalingProvider);
+  return CallSignalingActions(ref.read(callSignalingProvider.notifier));
 });
 

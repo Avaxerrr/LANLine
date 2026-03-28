@@ -1019,7 +1019,7 @@ class AttachmentMessageContent extends ConsumerWidget {
           icon: Icons.download,
           label: 'Download',
           onTap: () => ref
-              .read(mediaActionsProvider)
+              .read(fileTransferActionsProvider)
               .acceptFile(peerId: peerId!, attachmentId: attachment.id),
         ),
       ];
@@ -1035,7 +1035,7 @@ class AttachmentMessageContent extends ConsumerWidget {
           icon: Icons.close,
           label: 'Cancel',
           onTap: () => ref
-              .read(mediaActionsProvider)
+              .read(fileTransferActionsProvider)
               .cancelFileTransfer(peerId: peerId!, attachmentId: attachment.id),
         ),
       ];

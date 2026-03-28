@@ -7,7 +7,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/db/app_database.dart';
 import '../../../core/providers/data_providers.dart';
 import '../../../core/providers/identity_provider.dart';
-import '../../../core/providers/media_protocol_provider.dart';
+import '../../../core/providers/file_transfer_protocol_provider.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../call/presentation/call_screen.dart';
 import 'widgets/conversation_chrome.dart';
@@ -149,7 +149,7 @@ class _DirectConversationScreenState
       if (path == null) return;
 
       await ref
-          .read(mediaActionsProvider)
+          .read(fileTransferActionsProvider)
           .sendFile(
             peerId: widget.peerId!,
             conversationId: widget.conversationId,
@@ -174,7 +174,7 @@ class _DirectConversationScreenState
 
     try {
       await ref
-          .read(mediaActionsProvider)
+          .read(callSignalingActionsProvider)
           .prepareOutgoingCall(
             peerId: widget.peerId!,
             conversationId: widget.conversationId,
@@ -197,7 +197,7 @@ class _DirectConversationScreenState
             sendSignal: (payload) {
               unawaited(
                 ref
-                    .read(mediaActionsProvider)
+                    .read(callSignalingActionsProvider)
                     .sendCallSignal(
                       peerId: widget.peerId!,
                       conversationId: widget.conversationId,
@@ -212,7 +212,7 @@ class _DirectConversationScreenState
 
       if (result != null && result > 0) {
         await ref
-            .read(mediaActionsProvider)
+            .read(callSignalingActionsProvider)
             .addLocalCallSummary(
               conversationId: widget.conversationId,
               callType: callType,
@@ -504,7 +504,7 @@ class _DirectConversationScreenState
       conversationStreamProvider(widget.conversationId),
     );
     final localIdentityAsync = ref.watch(localIdentityProvider);
-    final mediaState = ref.watch(mediaProtocolProvider);
+    final fileTransferState = ref.watch(fileTransferProtocolProvider);
     final membersAsync = ref.watch(
       conversationMemberPeersProvider(widget.conversationId),
     );
@@ -648,7 +648,7 @@ class _DirectConversationScreenState
                                       memberNameByPeerId[message
                                           .senderPeerId] ??
                                       message.senderPeerId,
-                                  downloadProgress: mediaState.downloadProgress,
+                                  downloadProgress: fileTransferState.downloadProgress,
                                   showStatus:
                                       isMe && message.id == latestMessageId,
                                   repliedMessage: replyMessageId == null

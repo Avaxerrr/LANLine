@@ -489,7 +489,7 @@ class _ConversationRow extends ConsumerWidget {
       );
       if (peer == null || !context.mounted) return;
 
-      await ref.read(mediaActionsProvider).prepareOutgoingCall(
+      await ref.read(callSignalingActionsProvider).prepareOutgoingCall(
         peerId: peer.peerId,
         conversationId: conversation.id,
         conversationTitle: conversation.title ?? 'Direct conversation',
@@ -511,7 +511,7 @@ class _ConversationRow extends ConsumerWidget {
             isInitiator: true,
             sendSignal: (payload) {
               unawaited(
-                ref.read(mediaActionsProvider).sendCallSignal(
+                ref.read(callSignalingActionsProvider).sendCallSignal(
                   peerId: peer.peerId,
                   conversationId: conversation.id,
                   conversationTitle: conversation.title ?? 'Direct conversation',
@@ -524,7 +524,7 @@ class _ConversationRow extends ConsumerWidget {
       );
 
       if (result != null && result > 0) {
-        await ref.read(mediaActionsProvider).addLocalCallSummary(
+        await ref.read(callSignalingActionsProvider).addLocalCallSummary(
           conversationId: conversation.id,
           callType: callType,
           durationSeconds: result,

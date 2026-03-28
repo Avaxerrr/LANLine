@@ -9,9 +9,9 @@ import 'package:path/path.dart' as p;
 import '../db/app_database.dart';
 import '../identity/identity_service.dart';
 import '../network/file_transfer_manager.dart';
+import '../network/mime_utils.dart';
 import '../network/protocol_validation.dart';
 import '../network/request_signaling_service.dart';
-import '../network/webrtc_call_service.dart';
 import '../repositories/attachments_repository.dart';
 import '../repositories/conversations_repository.dart';
 import '../repositories/messages_repository.dart';
@@ -20,67 +20,28 @@ import 'identity_provider.dart';
 import 'navigation_state_provider.dart';
 import 'repository_providers.dart';
 
-const _noChange = Object();
 const _autoAcceptFileThresholdBytes = 4 * 1024 * 1024;
 
-class IncomingCall {
-  final String peerId;
-  final String displayName;
-  final String conversationId;
-  final String callId;
-  final String callType;
-
-  const IncomingCall({
-    required this.peerId,
-    required this.displayName,
-    required this.conversationId,
-    required this.callId,
-    required this.callType,
-  });
-}
-
-class MediaProtocolState {
+class FileTransferState {
   final Map<String, List<int>> downloadProgress;
-  final IncomingCall? incomingCall;
-  final String? noticeMessage;
-  final String? noticeId;
 
-  const MediaProtocolState({
-    this.downloadProgress = const {},
-    this.incomingCall,
-    this.noticeMessage,
-    this.noticeId,
-  });
+  const FileTransferState({this.downloadProgress = const {}});
 
-  MediaProtocolState copyWith({
-    Map<String, List<int>>? downloadProgress,
-    Object? incomingCall = _noChange,
-    Object? noticeMessage = _noChange,
-    Object? noticeId = _noChange,
-  }) {
-    return MediaProtocolState(
+  FileTransferState copyWith({Map<String, List<int>>? downloadProgress}) {
+    return FileTransferState(
       downloadProgress: downloadProgress ?? this.downloadProgress,
-      incomingCall: identical(incomingCall, _noChange)
-          ? this.incomingCall
-          : incomingCall as IncomingCall?,
-      noticeMessage: identical(noticeMessage, _noChange)
-          ? this.noticeMessage
-          : noticeMessage as String?,
-      noticeId: identical(noticeId, _noChange)
-          ? this.noticeId
-          : noticeId as String?,
     );
   }
 }
 
-class MediaProtocolNotifier extends Notifier<MediaProtocolState> {
+class FileTransferNotifier extends Notifier<FileTransferState> {
   StreamSubscription<String>? _messageSubscription;
   Future<void>? _startFuture;
   LocalIdentityRow? _localIdentity;
   Future<bool> Function(HttpRequest request)? _httpRequestHandler;
 
   @override
-  MediaProtocolState build() {
+  FileTransferState build() {
     final signalingService = _signalingService;
     ref.onDispose(() {
       unawaited(_messageSubscription?.cancel());
@@ -90,7 +51,7 @@ class MediaProtocolNotifier extends Notifier<MediaProtocolState> {
       }
     });
     unawaited(start());
-    return const MediaProtocolState();
+    return const FileTransferState();
   }
 
   IdentityService get _identityService => ref.read(identityServiceProvider);
@@ -124,13 +85,9 @@ class MediaProtocolNotifier extends Notifier<MediaProtocolState> {
     );
   }
 
-  /// Called when the HTTP file stream finishes on the sender side.
-  /// Acts as a reliable fallback — even if the receiver's file_downloaded
-  /// signal is lost (e.g. during Android activity recreation), the sender
-  /// still marks the transfer as completed.
   Future<void> _onOutgoingTransferServed(String attachmentId) async {
     debugPrint(
-      '[MediaProtocolNotifier] onOutgoingTransferServed: $attachmentId',
+      '[FileTransferNotifier] onOutgoingTransferServed: $attachmentId',
     );
     try {
       await _attachmentsRepository.updateAttachmentTransferMetadata(
@@ -139,24 +96,9 @@ class MediaProtocolNotifier extends Notifier<MediaProtocolState> {
       );
     } catch (error) {
       debugPrint(
-        '[MediaProtocolNotifier] onOutgoingTransferServed failed: $error',
+        '[FileTransferNotifier] onOutgoingTransferServed failed: $error',
       );
     }
-  }
-
-  Future<void> prepareOutgoingCall({
-    required String peerId,
-    required String conversationId,
-    required String conversationTitle,
-    required String callType,
-  }) async {
-    await start();
-    await _resolveEndpoint(peerId);
-    await _ensureConversation(
-      peerId: peerId,
-      conversationId: conversationId,
-      conversationTitle: conversationTitle,
-    );
   }
 
   Future<void> sendFile({
@@ -181,8 +123,8 @@ class MediaProtocolNotifier extends Notifier<MediaProtocolState> {
 
     final size = await file.length();
     final name = p.basename(file.path);
-    final mimeType = _guessMimeType(name);
-    final kind = _guessAttachmentKind(name, mimeType);
+    final mimeType = guessMimeType(name);
+    final kind = guessAttachmentKind(name, mimeType);
     final now = DateTime.now().millisecondsSinceEpoch;
 
     final message = await _messagesRepository.insertMessage(
@@ -313,88 +255,6 @@ class MediaProtocolNotifier extends Notifier<MediaProtocolState> {
     );
   }
 
-  Future<void> sendCallSignal({
-    required String peerId,
-    String? conversationId,
-    String? conversationTitle,
-    required String payload,
-  }) async {
-    await start();
-    final endpoint = await _resolveEndpoint(peerId);
-    final decoded = jsonDecode(payload);
-    if (decoded is! Map<String, dynamic>) {
-      throw StateError('Invalid call payload.');
-    }
-
-    decoded['protocol'] = 'lanline_v2_media';
-    decoded['senderPeerId'] = _localIdentity!.peerId;
-    decoded['senderDisplayName'] = _localIdentity!.displayName;
-    decoded['senderDeviceLabel'] = _localIdentity!.deviceLabel;
-    decoded['senderFingerprint'] = _localIdentity!.fingerprint;
-    if (conversationId != null) {
-      decoded['conversationId'] = conversationId;
-    }
-    if (conversationTitle != null && conversationTitle.isNotEmpty) {
-      decoded['conversationTitle'] = conversationTitle;
-    }
-    if (decoded['targetPeerId'] == null &&
-        decoded['target'] != null &&
-        decoded['target'] == peerId) {
-      decoded['targetPeerId'] = peerId;
-    }
-
-    await _signalingService.sendMessage(
-      host: endpoint.host,
-      port: endpoint.port,
-      payload: jsonEncode(decoded),
-    );
-  }
-
-  Future<void> declineIncomingCall(IncomingCall call) async {
-    await sendCallSignal(
-      peerId: call.peerId,
-      conversationId: call.conversationId,
-      payload: jsonEncode({'type': 'call_decline', 'callId': call.callId}),
-    );
-    await clearIncomingCall();
-  }
-
-  Future<void> clearIncomingCall() async {
-    state = state.copyWith(incomingCall: null);
-  }
-
-  Future<void> clearNotice() async {
-    state = state.copyWith(noticeMessage: null, noticeId: null);
-  }
-
-  Future<void> addLocalCallSummary({
-    required String conversationId,
-    required String callType,
-    required int durationSeconds,
-    String? senderPeerId,
-  }) async {
-    await start();
-    final m = (durationSeconds ~/ 60).toString().padLeft(2, '0');
-    final s = (durationSeconds % 60).toString().padLeft(2, '0');
-    final label = callType == 'video' ? 'Video call' : 'Voice call';
-    final icon = callType == 'video' ? 'Video' : 'Voice';
-
-    await _messagesRepository.insertMessage(
-      conversationId: conversationId,
-      senderPeerId: senderPeerId ?? _localIdentity!.peerId,
-      type: 'call_summary',
-      textBody: '$icon call • $m:$s',
-      status: 'read',
-      sentAt: DateTime.now().millisecondsSinceEpoch,
-      readAt: DateTime.now().millisecondsSinceEpoch,
-      metadataJson: jsonEncode({
-        'callType': callType,
-        'durationSeconds': durationSeconds,
-        'label': label,
-      }),
-    );
-  }
-
   Future<void> _handleIncomingSignal(String rawMessage) async {
     try {
       final data = jsonDecode(rawMessage);
@@ -422,38 +282,10 @@ class MediaProtocolNotifier extends Notifier<MediaProtocolState> {
         case 'file_cancel':
           await _handleIncomingFileCancel(data);
           break;
-        case CallSignal.callStart:
-          await _handleIncomingCallStart(data);
-          break;
-        case CallSignal.callJoin:
-          await _handleIncomingCallJoin(data);
-          break;
-        case CallSignal.callOffer:
-          await _handleIncomingCallOffer(data);
-          break;
-        case CallSignal.callAnswer:
-          await _handleIncomingCallAnswer(data);
-          break;
-        case CallSignal.iceCandidate:
-          await _handleIncomingIceCandidate(data);
-          break;
-        case CallSignal.callLeave:
-        case CallSignal.callEnd:
-          await _handleIncomingCallEnd(data);
-          break;
-        case 'call_busy':
-          await _handleIncomingCallBusy(data);
-          break;
-        case 'call_decline':
-          await _handleIncomingCallDecline(data);
-          break;
-        case 'call_video_toggle':
-          _handleIncomingVideoToggle(data);
-          break;
       }
     } catch (error) {
       debugPrint(
-        '[MediaProtocolNotifier] Failed to handle media event: $error',
+        '[FileTransferNotifier] Failed to handle file event: $error',
       );
     }
   }
@@ -557,9 +389,6 @@ class MediaProtocolNotifier extends Notifier<MediaProtocolState> {
         transferState: 'offered',
       );
     }
-    // The signaling service injects the sender's IP from the TCP connection.
-    // Use it as a fallback when the presence database hasn't been updated yet
-    // (common after Android activity recreation via share intent).
     final remoteHost = data['_remoteHost']?.toString();
 
     if (fileSize > 0 && fileSize <= _autoAcceptFileThresholdBytes) {
@@ -572,7 +401,7 @@ class MediaProtocolNotifier extends Notifier<MediaProtocolState> {
         );
       } catch (error) {
         debugPrint(
-          '[MediaProtocolNotifier] Failed to auto-accept small file: $error',
+          '[FileTransferNotifier] Failed to auto-accept small file: $error',
         );
       }
     }
@@ -602,7 +431,7 @@ class MediaProtocolNotifier extends Notifier<MediaProtocolState> {
     }
 
     debugPrint(
-      '[MediaProtocolNotifier] file_accept received for $attachmentId, '
+      '[FileTransferNotifier] file_accept received for $attachmentId, '
       'localPath=${attachment.localPath}',
     );
 
@@ -635,7 +464,7 @@ class MediaProtocolNotifier extends Notifier<MediaProtocolState> {
       }
     }
     debugPrint(
-      '[MediaProtocolNotifier] Sending file_ready to ${endpoint.host}:${endpoint.port} '
+      '[FileTransferNotifier] Sending file_ready to ${endpoint.host}:${endpoint.port} '
       'token=${preparedTransfer.token}',
     );
     await _signalingService.sendMessage(
@@ -685,7 +514,7 @@ class MediaProtocolNotifier extends Notifier<MediaProtocolState> {
     );
     if (attachment == null || attachment.transferState == 'cancelled') {
       debugPrint(
-        '[MediaProtocolNotifier] file_ready: attachment missing or cancelled '
+        '[FileTransferNotifier] file_ready: attachment missing or cancelled '
         'for $attachmentId',
       );
       return;
@@ -706,7 +535,7 @@ class MediaProtocolNotifier extends Notifier<MediaProtocolState> {
       }
     }
     debugPrint(
-      '[MediaProtocolNotifier] file_ready: downloading $attachmentId from '
+      '[FileTransferNotifier] file_ready: downloading $attachmentId from '
       '${endpoint.host}:${endpoint.port}$transferPath',
     );
     await _attachmentsRepository.updateAttachmentTransferMetadata(
@@ -768,7 +597,7 @@ class MediaProtocolNotifier extends Notifier<MediaProtocolState> {
           transferState: 'failed',
         );
       }
-      debugPrint('[MediaProtocolNotifier] HTTP file download failed: $error');
+      debugPrint('[FileTransferNotifier] HTTP file download failed: $error');
     }
   }
 
@@ -797,139 +626,7 @@ class MediaProtocolNotifier extends Notifier<MediaProtocolState> {
     state = state.copyWith(downloadProgress: updatedProgress);
   }
 
-  Future<void> _handleIncomingCallStart(Map<String, dynamic> data) async {
-    final senderPeerId = data['senderPeerId']?.toString();
-    final callId = data['callId']?.toString();
-    if (senderPeerId == null || callId == null) return;
-    if (senderPeerId == _localIdentity?.peerId) return;
-
-    final displayName = data['senderDisplayName']?.toString() ?? senderPeerId;
-    final conversation = await _ensureIncomingConversation(
-      peerId: senderPeerId,
-      displayName: displayName,
-      deviceLabel: data['senderDeviceLabel']?.toString(),
-      fingerprint: data['senderFingerprint']?.toString(),
-      conversationId: data['conversationId']?.toString(),
-      conversationTitle: data['conversationTitle']?.toString(),
-    );
-
-    final callService = ref.read(webRtcCallServiceProvider);
-    if (callService.state == CallState.inCall ||
-        callService.state == CallState.calling) {
-      await sendCallSignal(
-        peerId: senderPeerId,
-        conversationId: conversation.id,
-        payload: jsonEncode({'type': 'call_busy', 'callId': callId}),
-      );
-      return;
-    }
-
-    state = state.copyWith(
-      incomingCall: IncomingCall(
-        peerId: senderPeerId,
-        displayName: displayName,
-        conversationId: conversation.id,
-        callId: callId,
-        callType: data['callType']?.toString() ?? 'audio',
-      ),
-    );
-  }
-
-  Future<void> _handleIncomingCallJoin(Map<String, dynamic> data) async {
-    final senderPeerId = data['senderPeerId']?.toString();
-    if (senderPeerId == null || senderPeerId == _localIdentity?.peerId) return;
-
-    final callService = ref.read(webRtcCallServiceProvider);
-    if (callService.state == CallState.inCall) {
-      callService.callParticipants.add(senderPeerId);
-      callService.onParticipantChanged?.call(senderPeerId, true);
-      await callService.setupPeerConnection(
-        senderPeerId,
-        _localIdentity!.peerId,
-        makeOffer: true,
-      );
-    }
-  }
-
-  Future<void> _handleIncomingCallOffer(Map<String, dynamic> data) async {
-    final senderPeerId = data['senderPeerId']?.toString();
-    final targetPeerId =
-        data['targetPeerId']?.toString() ?? data['target']?.toString();
-    if (senderPeerId == null || targetPeerId != _localIdentity?.peerId) return;
-
-    await ref
-        .read(webRtcCallServiceProvider)
-        .handleOffer(
-          senderPeerId,
-          _localIdentity!.peerId,
-          Map<String, dynamic>.from(data['sdp'] as Map),
-        );
-  }
-
-  Future<void> _handleIncomingCallAnswer(Map<String, dynamic> data) async {
-    final senderPeerId = data['senderPeerId']?.toString();
-    final targetPeerId =
-        data['targetPeerId']?.toString() ?? data['target']?.toString();
-    if (senderPeerId == null || targetPeerId != _localIdentity?.peerId) return;
-
-    await ref
-        .read(webRtcCallServiceProvider)
-        .handleAnswer(
-          senderPeerId,
-          Map<String, dynamic>.from(data['sdp'] as Map),
-        );
-  }
-
-  Future<void> _handleIncomingIceCandidate(Map<String, dynamic> data) async {
-    final senderPeerId = data['senderPeerId']?.toString();
-    final targetPeerId =
-        data['targetPeerId']?.toString() ?? data['target']?.toString();
-    if (senderPeerId == null || targetPeerId != _localIdentity?.peerId) return;
-
-    await ref
-        .read(webRtcCallServiceProvider)
-        .handleIceCandidate(
-          senderPeerId,
-          Map<String, dynamic>.from(data['candidate'] as Map),
-        );
-  }
-
-  Future<void> _handleIncomingCallEnd(Map<String, dynamic> data) async {
-    final senderPeerId = data['senderPeerId']?.toString();
-    if (senderPeerId == null) return;
-    ref.read(webRtcCallServiceProvider).handleParticipantLeft(senderPeerId);
-  }
-
-  Future<void> _handleIncomingCallBusy(Map<String, dynamic> data) async {
-    await ref.read(webRtcCallServiceProvider).dispose();
-    await _emitNotice(
-      '${data['senderDisplayName']?.toString() ?? 'Contact'} is on another call.',
-    );
-  }
-
-  Future<void> _handleIncomingCallDecline(Map<String, dynamic> data) async {
-    await ref.read(webRtcCallServiceProvider).dispose();
-    await _emitNotice(
-      '${data['senderDisplayName']?.toString() ?? 'Contact'} declined the call.',
-    );
-  }
-
-  void _handleIncomingVideoToggle(Map<String, dynamic> data) {
-    final senderPeerId = data['senderPeerId']?.toString();
-    if (senderPeerId == null) return;
-    final videoEnabled = data['videoEnabled'] == true;
-    ref
-        .read(webRtcCallServiceProvider)
-        .onRemoteVideoToggle
-        ?.call(senderPeerId, videoEnabled);
-  }
-
-  Future<void> _emitNotice(String message) async {
-    state = state.copyWith(
-      noticeMessage: message,
-      noticeId: DateTime.now().microsecondsSinceEpoch.toString(),
-    );
-  }
+  // ── Shared helpers ──────────────────────────────────────────────────
 
   Future<ConversationRow> _ensureIncomingConversation({
     required String peerId,
@@ -1020,86 +717,9 @@ class MediaProtocolNotifier extends Notifier<MediaProtocolState> {
       return false;
     }
   }
-
-  String _guessAttachmentKind(String fileName, String? mimeType) {
-    final ext = p.extension(fileName).toLowerCase();
-    if ((mimeType?.startsWith('image/') ?? false) ||
-        {
-          '.jpg',
-          '.jpeg',
-          '.png',
-          '.gif',
-          '.webp',
-          '.bmp',
-          '.svg',
-        }.contains(ext)) {
-      return 'image';
-    }
-    if ((mimeType?.startsWith('audio/') ?? false) ||
-        {'.mp3', '.m4a', '.wav', '.ogg', '.aac', '.flac'}.contains(ext)) {
-      return 'audio';
-    }
-    if ((mimeType?.startsWith('video/') ?? false) ||
-        {'.mp4', '.mov', '.mkv', '.avi', '.webm'}.contains(ext)) {
-      return 'video';
-    }
-    return 'file';
-  }
-
-  String? _guessMimeType(String fileName) {
-    switch (p.extension(fileName).toLowerCase()) {
-      case '.jpg':
-      case '.jpeg':
-        return 'image/jpeg';
-      case '.png':
-        return 'image/png';
-      case '.gif':
-        return 'image/gif';
-      case '.webp':
-        return 'image/webp';
-      case '.bmp':
-        return 'image/bmp';
-      case '.svg':
-        return 'image/svg+xml';
-      case '.mp3':
-        return 'audio/mpeg';
-      case '.m4a':
-        return 'audio/mp4';
-      case '.wav':
-        return 'audio/wav';
-      case '.ogg':
-        return 'audio/ogg';
-      case '.flac':
-        return 'audio/flac';
-      case '.aac':
-        return 'audio/aac';
-      case '.mp4':
-        return 'video/mp4';
-      case '.mov':
-        return 'video/quicktime';
-      case '.mkv':
-        return 'video/x-matroska';
-      case '.avi':
-        return 'video/x-msvideo';
-      case '.webm':
-        return 'video/webm';
-      case '.pdf':
-        return 'application/pdf';
-      case '.txt':
-        return 'text/plain';
-      case '.json':
-        return 'application/json';
-      case '.csv':
-        return 'text/csv';
-      case '.zip':
-        return 'application/zip';
-      default:
-        return null;
-    }
-  }
 }
 
-final mediaProtocolProvider =
-    NotifierProvider<MediaProtocolNotifier, MediaProtocolState>(() {
-      return MediaProtocolNotifier();
+final fileTransferProtocolProvider =
+    NotifierProvider<FileTransferNotifier, FileTransferState>(() {
+      return FileTransferNotifier();
     });

@@ -10,7 +10,8 @@ import 'package:lanline/core/providers/data_providers.dart';
 import 'package:lanline/core/providers/direct_message_protocol_provider.dart';
 import 'package:lanline/core/providers/group_protocol_provider.dart';
 import 'package:lanline/core/providers/identity_provider.dart';
-import 'package:lanline/core/providers/media_protocol_provider.dart';
+import 'package:lanline/core/providers/call_signaling_provider.dart';
+import 'package:lanline/core/providers/file_transfer_protocol_provider.dart';
 import 'package:lanline/core/providers/presence_discovery_provider.dart';
 import 'package:lanline/core/providers/request_protocol_provider.dart';
 import 'package:lanline/features/call/presentation/call_screen.dart';
@@ -107,7 +108,7 @@ class _AppShellState extends ConsumerState<AppShell> {
           sendSignal: (payload) {
             unawaited(
               ref
-                  .read(mediaActionsProvider)
+                  .read(callSignalingActionsProvider)
                   .sendCallSignal(
                     peerId: peerId,
                     conversationId: conversationId,
@@ -122,7 +123,7 @@ class _AppShellState extends ConsumerState<AppShell> {
 
     if (result != null && result > 0) {
       await ref
-          .read(mediaActionsProvider)
+          .read(callSignalingActionsProvider)
           .addLocalCallSummary(
             conversationId: conversationId,
             callType: callType,
@@ -178,7 +179,7 @@ class _AppShellState extends ConsumerState<AppShell> {
           actions: [
             TextButton.icon(
               onPressed: () async {
-                await ref.read(mediaActionsProvider).declineIncomingCall(call);
+                await ref.read(callSignalingActionsProvider).declineIncomingCall(call);
                 if (dialogContext.mounted) {
                   Navigator.pop(dialogContext);
                 }
@@ -188,7 +189,7 @@ class _AppShellState extends ConsumerState<AppShell> {
             ),
             FilledButton.icon(
               onPressed: () async {
-                await ref.read(mediaActionsProvider).clearIncomingCall();
+                await ref.read(callSignalingActionsProvider).clearIncomingCall();
                 if (dialogContext.mounted) {
                   Navigator.pop(dialogContext);
                 }
@@ -214,7 +215,7 @@ class _AppShellState extends ConsumerState<AppShell> {
 
   @override
   Widget build(BuildContext context) {
-    ref.listen<MediaProtocolState>(mediaProtocolProvider, (previous, next) {
+    ref.listen<CallSignalingState>(callSignalingProvider, (previous, next) {
       final incomingCall = next.incomingCall;
       final incomingChanged =
           incomingCall != null &&
@@ -236,14 +237,15 @@ class _AppShellState extends ConsumerState<AppShell> {
           ScaffoldMessenger.of(
             context,
           ).showSnackBar(SnackBar(content: Text(noticeMessage)));
-          await ref.read(mediaActionsProvider).clearNotice();
+          await ref.read(callSignalingActionsProvider).clearNotice();
         });
       }
     });
 
     ref.watch(directMessageProtocolControllerProvider);
     ref.watch(groupProtocolControllerProvider);
-    ref.watch(mediaProtocolProvider);
+    ref.watch(fileTransferProtocolProvider);
+    ref.watch(callSignalingProvider);
     ref.watch(presenceDiscoveryControllerProvider);
     ref.watch(requestProtocolControllerProvider);
 
