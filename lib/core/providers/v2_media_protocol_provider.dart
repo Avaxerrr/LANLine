@@ -128,13 +128,20 @@ class V2MediaProtocolNotifier extends Notifier<V2MediaProtocolState> {
   /// Acts as a reliable fallback — even if the receiver's file_downloaded
   /// signal is lost (e.g. during Android activity recreation), the sender
   /// still marks the transfer as completed.
-  void _onOutgoingTransferServed(String attachmentId) {
-    unawaited(
-      _attachmentsRepository.updateAttachmentTransferMetadata(
+  Future<void> _onOutgoingTransferServed(String attachmentId) async {
+    debugPrint(
+      '[V2MediaProtocolNotifier] onOutgoingTransferServed: $attachmentId',
+    );
+    try {
+      await _attachmentsRepository.updateAttachmentTransferMetadata(
         attachmentId: attachmentId,
         transferState: 'completed',
-      ),
-    );
+      );
+    } catch (error) {
+      debugPrint(
+        '[V2MediaProtocolNotifier] onOutgoingTransferServed failed: $error',
+      );
+    }
   }
 
   Future<void> prepareOutgoingCall({
@@ -238,9 +245,22 @@ class V2MediaProtocolNotifier extends Notifier<V2MediaProtocolState> {
   Future<void> acceptFile({
     required String peerId,
     required String attachmentId,
+    String? fallbackHost,
   }) async {
     await start();
-    final endpoint = await _resolveEndpoint(peerId);
+    ({String host, int port}) endpoint;
+    try {
+      endpoint = await _resolveEndpoint(peerId);
+    } catch (_) {
+      if (fallbackHost != null) {
+        endpoint = (
+          host: fallbackHost,
+          port: V2RequestSignalingService.defaultPort,
+        );
+      } else {
+        rethrow;
+      }
+    }
     await _attachmentsRepository.updateAttachmentTransferMetadata(
       attachmentId: attachmentId,
       transferState: 'downloading',
@@ -537,20 +557,19 @@ class V2MediaProtocolNotifier extends Notifier<V2MediaProtocolState> {
         transferState: 'offered',
       );
     }
-    var canReach = await _canResolveEndpoint(senderPeerId);
-    if (!canReach &&
-        fileSize > 0 &&
-        fileSize <= _autoAcceptFileThresholdBytes) {
-      // Peer presence may not have propagated yet (e.g. app just started via
-      // share intent). Wait briefly and retry once.
-      await Future.delayed(const Duration(seconds: 2));
-      canReach = await _canResolveEndpoint(senderPeerId);
-    }
-    if (fileSize > 0 &&
-        fileSize <= _autoAcceptFileThresholdBytes &&
-        canReach) {
+    // The signaling service injects the sender's IP from the TCP connection.
+    // Use it as a fallback when the presence database hasn't been updated yet
+    // (common after Android activity recreation via share intent).
+    final remoteHost = data['_remoteHost']?.toString();
+
+    if (fileSize > 0 && fileSize <= _autoAcceptFileThresholdBytes) {
+      final canReach = await _canResolveEndpoint(senderPeerId);
       try {
-        await acceptFile(peerId: senderPeerId, attachmentId: attachmentId);
+        await acceptFile(
+          peerId: senderPeerId,
+          attachmentId: attachmentId,
+          fallbackHost: canReach ? null : remoteHost,
+        );
       } catch (error) {
         debugPrint(
           '[V2MediaProtocolNotifier] Failed to auto-accept small file: $error',
@@ -582,6 +601,11 @@ class V2MediaProtocolNotifier extends Notifier<V2MediaProtocolState> {
       return;
     }
 
+    debugPrint(
+      '[V2MediaProtocolNotifier] file_accept received for $attachmentId, '
+      'localPath=${attachment.localPath}',
+    );
+
     await _attachmentsRepository.updateAttachmentTransferMetadata(
       attachmentId: attachmentId,
       transferState: 'transferring',
@@ -596,7 +620,24 @@ class V2MediaProtocolNotifier extends Notifier<V2MediaProtocolState> {
 
     final senderPeerId = data['senderPeerId']?.toString();
     if (senderPeerId == null) return;
-    final endpoint = await _resolveEndpoint(senderPeerId);
+    ({String host, int port}) endpoint;
+    try {
+      endpoint = await _resolveEndpoint(senderPeerId);
+    } catch (_) {
+      final remoteHost = data['_remoteHost']?.toString();
+      if (remoteHost != null) {
+        endpoint = (
+          host: remoteHost,
+          port: V2RequestSignalingService.defaultPort,
+        );
+      } else {
+        rethrow;
+      }
+    }
+    debugPrint(
+      '[V2MediaProtocolNotifier] Sending file_ready to ${endpoint.host}:${endpoint.port} '
+      'token=${preparedTransfer.token}',
+    );
     await _signalingService.sendMessage(
       host: endpoint.host,
       port: endpoint.port,
@@ -643,10 +684,31 @@ class V2MediaProtocolNotifier extends Notifier<V2MediaProtocolState> {
       attachmentId,
     );
     if (attachment == null || attachment.transferState == 'cancelled') {
+      debugPrint(
+        '[V2MediaProtocolNotifier] file_ready: attachment missing or cancelled '
+        'for $attachmentId',
+      );
       return;
     }
 
-    final endpoint = await _resolveEndpoint(senderPeerId);
+    ({String host, int port}) endpoint;
+    try {
+      endpoint = await _resolveEndpoint(senderPeerId);
+    } catch (_) {
+      final remoteHost = data['_remoteHost']?.toString();
+      if (remoteHost != null) {
+        endpoint = (
+          host: remoteHost,
+          port: V2RequestSignalingService.defaultPort,
+        );
+      } else {
+        rethrow;
+      }
+    }
+    debugPrint(
+      '[V2MediaProtocolNotifier] file_ready: downloading $attachmentId from '
+      '${endpoint.host}:${endpoint.port}$transferPath',
+    );
     await _attachmentsRepository.updateAttachmentTransferMetadata(
       attachmentId: attachmentId,
       transferState: 'downloading',

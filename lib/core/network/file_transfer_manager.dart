@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:io';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
@@ -25,7 +26,9 @@ class PreparedFileTransfer {
 }
 
 /// Called when the sender has fully served a file to the receiver via HTTP.
-typedef OutgoingTransferServedCallback = void Function(String attachmentId);
+typedef OutgoingTransferServedCallback = Future<void> Function(
+  String attachmentId,
+);
 
 class FileTransferManager {
   static const String transferPathPrefix = '/v2/media/files';
@@ -100,10 +103,18 @@ class FileTransferManager {
     final token = segments[3];
     final session = _outgoingTransfers.remove(token);
     if (session == null) {
+      debugPrint(
+        '[FileTransferManager] HTTP 404: no session for token $token '
+        '(${_outgoingTransfers.length} active transfers)',
+      );
       request.response.statusCode = HttpStatus.notFound;
       await request.response.close();
       return true;
     }
+    debugPrint(
+      '[FileTransferManager] Serving file ${session.fileName} '
+      '(attachment=${session.attachmentId})',
+    );
 
     final file = File(session.filePath);
     if (!await file.exists()) {
@@ -126,7 +137,7 @@ class FileTransferManager {
       await request.response.addStream(file.openRead());
       // File fully served — notify so the sender can mark transfer as completed
       // even if the receiver's file_downloaded signal is lost.
-      onOutgoingTransferServed?.call(session.attachmentId);
+      await onOutgoingTransferServed?.call(session.attachmentId);
     } finally {
       await request.response.close();
     }
