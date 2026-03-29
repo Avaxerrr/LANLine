@@ -1096,7 +1096,7 @@ String _formatLastSeen(int timestamp) {
   final difference = DateTime.now().difference(
     DateTime.fromMillisecondsSinceEpoch(timestamp),
   );
-  if (difference.inMinutes < 2) return 'Online recently';
+  if (difference.inMinutes < 2) return 'Online';
   if (difference.inHours < 1) return '${difference.inMinutes}m ago';
   if (difference.inDays < 1) return '${difference.inHours}h ago';
   return '${difference.inDays}d ago';
