@@ -6,6 +6,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../db/app_database.dart';
 import '../identity/identity_service.dart';
+import '../network/peer_endpoint_resolver.dart';
 import '../network/request_signaling_service.dart';
 import '../network/webrtc_call_service.dart';
 import '../repositories/conversations_repository.dart';
@@ -84,6 +85,8 @@ class CallSignalingNotifier extends Notifier<CallSignalingState> {
       ref.read(messagesRepositoryProvider);
   RequestSignalingService get _signalingService =>
       ref.read(requestSignalingServiceProvider);
+  PeerEndpointResolver get _endpointResolver =>
+      PeerEndpointResolver(_peersRepository);
 
   Future<void> start() {
     if (_startFuture != null) return _startFuture!;
@@ -106,7 +109,7 @@ class CallSignalingNotifier extends Notifier<CallSignalingState> {
     required String callType,
   }) async {
     await start();
-    await _resolveEndpoint(peerId);
+    await _endpointResolver.resolve(peerId);
     await _ensureConversation(
       peerId: peerId,
       conversationId: conversationId,
@@ -121,7 +124,7 @@ class CallSignalingNotifier extends Notifier<CallSignalingState> {
     required String payload,
   }) async {
     await start();
-    final endpoint = await _resolveEndpoint(peerId);
+    final endpoint = await _endpointResolver.resolve(peerId);
     final decoded = jsonDecode(payload);
     if (decoded is! Map<String, dynamic>) {
       throw StateError('Invalid call payload.');
@@ -430,28 +433,6 @@ class CallSignalingNotifier extends Notifier<CallSignalingState> {
     );
   }
 
-  Future<({String host, int port})> _resolveEndpoint(String peerId) async {
-    final peer = await _peersRepository.getPeerByPeerId(peerId);
-    if (peer != null && peer.useTunnel) {
-      final host = peer.tunnelHost?.trim();
-      if (host == null || host.isEmpty) {
-        throw StateError(
-          'Tunnel is enabled but no tunnel host is configured.',
-        );
-      }
-      final port = peer.tunnelPort ?? RequestSignalingService.defaultPort;
-      return (host: host, port: port);
-    }
-
-    final presence = await _peersRepository.getPresenceByPeerId(peerId);
-    if (presence == null || !presence.isReachable || presence.host == null) {
-      throw StateError('Peer is not reachable right now.');
-    }
-    return (
-      host: presence.host!,
-      port: presence.port ?? RequestSignalingService.defaultPort,
-    );
-  }
 }
 
 final callSignalingProvider =

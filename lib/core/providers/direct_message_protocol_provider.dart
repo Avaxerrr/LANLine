@@ -6,6 +6,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../db/app_database.dart';
 import '../identity/identity_service.dart';
+import '../network/peer_endpoint_resolver.dart';
+import '../network/protocol_signing.dart';
 import '../network/protocol_validation.dart';
 import '../network/request_signaling_service.dart';
 import '../repositories/conversations_repository.dart';
@@ -19,10 +21,11 @@ import 'repository_providers.dart';
 class DirectMessageProtocolController {
   final RequestSignalingService _signalingService;
   final IdentityService _identityService;
-  final DeviceSignatureService _deviceSignatureService;
   final PeersRepository _peersRepository;
   final ConversationsRepository _conversationsRepository;
   final MessagesRepository _messagesRepository;
+  final PeerEndpointResolver _endpointResolver;
+  final ProtocolSigning _signing;
 
   StreamSubscription<String>? _messageSubscription;
   Future<void>? _startFuture;
@@ -38,10 +41,11 @@ class DirectMessageProtocolController {
     required MessagesRepository messagesRepository,
   }) : _signalingService = signalingService,
        _identityService = identityService,
-       _deviceSignatureService = deviceSignatureService,
        _peersRepository = peersRepository,
        _conversationsRepository = conversationsRepository,
-       _messagesRepository = messagesRepository;
+       _messagesRepository = messagesRepository,
+       _endpointResolver = PeerEndpointResolver(peersRepository),
+       _signing = ProtocolSigning(deviceSignatureService);
 
   Future<void> start() {
     if (_startFuture != null) return _startFuture!;
@@ -89,7 +93,7 @@ class DirectMessageProtocolController {
     }
 
     final peer = await _requirePeer(peerId);
-    final endpoint = await _resolveEndpoint(peerId);
+    final endpoint = await _endpointResolver.resolve(peerId);
     final conversation = conversationId != null
         ? (await _conversationsRepository.getConversationById(
                 conversationId,
@@ -115,7 +119,7 @@ class DirectMessageProtocolController {
       sentAt: DateTime.now().millisecondsSinceEpoch,
     );
 
-    final payload = await _buildSignedPayload({
+    final payload = await _signing.buildSignedPayload({
       'protocol': 'lanline_v2_message',
       'action': 'message',
       'senderPeerId': _localIdentity!.peerId,
@@ -127,7 +131,7 @@ class DirectMessageProtocolController {
       'text': trimmed,
       'replyToMessageId': replyToMessageId,
       'sentAt': message.sentAt,
-    });
+    }, localIdentity: _localIdentity!);
 
     try {
       await _signalingService.sendMessage(
@@ -178,7 +182,7 @@ class DirectMessageProtocolController {
           final peer = await _peersRepository.getPeerByPeerId(
             senderPeerId!.trim(),
           );
-          final verified = await _verifySignedPayload(
+          final verified = await _signing.verifySignedPayload(
             data,
             fallbackPublicKey: peer?.signingPublicKey,
           );
@@ -225,7 +229,7 @@ class DirectMessageProtocolController {
     }
 
     final existingPeer = await _peersRepository.getPeerByPeerId(senderPeerId);
-    final verified = await _verifySignedPayload(
+    final verified = await _signing.verifySignedPayload(
       data,
       fallbackPublicKey:
           existingPeer?.signingPublicKey ?? senderSigningPublicKey,
@@ -312,13 +316,13 @@ class DirectMessageProtocolController {
     required String peerId,
     required String clientGeneratedId,
   }) async {
-    final endpoint = await _resolveEndpoint(peerId);
-    final payload = await _buildSignedPayload({
+    final endpoint = await _endpointResolver.resolve(peerId);
+    final payload = await _signing.buildSignedPayload({
       'protocol': 'lanline_v2_message',
       'action': 'delivered',
       'senderPeerId': _localIdentity!.peerId,
       'clientGeneratedId': clientGeneratedId,
-    });
+    }, localIdentity: _localIdentity!);
 
     try {
       await _signalingService.sendMessage(
@@ -342,74 +346,10 @@ class DirectMessageProtocolController {
     return peer;
   }
 
-  Future<({String host, int port})> _resolveEndpoint(String peerId) async {
-    final peer = await _peersRepository.getPeerByPeerId(peerId);
-    if (peer != null && peer.useTunnel) {
-      final host = peer.tunnelHost?.trim();
-      if (host == null || host.isEmpty) {
-        throw StateError(
-          'Tunnel is enabled but no tunnel host is configured.',
-        );
-      }
-      final port = peer.tunnelPort ?? RequestSignalingService.defaultPort;
-      return (host: host, port: port);
-    }
-
-    final presence = await _peersRepository.getPresenceByPeerId(peerId);
-    if (presence == null || !presence.isReachable || presence.host == null) {
-      throw StateError('Peer is not reachable right now.');
-    }
-    return (
-      host: presence.host!,
-      port: presence.port ?? RequestSignalingService.defaultPort,
-    );
-  }
-
   Future<void> dispose() async {
     await _messageSubscription?.cancel();
     _messageSubscription = null;
     _startFuture = null;
-  }
-
-  Future<String> _buildSignedPayload(Map<String, dynamic> payload) async {
-    final signingPublicKey =
-        _localIdentity!.signingPublicKey ??
-        (await _deviceSignatureService.ensureIdentity()).publicKey;
-    final signature = await _deviceSignatureService.signPayload(payload);
-    return jsonEncode({
-      ...payload,
-      'senderSigningPublicKey': signingPublicKey,
-      'signature': signature,
-    });
-  }
-
-  Future<bool> _verifySignedPayload(
-    Map<String, dynamic> payload, {
-    required String? fallbackPublicKey,
-  }) async {
-    final signature = payload['signature']?.toString();
-    final publicKey =
-        payload['senderSigningPublicKey']?.toString() ?? fallbackPublicKey;
-    if (signature == null ||
-        publicKey == null ||
-        !isValidOptionalProtocolText(
-          signature,
-          maxLength: kMaxProtocolSignatureLength,
-        ) ||
-        !isValidOptionalProtocolText(
-          publicKey,
-          maxLength: kMaxProtocolSigningPublicKeyLength,
-        )) {
-      return false;
-    }
-    final signedPayload = Map<String, dynamic>.from(payload)
-      ..remove('signature')
-      ..remove('senderSigningPublicKey');
-    return _deviceSignatureService.verifyPayload(
-      payload: signedPayload,
-      publicKeyBase64: publicKey,
-      signatureBase64: signature,
-    );
   }
 }
 
